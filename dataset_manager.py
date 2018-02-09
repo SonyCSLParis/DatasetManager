@@ -29,6 +29,11 @@ all_datasets = {
 class DatasetManager:
 	def __init__(self):
 		self.package_dir = os.path.dirname(os.path.realpath(__file__))
+		self.cache_dir = os.path.join(self.package_dir,
+		                              'dataset_cache')
+		# create cache dir if it doesn't exist
+		if not os.path.exists(self.cache_dir):
+			os.mkdir(self.cache_dir)
 
 	def get_dataset(self, name: str, **dataset_kwargs) -> MusicDataset:
 		if name in all_datasets:
@@ -61,8 +66,7 @@ class DatasetManager:
 			 })
 		dataset = dataset_class_name(**kwargs)
 		filepath = os.path.join(
-			self.package_dir,
-			'dataset_cache',
+			self.cache_dir,
 			dataset.__repr__()
 		)
 		if os.path.exists(filepath):

@@ -2,9 +2,10 @@ import os
 
 import music21
 import torch
-from chorale_dataset import ChoraleDataset
-from helpers import ShortChoraleIteratorGen
-from music_dataset import MusicDataset
+from DatasetManager.chorale_dataset import ChoraleDataset
+from DatasetManager.helpers import ShortChoraleIteratorGen
+from DatasetManager.metadata import TickMetadata, FermataMetadata, KeyMetadata
+from DatasetManager.music_dataset import MusicDataset
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
@@ -81,12 +82,19 @@ class DatasetManager:
 # Usage example
 if __name__ == '__main__':
 	datataset_manager = DatasetManager()
+	subdivision = 4
+	metadatas = [
+		TickMetadata(subdivision=subdivision),
+		FermataMetadata(),
+		KeyMetadata()
+	             ]
+
 	bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
-		name='bach_chorales_test',
+		name='bach_chorales',
 		voice_ids=[0, 1, 2, 3],
-		metadatas=[],
+		metadatas=metadatas,
 		sequences_size=8,
-		subdivision=4
+		subdivision=subdivision
 	)
 	(train_dataloader,
 	 val_dataloader,

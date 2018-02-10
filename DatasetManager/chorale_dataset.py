@@ -6,8 +6,8 @@ from music21 import interval, stream
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
-from helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_note
-from music_dataset import MusicDataset
+from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_note
+from DatasetManager.music_dataset import MusicDataset
 
 
 class ChoraleDataset(MusicDataset):

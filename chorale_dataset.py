@@ -2,7 +2,6 @@ import music21
 import torch
 import numpy as np
 
-
 from music21 import interval, stream
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
@@ -102,10 +101,12 @@ class ChoraleDataset(MusicDataset):
 							 metadata_tensor) = self.transposed_chorale_and_metadata_tensors(
 								chorale,
 								semi_tone=semi_tone)
-							chorale_transpositions.update({semi_tone:
-								                               chorale_tensor})
-							metadatas_transpositions.update({semi_tone:
-								                                 metadata_tensor})
+							chorale_transpositions.update(
+								{semi_tone:
+									 chorale_tensor})
+							metadatas_transpositions.update(
+								{semi_tone:
+									 metadata_tensor})
 						else:
 							chorale_tensor = chorale_transpositions[semi_tone]
 							metadata_tensor = metadatas_transpositions[semi_tone]
@@ -137,16 +138,21 @@ class ChoraleDataset(MusicDataset):
 
 	def transposed_chorale_and_metadata_tensors(self, chorale, semi_tone):
 		"""
+		Convert chorale to a couple (chorale_tensor, metadata_tensor),
+		the original chorale is transposed semi_tone number of semi-tones
 
 		:param chorale: music21 object
 		:param semi_tone:
 		:return: couple of tensors
 		"""
 		# transpose
+		# compute the most "natural" interval given a number of semi-tones
+		# todo could be improved
 		interval_type, interval_nature = interval.convertSemitoneToSpecifierGeneric(
 			semi_tone)
 		transposition_interval = interval.Interval(
 			str(interval_nature) + interval_type)
+
 		chorale_tranposed = chorale.transpose(transposition_interval)
 		chorale_tensor = self.chorale_to_tensor(chorale_tranposed,
 		                                        offsetStart=0.,
@@ -164,7 +170,8 @@ class ChoraleDataset(MusicDataset):
 		md = []
 		if self.metadatas:
 			for metadata in self.metadatas:
-				sequence_metadata = torch.from_numpy(metadata.evaluate(chorale)).long().clone()
+				sequence_metadata = torch.from_numpy(
+					metadata.evaluate(chorale, self.subdivision)).long().clone()
 				square_metadata = sequence_metadata.repeat(self.num_voices, 1)
 				md.append(
 					square_metadata[:, :, None]
@@ -217,10 +224,11 @@ class ChoraleDataset(MusicDataset):
 		:param offsetEnd:
 		:return: torch LongTensor (1, length)
 		"""
-		list_notes_and_rests = list(part.flat.getElementsByOffset(offsetStart=offsetStart,
-		                                                          offsetEnd=offsetEnd,
-		                                                          classList=[music21.note.Note,
-		                                                                     music21.note.Rest]))
+		list_notes_and_rests = list(part.flat.getElementsByOffset(
+			offsetStart=offsetStart,
+			offsetEnd=offsetEnd,
+			classList=[music21.note.Note,
+			           music21.note.Rest]))
 		list_note_strings = [n.nameWithOctave for n in list_notes_and_rests
 		                     if n.isNote]
 		length = int((offsetEnd - offsetStart) * self.subdivision)  # in ticks
@@ -283,13 +291,14 @@ class ChoraleDataset(MusicDataset):
 		return voice_ranges
 
 	def voice_range_in_part(self, part, offsetStart, offsetEnd):
-		notes_in_subsequence = part.flat.getElementsByOffset(offsetStart,
-		                                                     offsetEnd,
-		                                                     includeEndBoundary=False,
-		                                                     mustBeginInSpan=True,
-		                                                     mustFinishInSpan=False,
-		                                                     classList=[music21.note.Note,
-		                                                                music21.note.Rest])
+		notes_in_subsequence = part.flat.getElementsByOffset(
+			offsetStart,
+			offsetEnd,
+			includeEndBoundary=False,
+			mustBeginInSpan=True,
+			mustFinishInSpan=False,
+			classList=[music21.note.Note,
+			           music21.note.Rest])
 		midi_pitches_part = [
 			n.pitch.midi
 			for n in notes_in_subsequence
@@ -301,11 +310,6 @@ class ChoraleDataset(MusicDataset):
 			return None
 
 	def compute_index_dicts(self):
-		"""
-
-		:param chorale_iterator_gen: chorale iterator constructeur
-		:return:
-		"""
 		print('Computing index dicts')
 		self.index2note_dicts = [
 			{} for _ in range(self.num_voices)

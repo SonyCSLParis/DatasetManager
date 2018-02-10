@@ -19,7 +19,7 @@ chorale_dataset_kwargs = {
 		'subdivision': 4
 }
 
-bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
+bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
 		name='bach_chorales_test',
 		**chorale_dataset_kwargs
 	)

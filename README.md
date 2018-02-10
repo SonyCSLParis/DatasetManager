@@ -1,9 +1,13 @@
 # DatasetManager
 Dataset manager to easily load symbolic music datasets
 
+## Installation
+Clone repository and then 
+`pip install -e .` in root directory.
+
 ## Usage
 ```
-
+from DatasetManager.dataset_manager import DatasetManager
 datataset_manager = DatasetManager()
 
 # parameters of the ChoraleDataset class
@@ -20,16 +24,16 @@ bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
 		**chorale_dataset_kwargs
 	)
 	
-	(train_dataloader,
-	 val_dataloader,
-	 test_dataloader) = bach_chorales_dataset.data_loaders(
+(train_dataloader,
+val_dataloader,
+test_dataloader) = bach_chorales_dataset.data_loaders(
 		batch_size=128,
 		split=(0.85, 0.10)
 	)
 	
-	# get first element
-	# couples tensor_chorale, metadata
-	# torch.LongTensor of the form (batch_size, num_voices, chorale_length)   
+# get first element
+# couples tensor_chorale, metadata
+# torch.LongTensor of the form (batch_size, num_voices, chorale_length)   
 	print(next(train_dataloader.__iter__()))
 	
 	

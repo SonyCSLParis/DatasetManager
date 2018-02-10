@@ -13,10 +13,10 @@ datataset_manager = DatasetManager()
 # parameters of the ChoraleDataset class
 # (name and chorale_corpus_it_gen need not be specified)
 chorale_dataset_kwargs = {
-		voice_ids: [0, 1, 2, 3],
-		metadatas: [],
-		sequences_size: 8,
-		subdivision: 4
+		'voice_ids': [0, 1, 2, 3],
+		'metadatas': [],
+		'sequences_size': 8,
+		'subdivision': 4
 }
 
 bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(

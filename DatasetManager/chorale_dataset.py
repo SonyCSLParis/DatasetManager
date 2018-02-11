@@ -6,7 +6,8 @@ from music21 import interval, stream
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
-from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_note
+from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
+	standard_note
 from DatasetManager.music_dataset import MusicDataset
 
 
@@ -164,8 +165,8 @@ class ChoraleDataset(MusicDataset):
 		"""
 		Adds also the index of the voices
 
-		:param chorale:
-		:return:tensor (num_voices, timesteps, len(self.metadatas) + 1)
+		:param chorale: music21 stream
+		:return:tensor (num_voices, chorale_length, len(self.metadatas) + 1)
 		"""
 		md = []
 		if self.metadatas:
@@ -369,7 +370,9 @@ class ChoraleDataset(MusicDataset):
 		:param tensor_chorale: (num_voices, length in ticks)
 		:param start_tick:
 		:param end_tick:
-		:return:
+		:return: tensor_chorale[:, start_tick: end_tick]
+		with padding if necessary
+		i.e. if start_tick < 0 or end_tick > tensor_chorale length
 		"""
 		assert start_tick < end_tick
 		assert end_tick > 0
@@ -437,6 +440,14 @@ class ChoraleDataset(MusicDataset):
 		start_symbols = torch.from_numpy(start_symbols).long().clone()
 		start_symbols = start_symbols.repeat(chorale_length, 1).transpose(0, 1)
 		return start_symbols
+
+	def random_chorale(self, chorale_length):
+		chorale_tensor = np.array(
+			[np.random.randint(len(note2index),
+			                   size=chorale_length)
+			 for note2index in self.note2index_dicts])
+		chorale_tensor = torch.from_numpy(chorale_tensor).long().clone()
+		return chorale_tensor
 
 	def tensor_chorale_to_score(self, tensor_chorale):
 		"""

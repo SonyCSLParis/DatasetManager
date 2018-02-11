@@ -389,7 +389,7 @@ class ChoraleDataset(MusicDataset):
 		padded_chorale.append(tensor_chorale[:, slice_start: slice_end])
 
 		if end_tick > length:
-			end_symbols = np.array([note2index[START_SYMBOL]
+			end_symbols = np.array([note2index[END_SYMBOL]
 			                        for note2index in self.note2index_dicts])
 			end_symbols = torch.from_numpy(end_symbols).long().clone()
 			end_symbols = end_symbols.repeat(end_tick - length, 1).transpose(0, 1)

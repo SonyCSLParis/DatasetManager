@@ -455,12 +455,6 @@ class ChoraleDataset(MusicDataset):
 		:param tensor_chorale: (num_voices, length)
 		:return:
 		"""
-		"""
-
-		:param seq: voice major
-		:param pickled_dataset:
-		:return:
-		"""
 		slur_indexes = [note2index[SLUR_SYMBOL]
 		                for note2index in self.note2index_dicts]
 

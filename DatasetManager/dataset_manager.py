@@ -71,6 +71,7 @@ class DatasetManager:
 			dataset.__repr__()
 		)
 		if os.path.exists(filepath):
+			print(f'Loading {dataset.__repr__()}')
 			dataset = torch.load(filepath)
 		else:
 			dataset.initialize()

@@ -8,7 +8,8 @@ import numpy as np
 from DatasetManager.helpers import SLUR_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
-	getUnalteredPitch, getAccidental, getOctave, note_duration, retain_altered_pitches_if_tied
+	getUnalteredPitch, getAccidental, getOctave, note_duration, \
+	is_tied_left, is_tied_right, general_note, FakeNote
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from music21 import key
@@ -49,7 +50,6 @@ class LsdbDataset(MusicDataset):
 				except (KeySignatureException, TimeSignatureException) as e:
 					print(e)
 
-
 		export_file_name = 'tmp_database/' + database_name + '.pickle'
 		pickle.dump(pieces, open(export_file_name, 'wb'))
 		print(str(len(pieces)) + ' pieces written in ' + export_file_name)
@@ -59,7 +59,6 @@ class LsdbDataset(MusicDataset):
 		# TODO
 		return f'LsdbDataset(' \
 		       f')'
-
 
 	def leadsheet_to_music21(self, leadsheet):
 		# must convert b to -
@@ -81,119 +80,203 @@ class LsdbDataset(MusicDataset):
 			                                ' do not contain "changes" attribute')
 
 		chords = []
-		melody = []
+		notes = []
 		pitch = None
 		score = music21.stream.Score()
-		part = music21.stream.Part()
-		# current_altered_pitches is a dict
-		current_altered_pitches = altered_pitches_at_key.copy()
-
-		for section_index, section in enumerate(leadsheet["changes"]):
-			for bar_index, bar in enumerate(section["bars"]):
-
+		part_notes = music21.stream.Part()
+		part_chords = music21.stream.Part()
+		for section_index, section in enumerate(leadsheet['changes']):
+			for bar_index, bar in enumerate(section['bars']):
 				# We consider only 4/4 pieces
 				# Chords in bar
 				chords_in_bar = self.chords_in_bar(bar)
+				notes_in_bar = self.notes_in_bar(bar,
+				                                 altered_pitches_at_key)
+				chords.extend(chords_in_bar)
+				notes.extend(notes_in_bar)
 
-				### Notes in bar ###
-				note_index = -1
-				bar_melody = bar["melody"]
 
-				start = 0
-				end = 0
-				# add alterations if first note is an altered tied note
+		# remove FakeNotes
+		notes = self.remove_fake_notes(notes)
+		chords = self.remove_rest_chords(chords)
 
-				first_note_in_bar = bar_melody[0]
-				if ("tie" in first_note_in_bar
-						and
-						"stop" in first_note_in_bar["tie"]):
-					current_altered_pitches = retain_altered_pitches_if_tied(
-						current_altered_pitches,
-						first_note_in_bar)
-				else:
-					current_altered_pitches = {}
+		# voice_notes = music21.stream.Voice()
+		# voice_chords = music21.stream.Voice()
+		part_notes.append(notes)
+		part_chords.append(chords)
+		for chord in part_chords.flat.getElementsByClass(music21.harmony.ChordSymbol):
+			new_chord = music21.harmony.ChordSymbol(chord.figure)
+			part_notes.insert(chord.offset, new_chord)
+			# new_chord = music21.harmony.ChordSymbol(chord.figure)
+			# part_notes.insert(chord.offset, chord)
+		# part_chords.append(chords)
+		# voice_notes.append(notes)
+		# voice_chords.append(chords)
+		# part = music21.stream.Part()
+		# part.insert(0, voice_notes)
+		# part.insert(0, voice_chords)
+		# score.append((part_notes, part_chords))
+		# score.append(part)
+		part_notes.makeMeasures(inPlace=True)
+		part_notes.measure(1).clef = music21.clef.TrebleClef()
+		score.append(part_notes)
+		# normally we should use this but it does not look good...
+		# score = music21.harmony.realizeChordSymbolDurations(score)
 
-				tmp = altered_pitches_at_key.copy()
-				tmp.update(current_altered_pitches)
-				current_altered_pitches = tmp
+		return score
 
-				for beat in range(4):
-					for tick in self.tick_values:
-						# we are afraid of precision issues
-						assert beat + tick >= start - 1e-4
-						assert beat + tick <= end + 1e-4
-						# todo 16th notes ?!
+	def remove_fake_notes(self, notes):
+		"""
+		Transforms a list of notes possibly containing FakeNotes
+		to a list of music21.note.Note with the correct durations
+		:param notes:
+		:return:
+		"""
+		previous_note = None
 
-						# continuation
-						if beat + tick < end - 1e-4:
-							melody.append(SLUR_SYMBOL)
-						# new note
-						if abs(beat + tick - end) < 1e-4:
-							note_index += 1
-							current_note = bar_melody[note_index]
+		true_notes = []
+		for note in notes:
+			if isinstance(note, FakeNote):
+				assert note.symbol == SLUR_SYMBOL
+				# will raise an error if the first note is a FakeNote
+				cumulated_duration += note.duration.quarterLength
+			else:
+				if previous_note is not None:
+					previous_note.duration = music21.duration.Duration(
+						cumulated_duration)
+					true_notes.append(previous_note)
+				previous_note = note
+				cumulated_duration = previous_note.duration.quarterLength
 
-							if pitch != SLUR_SYMBOL:
-								preceding_note = pitch
-							# pitch is Natural pitch + accidental alteration
-							# do not take into account key signatures and previous alterations
-							displayed_pitch = (REST
-							                   if current_note["duration"][-1] == 'r'
-							                   else current_note["keys"][0])
-							value = (current_note["duration"][:-1]
-							         if current_note["duration"][-1] == 'r'
-							         else current_note["duration"])
-							dot = (int(current_note["dot"])
-							       if "dot" in current_note
-							       else 0)
+		# add last note
+		previous_note.duration = music21.duration.Duration(
+			cumulated_duration)
+		true_notes.append(previous_note)
+		return true_notes
 
-							# put real alterations
-							if displayed_pitch != REST:
-								unaltered_pitch = getUnalteredPitch(current_note)
-								displayed_accidental = getAccidental(current_note)
-								octave = getOctave(current_note)
-								if displayed_accidental:
-									# special case if natural
-									if displayed_accidental == 'becarre':
-										displayed_accidental = ''
-									current_altered_pitches.update(
-										{unaltered_pitch: displayed_accidental})
-								# compute real pitch
-								if unaltered_pitch in current_altered_pitches.keys():
-									pitch = (unaltered_pitch +
-									         current_altered_pitches[unaltered_pitch] +
-									         octave)
-								else:
-									pitch = unaltered_pitch + octave
+	# todo could be merged with remove_fake_notes
+	def remove_rest_chords(self, chords):
+		"""
+		Transforms a list of ChordSymbols possibly containing Rests
+		to a list of ChordSymbols with the correct durations
+		:param chords:
+		:return:
+		"""
+		previous_chord = None
 
-							else:
-								pitch = REST
+		true_chords = []
+		for chord in chords:
+			if isinstance(chord, music21.note.Rest):
+				# will raise an error if the first chord is a FakeNote
+				cumulated_duration += chord.duration.quarterLength
+			else:
+				if previous_chord is not None:
+					previous_chord.duration = music21.duration.Duration(
+						cumulated_duration)
+					true_chords.append(previous_chord)
+				previous_chord = chord
+				cumulated_duration = previous_chord.duration.quarterLength
 
-							if "tie" in current_note:
-								if 'stop' in current_note["tie"].split('_'):
-									if preceding_note == pitch:
-										pitch = SLUR_SYMBOL
-									else:
-										raise TieException('Tie between notes '
-										                   'with different pitches in '
-										                   + leadsheet['title'] + ' ' +
-										                   str(leadsheet[
-											                       '_id']) + ' at section '
-										                   + str(section_index) + ', bar '
-										                   + str(bar_index))
+		# add last note
+		previous_chord.duration = music21.duration.Duration(
+			cumulated_duration)
+		true_chords.append(previous_chord)
+		return true_chords
 
-							time_modification = 1.
-							if "time_modification" in current_note:
-								if current_note["time_modification"] == '3/2':
-									time_modification = 2 / 3
-								else:
-									raise UnknownTimeModification
-							start = end
-							end = start + note_duration(value, dot, time_modification)
 
-							melody.append(pitch)
-		return melody, chords
+
+	def notes_in_bar(self, bar,
+	                 altered_pitches_at_key):
+		"""
+
+		:param bar:
+		:param altered_pitches_at_key:
+		:param current_altered_pitches:
+		:return: list of music21.note.Note
+		"""
+		bar_melody = bar["melody"]
+		current_altered_pitches = altered_pitches_at_key.copy()
+
+		notes = []
+		for json_note in bar_melody:
+
+			# pitch is Natural pitch + accidental alteration
+			# do not take into account key signatures and previous alterations
+			pitch = self.pitch_from_json_note(
+				json_note=json_note,
+				current_altered_pitches=current_altered_pitches)
+
+			duration = self.duration_from_json_note(json_note)
+
+			note = general_note(pitch, duration)
+			notes.append(note)
+		return notes
+
+
+
+	def duration_from_json_note(self, json_note):
+		value = (json_note["duration"][:-1]
+		         if json_note["duration"][-1] == 'r'
+		         else json_note["duration"])
+		dot = (int(json_note["dot"])
+		       if "dot" in json_note
+		       else 0)
+		time_modification = 1.
+		if "time_modification" in json_note:
+			if json_note["time_modification"] == '3/2':
+				time_modification = 2 / 3
+			else:
+				raise UnknownTimeModification
+		return note_duration(value, dot, time_modification)
+
+	def pitch_from_json_note(self, json_note, current_altered_pitches) -> str:
+		"""
+		Compute the real pitch of a json_note given the current_altered_pitches
+		Modifies current_altered_pitches in place!
+		:param json_note:
+		:param current_altered_pitches:
+		:return: string of the pitch or SLUR_SYMBOL if the note is tied
+		"""
+		# if it is a tied note
+		if "tie" in json_note:
+			if is_tied_left(json_note):
+				return SLUR_SYMBOL
+
+		displayed_pitch = (REST
+		                   if json_note["duration"][-1] == 'r'
+		                   else json_note["keys"][0])
+
+		# put real alterations
+		if displayed_pitch != REST:
+			unaltered_pitch = getUnalteredPitch(json_note)
+			displayed_accidental = getAccidental(json_note)
+			octave = getOctave(json_note)
+			if displayed_accidental:
+				# special case if natural
+				if displayed_accidental == 'becarre':
+					displayed_accidental = ''
+				current_altered_pitches.update(
+					{unaltered_pitch: displayed_accidental})
+			# compute real pitch
+			if unaltered_pitch in current_altered_pitches.keys():
+				pitch = (unaltered_pitch +
+				         current_altered_pitches[unaltered_pitch] +
+				         octave)
+			else:
+				pitch = unaltered_pitch + octave
+
+		else:
+			pitch = REST
+		return pitch
 
 	def chords_in_bar(self, bar):
+		"""
+
+		:param bar:
+		:return: list of music21.chord.Chord with their durations
+		if there are no chord on the first beat, a there is a rest
+		of the correct duration instead
+		"""
 		json_chords = bar['chords']
 		chord_durations = self.chords_duration(bar=bar)
 
@@ -223,7 +306,7 @@ class LsdbDataset(MusicDataset):
 
 		all_notes = self.chord_to_notes[json_chord_type]
 		all_notes = [note.replace('b', '-')
-		         for note in all_notes]
+		             for note in all_notes]
 
 		interval = music21.interval.Interval(
 			noteStart=music21.note.Note('C4'),
@@ -243,7 +326,7 @@ class LsdbDataset(MusicDataset):
 				# print(chord_symbol)
 				return chord_symbol
 			except (music21.pitch.AccidentalException,
-					ValueError) as e:
+			        ValueError) as e:
 				# A7b13, m69 not handled
 				print(e)
 				print(json_chord_root + json_chord_type)
@@ -251,7 +334,6 @@ class LsdbDataset(MusicDataset):
 				print(chord, chord.root())
 				print('========')
 				skip_notes += 1
-
 
 	def chords_duration(self, bar):
 		"""

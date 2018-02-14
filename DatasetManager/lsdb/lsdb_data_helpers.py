@@ -1,3 +1,6 @@
+from DatasetManager.helpers import SLUR_SYMBOL
+import music21
+
 REST = 'R'
 
 # dictionary
@@ -16,6 +19,60 @@ music21_alterations_to_json = {
 }
 
 
+class FakeNote:
+	"""
+	Class used to have SLUR_SYMBOLS with a duration
+	"""
+
+	def __init__(self, symbol, duration):
+		self.symbol = symbol
+		self.duration = duration
+
+	def __repr__(self):
+		return f'<FakeNote {self.symbol}>'
+
+
+def general_note(pitch: str, duration: float):
+	duration = music21.duration.Duration(duration)
+
+	if pitch == SLUR_SYMBOL:
+		return FakeNote(symbol=pitch,
+		                duration=duration)
+	elif pitch == REST:
+		f = music21.note.Rest()
+		f.duration = duration
+		return f
+	else:
+		f = music21.note.Note(pitch=pitch)
+		f.duration = duration
+		return f
+
+
+
+
+
+def is_tied_left(json_note):
+	"""
+
+	:param json_note:
+	:return: True is the json_note is tied FROM the left
+	"""
+	return ('tie' in json_note
+	        and
+	        'stop' in json_note["tie"].split('_'))
+
+
+def is_tied_right(json_note):
+	"""
+
+	:param json_note:
+	:return: True is the json_note is tied FROM the right
+	"""
+	return ('tie' in json_note
+	        and
+	        'start' in json_note["tie"].split('_'))
+
+
 def note_duration(note_value, dots, time_modification):
 	"""
 
@@ -23,7 +80,7 @@ def note_duration(note_value, dots, time_modification):
 	:type note_value: str
 	:param note_value: duration of the note regardless of the dots
 	:param dots: number of dots (0, 1 or 2)
-	:return: the actual duration in beats
+	:return: the actual duration in beats (float)
 	"""
 	duration = note_values[note_value]
 	for dot in range(dots):

@@ -9,7 +9,7 @@ from DatasetManager.helpers import SLUR_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
 	getUnalteredPitch, getAccidental, getOctave, note_duration, \
-	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes
+	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes, NC
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from music21 import key
@@ -107,8 +107,18 @@ class LsdbDataset(MusicDataset):
 		# todo there might be a cleaner way to do this
 		part_notes.append(notes)
 		part_chords.append(chords)
-		for chord in part_chords.flat.getElementsByClass(music21.harmony.ChordSymbol):
-			new_chord = music21.harmony.ChordSymbol(chord.figure)
+		for chord in part_chords.flat.getElementsByClass(
+				[music21.harmony.ChordSymbol,
+				music21.expressions.TextExpression
+				 ]):
+			# put durations to 0.0 as required for a good rendering
+			# handles both textExpression (for N.C.) and ChordSymbols
+			if isinstance(chord, music21.harmony.ChordSymbol):
+				new_chord = music21.harmony.ChordSymbol(chord.figure)
+			elif isinstance(chord, music21.expressions.TextExpression):
+				new_chord = music21.expressions.TextExpression(NC)
+			else:
+				raise ValueError
 			part_notes.insert(chord.offset, new_chord)
 		# new_chord = music21.harmony.ChordSymbol(chord.figure)
 		# part_notes.insert(chord.offset, chord)
@@ -298,12 +308,17 @@ class LsdbDataset(MusicDataset):
 
 	def music21_chord_from_json_chord(self, json_chord):
 		assert 'p' in json_chord
+		# root
 		json_chord_root = json_chord['p']
-		# add chord type if exists
+		# chord type
 		if 'ch' in json_chord:
 			json_chord_type = json_chord['ch']
 		else:
 			json_chord_type = ''
+
+		# N.C. chords
+		if json_chord_root == 'NC':
+			return music21.expressions.TextExpression(NC)
 
 		all_notes = self.chord_to_notes[json_chord_type]
 		all_notes = [note.replace('b', '-')
@@ -399,7 +414,7 @@ class LsdbDataset(MusicDataset):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('5122205358e3383626000003')})
+				{'_id': ObjectId('5124f4c158e3387d75000000')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)
@@ -408,7 +423,7 @@ class LsdbDataset(MusicDataset):
 
 if __name__ == '__main__':
 	dataset = LsdbDataset()
-	# dataset.test()
+	dataset.test()
 	dataset.make_score_dataset()
 
 # To obtain the chord representation of the in the score, change the music21.harmony.ChordSymbol.writeAsChord to True. Unless otherwise specified, the duration of this chord object will become 1.0. If you have a leadsheet, run music21.harmony.realizeChordSymbolDurations() on the stream to assign the correct (according to offsets) duration to each harmony object.)

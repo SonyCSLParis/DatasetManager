@@ -12,7 +12,7 @@ from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dic
 	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes, NC
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
-from music21 import key
+
 
 
 class LsdbDataset(MusicDataset):
@@ -68,9 +68,10 @@ class LsdbDataset(MusicDataset):
 			raise KeySignatureException(f'Leadsheet {leadsheet["title"]} '
 			                            f'has no keySignature')
 		key_signature = leadsheet['keySignature'].replace('b', '-')
+		key_signature = music21.key.Key(key_signature)
 
 		altered_pitches_at_key = altered_pitches_music21_to_dict(
-			key.Key(key_signature).alteredPitches)
+			key_signature.alteredPitches)
 
 		if leadsheet["time"] != '4/4':
 			raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
@@ -134,7 +135,9 @@ class LsdbDataset(MusicDataset):
 		part_notes = part_notes.makeMeasures(
 			inPlace=False,
 			refStreamOrTimeRange=[0.0, part_chords.highestTime])
+
 		part_notes.measure(1).clef = music21.clef.TrebleClef()
+		part_notes.measure(1).keySignature = key_signature
 		score.append(part_notes)
 		# normally we should use this but it does not look good...
 		# score = music21.harmony.realizeChordSymbolDurations(score)
@@ -407,6 +410,10 @@ class LsdbDataset(MusicDataset):
 			# b9#5
 			notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
 			chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
+			# 7#5#11 is WRONG in the database
+			# C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
+			notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
+			chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
 
 			return chord2notes, notes2chord
 
@@ -414,7 +421,7 @@ class LsdbDataset(MusicDataset):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('5124f4c158e3387d75000000')})
+				{'_id': ObjectId('5124f90b58e338b34b000000')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)

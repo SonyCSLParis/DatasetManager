@@ -9,7 +9,7 @@ from DatasetManager.helpers import SLUR_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
 	getUnalteredPitch, getAccidental, getOctave, note_duration, \
-	is_tied_left, is_tied_right, general_note, FakeNote
+	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from music21 import key
@@ -29,15 +29,14 @@ class LsdbDataset(MusicDataset):
 		self.number_of_beats = 4
 		self.chord_to_notes, self.notes_to_chord = self.compute_chord_dicts()
 
-	def make_tensor_dataset(self,
-	                        query={'_id': ObjectId("57e4f5de58e338a57215d906")},
-	                        database_name='tmp'):
+	def make_score_dataset(self, database_name='lsdb.pickle'):
 		"""
 
 		:param database_name:
 		:param query: default query is debug lstm leadsheet
 		:return:
 		"""
+		# todo add query
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find()
@@ -60,6 +59,9 @@ class LsdbDataset(MusicDataset):
 		return f'LsdbDataset(' \
 		       f')'
 
+	def make_tensor_dataset(self):
+		pass
+
 	def leadsheet_to_music21(self, leadsheet):
 		# must convert b to -
 		if 'keySignature' not in leadsheet:
@@ -74,14 +76,15 @@ class LsdbDataset(MusicDataset):
 			raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
 			                             str(leadsheet['_id']) +
 			                             ' is not in 4/4')
-		if "changes" not in leadsheet:
+		if 'changes' not in leadsheet:
 			raise LeadsheetParsingException('Leadsheet ' + leadsheet['title'] + ' ' +
 			                                str(leadsheet['_id']) +
 			                                ' do not contain "changes" attribute')
+		assert_no_time_signature_changes(leadsheet)
 
 		chords = []
 		notes = []
-		pitch = None
+
 		score = music21.stream.Score()
 		part_notes = music21.stream.Part()
 		part_chords = music21.stream.Part()
@@ -95,20 +98,20 @@ class LsdbDataset(MusicDataset):
 				chords.extend(chords_in_bar)
 				notes.extend(notes_in_bar)
 
-
 		# remove FakeNotes
 		notes = self.remove_fake_notes(notes)
 		chords = self.remove_rest_chords(chords)
 
 		# voice_notes = music21.stream.Voice()
 		# voice_chords = music21.stream.Voice()
+		# todo there might be a cleaner way to do this
 		part_notes.append(notes)
 		part_chords.append(chords)
 		for chord in part_chords.flat.getElementsByClass(music21.harmony.ChordSymbol):
 			new_chord = music21.harmony.ChordSymbol(chord.figure)
 			part_notes.insert(chord.offset, new_chord)
-			# new_chord = music21.harmony.ChordSymbol(chord.figure)
-			# part_notes.insert(chord.offset, chord)
+		# new_chord = music21.harmony.ChordSymbol(chord.figure)
+		# part_notes.insert(chord.offset, chord)
 		# part_chords.append(chords)
 		# voice_notes.append(notes)
 		# voice_chords.append(chords)
@@ -117,7 +120,10 @@ class LsdbDataset(MusicDataset):
 		# part.insert(0, voice_chords)
 		# score.append((part_notes, part_chords))
 		# score.append(part)
-		part_notes.makeMeasures(inPlace=True)
+
+		part_notes = part_notes.makeMeasures(
+			inPlace=False,
+			refStreamOrTimeRange=[0.0, part_chords.highestTime])
 		part_notes.measure(1).clef = music21.clef.TrebleClef()
 		score.append(part_notes)
 		# normally we should use this but it does not look good...
@@ -183,8 +189,6 @@ class LsdbDataset(MusicDataset):
 		true_chords.append(previous_chord)
 		return true_chords
 
-
-
 	def notes_in_bar(self, bar,
 	                 altered_pitches_at_key):
 		"""
@@ -199,7 +203,6 @@ class LsdbDataset(MusicDataset):
 
 		notes = []
 		for json_note in bar_melody:
-
 			# pitch is Natural pitch + accidental alteration
 			# do not take into account key signatures and previous alterations
 			pitch = self.pitch_from_json_note(
@@ -211,8 +214,6 @@ class LsdbDataset(MusicDataset):
 			note = general_note(pitch, duration)
 			notes.append(note)
 		return notes
-
-
 
 	def duration_from_json_note(self, json_note):
 		value = (json_note["duration"][:-1]
@@ -245,28 +246,28 @@ class LsdbDataset(MusicDataset):
 		displayed_pitch = (REST
 		                   if json_note["duration"][-1] == 'r'
 		                   else json_note["keys"][0])
+		# if it is a rest
+		if displayed_pitch == REST:
+			return REST
 
+		# Otherwise, if it is a true note
 		# put real alterations
-		if displayed_pitch != REST:
-			unaltered_pitch = getUnalteredPitch(json_note)
-			displayed_accidental = getAccidental(json_note)
-			octave = getOctave(json_note)
-			if displayed_accidental:
-				# special case if natural
-				if displayed_accidental == 'becarre':
-					displayed_accidental = ''
-				current_altered_pitches.update(
-					{unaltered_pitch: displayed_accidental})
-			# compute real pitch
-			if unaltered_pitch in current_altered_pitches.keys():
-				pitch = (unaltered_pitch +
-				         current_altered_pitches[unaltered_pitch] +
-				         octave)
-			else:
-				pitch = unaltered_pitch + octave
-
+		unaltered_pitch = getUnalteredPitch(json_note)
+		displayed_accidental = getAccidental(json_note)
+		octave = getOctave(json_note)
+		if displayed_accidental:
+			# special case if natural
+			if displayed_accidental == 'becarre':
+				displayed_accidental = ''
+			current_altered_pitches.update(
+				{unaltered_pitch: displayed_accidental})
+		# compute real pitch
+		if unaltered_pitch in current_altered_pitches.keys():
+			pitch = (unaltered_pitch +
+			         current_altered_pitches[unaltered_pitch] +
+			         octave)
 		else:
-			pitch = REST
+			pitch = unaltered_pitch + octave
 		return pitch
 
 	def chords_in_bar(self, bar):
@@ -327,7 +328,7 @@ class LsdbDataset(MusicDataset):
 				return chord_symbol
 			except (music21.pitch.AccidentalException,
 			        ValueError) as e:
-				# A7b13, m69 not handled
+				# A7b13, m69, 13b9 not handled
 				print(e)
 				print(json_chord_root + json_chord_type)
 				print(chord_relative, chord_relative.root())
@@ -394,9 +395,20 @@ class LsdbDataset(MusicDataset):
 
 			return chord2notes, notes2chord
 
+	def test(self):
+		with LsdbMongo() as client:
+			db = client.get_db()
+			leadsheets = db.leadsheets.find(
+				{'_id': ObjectId('5122205358e3383626000003')})
+			leadsheet = next(leadsheets)
+			print(leadsheet['title'])
+			score = self.leadsheet_to_music21(leadsheet)
+			score.show()
+
 
 if __name__ == '__main__':
 	dataset = LsdbDataset()
-	dataset.make_tensor_dataset()
+	# dataset.test()
+	dataset.make_score_dataset()
 
 # To obtain the chord representation of the in the score, change the music21.harmony.ChordSymbol.writeAsChord to True. Unless otherwise specified, the duration of this chord object will become 1.0. If you have a leadsheet, run music21.harmony.realizeChordSymbolDurations() on the stream to assign the correct (according to offsets) duration to each harmony object.)

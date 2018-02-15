@@ -7,5 +7,5 @@ setup(
 	author='Gaetan Hadjeres',
 	author_email='gaetan.hadjeres@sony.com',
 	license='BSD',
-	packages=['DatasetManager']
+	packages=['DatasetManager'], install_requires=['pymongo', 'bson', 'music21', 'sshtunnel']
 )

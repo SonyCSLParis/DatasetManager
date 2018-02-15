@@ -1,7 +1,10 @@
 from DatasetManager.helpers import SLUR_SYMBOL
 import music21
+from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
+from bson import ObjectId
 
 REST = 'R'
+NC = 'N.C.'
 
 # dictionary
 note_values = {
@@ -9,7 +12,8 @@ note_values = {
 	'h':  2.,
 	'w':  4.,
 	'8':  0.5,
-	'16': 0.25
+	'16': 0.25,
+	'32': 0.125,
 }
 
 music21_alterations_to_json = {
@@ -46,9 +50,6 @@ def general_note(pitch: str, duration: float):
 		f = music21.note.Note(pitch=pitch)
 		f.duration = duration
 		return f
-
-
-
 
 
 def is_tied_left(json_note):
@@ -151,3 +152,31 @@ def altered_pitches_music21_to_dict(alteredPitches):
 	for pitch in alteredPitches:
 		d.update({pitch.name[0]: music21_alterations_to_json[pitch.name[1]]})
 	return d
+
+
+def assert_no_time_signature_changes(leadsheet):
+	changes = leadsheet['changes']
+	for change in changes:
+		if ('(timeSig' in change or
+				('timeSignature' in change
+				 and
+				 not change['timeSignature'] == '')
+		):
+			raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
+			                             str(leadsheet['_id']) +
+			                             ' has multiple time changes')
+
+
+
+def set_metadata(score, leadsheet):
+	score.insert(0, music21.metadata.Metadata())
+
+	if 'title' in leadsheet:
+		score.metadata.title = leadsheet['title']
+	if 'composer' in leadsheet:
+		score.metadata.title = leadsheet['composer']
+
+# list of badly-formatted leadsheets
+exclude_list_ids = [
+	ObjectId('512dbeca58e3380f1c000000'), # And on the third day
+]

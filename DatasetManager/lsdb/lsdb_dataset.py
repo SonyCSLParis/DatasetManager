@@ -9,7 +9,8 @@ from DatasetManager.helpers import SLUR_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
 	getUnalteredPitch, getAccidental, getOctave, note_duration, \
-	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes, NC
+	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes, NC, \
+	exclude_list_ids
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 
@@ -39,11 +40,14 @@ class LsdbDataset(MusicDataset):
 		# todo add query
 		with LsdbMongo() as client:
 			db = client.get_db()
-			leadsheets = db.leadsheets.find()
+			leadsheets = db.leadsheets.find({'_id': {
+				'$nin': exclude_list_ids
+			}})
 			pieces = []
 
 			for leadsheet in leadsheets:
 				print(leadsheet['title'])
+				print(leadsheet['_id'])
 				try:
 					pieces.append(self.leadsheet_to_music21(leadsheet))
 				except (KeySignatureException, TimeSignatureException) as e:
@@ -139,6 +143,7 @@ class LsdbDataset(MusicDataset):
 		part_notes.measure(1).clef = music21.clef.TrebleClef()
 		part_notes.measure(1).keySignature = key_signature
 		score.append(part_notes)
+		set_metadata(score, leadsheet)
 		# normally we should use this but it does not look good...
 		# score = music21.harmony.realizeChordSymbolDurations(score)
 
@@ -421,7 +426,7 @@ class LsdbDataset(MusicDataset):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('5124f90b58e338b34b000000')})
+				{'_id': ObjectId('512dbeca58e3380f1c000000')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)

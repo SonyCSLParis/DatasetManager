@@ -245,8 +245,10 @@ class LsdbDataset(MusicDataset):
 		if "time_modification" in json_note:
 			if json_note["time_modification"] == '3/2':
 				time_modification = 2 / 3
+			elif json_note["time_modification"] == '5/4':
+				time_modification = 4 / 5
 			else:
-				raise UnknownTimeModification
+				raise UnknownTimeModification(json_note['time_modification'])
 		return note_duration(value, dot, time_modification)
 
 	def pitch_from_json_note(self, json_note, current_altered_pitches) -> str:
@@ -445,7 +447,7 @@ class LsdbDataset(MusicDataset):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('512c7f4758e338b31f000000')})
+				{'_id': ObjectId('5170086658e338d467000003')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)

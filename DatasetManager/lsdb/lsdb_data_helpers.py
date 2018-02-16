@@ -1,3 +1,5 @@
+import glob
+
 from DatasetManager.helpers import SLUR_SYMBOL
 import music21
 from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
@@ -167,13 +169,50 @@ def assert_no_time_signature_changes(leadsheet):
 			                             ' has multiple time changes')
 
 
-def set_metadata(score, leadsheet):
+def set_metadata(score, lsdb_leadsheet):
+	"""
+	
+	:param score: 
+	:param lsdb_leadsheet: 
+	:return: 
+	"""
 	score.insert(0, music21.metadata.Metadata())
 
-	if 'title' in leadsheet:
-		score.metadata.title = leadsheet['title']
-	if 'composer' in leadsheet:
-		score.metadata.composer = leadsheet['composer']
+	if 'title' in lsdb_leadsheet:
+		score.metadata.title = lsdb_leadsheet['title']
+	if 'composer' in lsdb_leadsheet:
+		score.metadata.composer = lsdb_leadsheet['composer']
+
+def notes_and_chords(leadsheet):
+	"""
+
+	:param leadsheet: music21 score
+	:return:
+	"""
+	notes = leadsheet.parts[0].flat.notesAndRests
+	chords = leadsheet.parts[0].flat.getElementsByClass(
+						[music21.harmony.ChordSymbol,
+				 music21.expressions.TextExpression
+				 ])
+	return notes, chords
+
+
+class LeadsheetIteratorGenerator:
+	"""
+	Object that returns a iterator over leadsheet (as music21 scores)
+	when called
+	:return:
+	"""
+	def __init__(self):
+		pass
+
+	def __call__(self, *args, **kwargs):
+		leadsheet_paths = glob.glob('xml/*.xml')
+		it = (
+			music21.converter.parse(leadsheet_path)
+			for leadsheet_path in leadsheet_paths
+		)
+		return it
 
 
 # list of badly-formatted leadsheets

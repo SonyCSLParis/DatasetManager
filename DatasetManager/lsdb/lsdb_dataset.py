@@ -2,6 +2,7 @@ import pickle
 
 import music21
 import re
+import os
 from bson import ObjectId
 
 import numpy as np
@@ -13,7 +14,6 @@ from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dic
 	exclude_list_ids, set_metadata
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
-
 
 
 class LsdbDataset(MusicDataset):
@@ -30,33 +30,48 @@ class LsdbDataset(MusicDataset):
 		self.number_of_beats = 4
 		self.chord_to_notes, self.notes_to_chord = self.compute_chord_dicts()
 
-	def make_score_dataset(self, database_name='lsdb.pickle'):
+	def make_score_dataset(self):
 		"""
+		Download all LSDB leadsheets, convert them into MusicXML and write them
+		in xml folder
 
-		:param database_name:
-		:param query: default query is debug lstm leadsheet
 		:return:
 		"""
+		if not os.path.exists('xml'):
+			os.mkdir('xml')
+
 		# todo add query
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find({'_id': {
 				'$nin': exclude_list_ids
 			}})
-			pieces = []
 
 			for leadsheet in leadsheets:
+				# discard leadsheet with no title
+				if 'title' not in leadsheet:
+					continue
+				if os.path.exists(os.path.join('xml',
+				                               f'{leadsheet["title"]}.xml'
+				                               )):
+					print(leadsheet['title'])
+					print(leadsheet['_id'])
+					print('exists!')
+					continue
 				print(leadsheet['title'])
 				print(leadsheet['_id'])
 				try:
-					pieces.append(self.leadsheet_to_music21(leadsheet))
-				except (KeySignatureException, TimeSignatureException) as e:
-					print(e)
+					score = self.leadsheet_to_music21(leadsheet)
+					export_file_name = os.path.join('xml',
+					                                f'{score.metadata.title}.xml'
+					                                )
 
-		export_file_name = 'tmp_database/' + database_name + '.pickle'
-		pickle.dump(pieces, open(export_file_name, 'wb'))
-		print(str(len(pieces)) + ' pieces written in ' + export_file_name)
-		return pieces
+					score.write('xml', export_file_name)
+
+				except (KeySignatureException,
+				        TimeSignatureException,
+				        LeadsheetParsingException) as e:
+					print(e)
 
 	def __repr__(self):
 		# TODO
@@ -114,7 +129,7 @@ class LsdbDataset(MusicDataset):
 		part_chords.append(chords)
 		for chord in part_chords.flat.getElementsByClass(
 				[music21.harmony.ChordSymbol,
-				music21.expressions.TextExpression
+				 music21.expressions.TextExpression
 				 ]):
 			# put durations to 0.0 as required for a good rendering
 			# handles both textExpression (for N.C.) and ChordSymbols
@@ -192,7 +207,11 @@ class LsdbDataset(MusicDataset):
 		true_chords = []
 		for chord in chords:
 			if isinstance(chord, music21.note.Rest):
-				# will raise an error if the first chord is a FakeNote
+				# if the first chord is a Rest,
+				# replace it with a N.C.
+				if previous_chord is None:
+					previous_chord = music21.expressions.TextExpression(NC)
+					cumulated_duration = 0
 				cumulated_duration += chord.duration.quarterLength
 			else:
 				if previous_chord is not None:
@@ -217,6 +236,8 @@ class LsdbDataset(MusicDataset):
 		:param current_altered_pitches:
 		:return: list of music21.note.Note
 		"""
+		if 'melody' not in bar:
+			raise LeadsheetParsingException('No melody')
 		bar_melody = bar["melody"]
 		current_altered_pitches = altered_pitches_at_key.copy()
 
@@ -243,12 +264,9 @@ class LsdbDataset(MusicDataset):
 		       else 0)
 		time_modification = 1.
 		if "time_modification" in json_note:
-			if json_note["time_modification"] == '3/2':
-				time_modification = 2 / 3
-			elif json_note["time_modification"] == '5/4':
-				time_modification = 4 / 5
-			else:
-				raise UnknownTimeModification(json_note['time_modification'])
+			# a triolet is denoted as 3/2 in json format
+			numerator, denominator = json_note["time_modification"].split('/')
+			time_modification = int(denominator) / int(numerator)
 		return note_duration(value, dot, time_modification)
 
 	def pitch_from_json_note(self, json_note, current_altered_pitches) -> str:
@@ -323,6 +341,11 @@ class LsdbDataset(MusicDataset):
 		return chords
 
 	def music21_chord_from_json_chord(self, json_chord):
+		"""
+		Tries to find closest chordSymbol
+		:param json_chord:
+		:return:
+		"""
 		assert 'p' in json_chord
 		# root
 		json_chord_root = json_chord['p']
@@ -336,13 +359,34 @@ class LsdbDataset(MusicDataset):
 		if json_chord_root == 'NC':
 			return music21.expressions.TextExpression(NC)
 
-		all_notes = self.chord_to_notes[json_chord_type]
-		all_notes = [note.replace('b', '-')
-		             for note in all_notes]
+		num_characters_chord_type = len(json_chord_type)
+		while True:
+			try:
+				all_notes = self.chord_to_notes[
+					json_chord_type[:num_characters_chord_type]]
+				all_notes = [note.replace('b', '-')
+				             for note in all_notes]
 
-		interval = music21.interval.Interval(
-			noteStart=music21.note.Note('C4'),
-			noteEnd=music21.note.Note(json_chord_root))
+				interval = music21.interval.Interval(
+					noteStart=music21.note.Note('C4'),
+					noteEnd=music21.note.Note(json_chord_root))
+				chord_symbol = self.chord_symbols_from_note_list(
+					all_notes=all_notes,
+					interval=interval
+				)
+				return chord_symbol
+			except (AttributeError, KeyError):
+				# if the preceding procedure did not work
+				print(json_chord_type[:num_characters_chord_type])
+				num_characters_chord_type -= 1
+
+	def chord_symbols_from_note_list(self, all_notes, interval):
+		"""
+
+		:param all_notes:
+		:param interval:
+		:return:
+		"""
 		skip_notes = 0
 		while True:
 			try:
@@ -361,7 +405,6 @@ class LsdbDataset(MusicDataset):
 			        ValueError) as e:
 				# A7b13, m69, 13b9 not handled
 				print(e)
-				print(json_chord_root + json_chord_type)
 				print(chord_relative, chord_relative.root())
 				print(chord, chord.root())
 				print('========')
@@ -429,25 +472,37 @@ class LsdbDataset(MusicDataset):
 				else:
 					notes2chord[notes] = [chord["mode"]]
 
-			# Add missing chords
-			# b5
-			notes2chord[('C4', 'E4', 'Gb4')] = notes2chord[('C4', 'E4', 'Gb4')] + ['b5']
-			chord2notes['b5'] = ('C4', 'E4', 'Gb4')
-			# b9#5
-			notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
-			chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
-			# 7#5#11 is WRONG in the database
-			# C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
-			notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
-			chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
+			self.correct_chord_dicts(chord2notes, notes2chord)
 
 			return chord2notes, notes2chord
+
+	def correct_chord_dicts(self, chord2notes, notes2chord):
+		"""
+		Modifies chord2notes and notes2chord in place
+		to correct errors in LSDB modes (dict of chord symbols with notes)
+		:param chord2notes:
+		:param notes2chord:
+		:return:
+		"""
+		# Add missing chords
+		# b5
+		notes2chord[('C4', 'E4', 'Gb4')] = notes2chord[('C4', 'E4', 'Gb4')] + ['b5']
+		chord2notes['b5'] = ('C4', 'E4', 'Gb4')
+		# b9#5
+		notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
+		chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
+		# 7#5#11 is WRONG in the database
+		# C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
+		notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
+		chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
+
+	# F#7#9#11 is WRONG in the database
 
 	def test(self):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('5170086658e338d467000003')})
+				{'_id': ObjectId('5193841a58e3383974000079')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)

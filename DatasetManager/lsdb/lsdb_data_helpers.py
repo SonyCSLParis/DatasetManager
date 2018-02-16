@@ -167,16 +167,16 @@ def assert_no_time_signature_changes(leadsheet):
 			                             ' has multiple time changes')
 
 
-
 def set_metadata(score, leadsheet):
 	score.insert(0, music21.metadata.Metadata())
 
 	if 'title' in leadsheet:
 		score.metadata.title = leadsheet['title']
 	if 'composer' in leadsheet:
-		score.metadata.title = leadsheet['composer']
+		score.metadata.composer = leadsheet['composer']
+
 
 # list of badly-formatted leadsheets
 exclude_list_ids = [
-	ObjectId('512dbeca58e3380f1c000000'), # And on the third day
+	ObjectId('512dbeca58e3380f1c000000'),  # And on the third day
 ]

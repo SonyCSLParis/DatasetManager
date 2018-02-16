@@ -9,8 +9,8 @@ from DatasetManager.helpers import SLUR_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
 	getUnalteredPitch, getAccidental, getOctave, note_duration, \
-	is_tied_left, is_tied_right, general_note, FakeNote, assert_no_time_signature_changes, NC, \
-	exclude_list_ids
+	is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, \
+	exclude_list_ids, set_metadata
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 
@@ -140,6 +140,7 @@ class LsdbDataset(MusicDataset):
 			inPlace=False,
 			refStreamOrTimeRange=[0.0, part_chords.highestTime])
 
+		# add treble clef and key signature
 		part_notes.measure(1).clef = music21.clef.TrebleClef()
 		part_notes.measure(1).keySignature = key_signature
 		score.append(part_notes)
@@ -296,20 +297,25 @@ class LsdbDataset(MusicDataset):
 		if there are no chord on the first beat, a there is a rest
 		of the correct duration instead
 		"""
-		json_chords = bar['chords']
 		chord_durations = self.chords_duration(bar=bar)
+		rest_duration = chord_durations[0]
 
+		# Rest chord during all the measure if no chords in bar
+		if 'chords' not in bar:
+			rest_chord = music21.note.Rest(duration=rest_duration)
+			return [rest_chord]
+
+		json_chords = bar['chords']
 		chords = []
 
 		# add Rest chord if there are no chord on the first beat
-		rest_duration = chord_durations[0]
-		if rest_duration > 0:
+		if rest_duration.quarterLength > 0:
 			rest_chord = music21.note.Rest(duration=rest_duration)
 			chords.append(rest_chord)
 
 		for json_chord, duration in zip(json_chords, chord_durations[1:]):
 			chord = self.music21_chord_from_json_chord(json_chord)
-			chord.duration = music21.duration.Duration(duration)
+			chord.duration = duration
 			chords.append(chord)
 
 		return chords
@@ -363,18 +369,27 @@ class LsdbDataset(MusicDataset):
 		"""
 
 		:param bar:
-		:return: np.array of durations in beats (float) of each chord in bar
+		:return: list of Durations in beats of each chord in bar
 		it is of length num_chords_in_bar + 1
 		the first element indicates the duration of a possible
 		__ chord (if there are no chords on the first beat)
 
-		Example:
+		Example:(
 		if bar has chords on beats 1 and 3
-		self.chords_duration(bar) = [0, 2, 2]
+		[d.quarterLength
+		for d in self.chords_duration(bar)] = [0, 2, 2]
 
 		if bar has one chord on beat 3
-		self.chords_duration(bar) = [2, 2]
+		[d.quarterLength
+		for d in self.chords_duration(bar)] = [2, 2]
+
+		if there are no chord (in 4/4):
+		[d.quarterLength
+		for d in self.chords_duration(bar)] = [4]
 		"""
+		# if there are no chords
+		if 'chords' not in bar:
+			return [music21.duration.Duration(self.number_of_beats)]
 		json_chords = bar['chords']
 		chord_durations = [json_chord['beat']
 		                   for json_chord in json_chords]
@@ -384,6 +399,10 @@ class LsdbDataset(MusicDataset):
 		# beat starts at 1...
 		chord_durations -= 1
 		chord_durations[1:] -= chord_durations[:-1]
+
+		# convert to music21 objects
+		chord_durations = [music21.duration.Duration(d)
+		                   for d in chord_durations]
 		return chord_durations
 
 	def compute_chord_dicts(self):
@@ -426,7 +445,7 @@ class LsdbDataset(MusicDataset):
 		with LsdbMongo() as client:
 			db = client.get_db()
 			leadsheets = db.leadsheets.find(
-				{'_id': ObjectId('512dbeca58e3380f1c000000')})
+				{'_id': ObjectId('512c7f4758e338b31f000000')})
 			leadsheet = next(leadsheets)
 			print(leadsheet['title'])
 			score = self.leadsheet_to_music21(leadsheet)

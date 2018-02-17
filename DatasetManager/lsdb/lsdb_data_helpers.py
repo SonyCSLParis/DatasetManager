@@ -206,6 +206,7 @@ def notes_and_chords(leadsheet):
 	:return:
 	"""
 	notes = leadsheet.parts[0].flat.notesAndRests
+	notes = [n for n in notes if not isinstance(n, music21.harmony.ChordSymbol)]
 	chords = leadsheet.parts[0].flat.getElementsByClass(
 		[music21.harmony.ChordSymbol,
 		 music21.expressions.TextExpression
@@ -220,8 +221,8 @@ class LeadsheetIteratorGenerator:
 	:return:
 	"""
 
-	def __init__(self):
-		pass
+	def __init__(self, num_elements=None):
+		self.num_elements = num_elements
 
 	def __call__(self, *args, **kwargs):
 		it = (
@@ -232,6 +233,8 @@ class LeadsheetIteratorGenerator:
 
 	def leadsheet_generator(self):
 		leadsheet_paths = glob.glob('xml/*.xml')
+		if self.num_elements is not None:
+			leadsheet_paths = leadsheet_paths[:self.num_elements]
 		for leadsheet_path in leadsheet_paths:
 			try:
 				yield music21.converter.parse(leadsheet_path)

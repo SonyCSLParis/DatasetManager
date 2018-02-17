@@ -169,6 +169,21 @@ def assert_no_time_signature_changes(leadsheet):
 			                             ' has multiple time changes')
 
 
+def leadsheet_on_ticks(leadsheet, tick_values):
+	notes, chords = notes_and_chords(leadsheet)
+	eps = 1e-5
+	for n in notes:
+		i, d = divmod(n.offset, 1)
+		flag = False
+		for tick_value in tick_values:
+			if tick_value - eps < d < tick_value + eps:
+				flag = True
+		if not flag:
+			return False
+
+	return True
+
+
 def set_metadata(score, lsdb_leadsheet):
 	"""
 	
@@ -183,6 +198,7 @@ def set_metadata(score, lsdb_leadsheet):
 	if 'composer' in lsdb_leadsheet:
 		score.metadata.composer = lsdb_leadsheet['composer']
 
+
 def notes_and_chords(leadsheet):
 	"""
 
@@ -191,9 +207,9 @@ def notes_and_chords(leadsheet):
 	"""
 	notes = leadsheet.parts[0].flat.notesAndRests
 	chords = leadsheet.parts[0].flat.getElementsByClass(
-						[music21.harmony.ChordSymbol,
-				 music21.expressions.TextExpression
-				 ])
+		[music21.harmony.ChordSymbol,
+		 music21.expressions.TextExpression
+		 ])
 	return notes, chords
 
 
@@ -203,16 +219,24 @@ class LeadsheetIteratorGenerator:
 	when called
 	:return:
 	"""
+
 	def __init__(self):
 		pass
 
 	def __call__(self, *args, **kwargs):
-		leadsheet_paths = glob.glob('xml/*.xml')
 		it = (
-			music21.converter.parse(leadsheet_path)
-			for leadsheet_path in leadsheet_paths
+			leadsheet
+			for leadsheet in self.leadsheet_generator()
 		)
 		return it
+
+	def leadsheet_generator(self):
+		leadsheet_paths = glob.glob('xml/*.xml')
+		for leadsheet_path in leadsheet_paths:
+			try:
+				yield music21.converter.parse(leadsheet_path)
+			except ZeroDivisionError:
+				print(f'{leadsheet_path} is not parsable')
 
 
 # list of badly-formatted leadsheets

@@ -107,6 +107,7 @@ ENV/
 dataset_cache/
 tmp_database/
 ressources/
+xml/
 
 # passwords
 passwords.py

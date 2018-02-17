@@ -17,17 +17,21 @@ from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dic
 	exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, leadsheet_on_ticks
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
+from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 
 class LsdbDataset(MusicDataset):
-	def __init__(self, leadsheet_iterator_gen, sequences_size):
+	def __init__(self, corpus_it_gen,
+	             name,
+	             sequences_size):
 		"""
 
-		:param leadsheet_iterator_gen:
+		:param corpus_it_gen:
 		:param sequences_size: in beats
 		"""
 		super(LsdbDataset, self).__init__()
+		self.name = name
 		self.tick_values = [0,
 		                    Fraction(1, 4),
 		                    Fraction(1, 3),
@@ -41,14 +45,15 @@ class LsdbDataset(MusicDataset):
 		self.num_voices = 2
 		self.NOTES = 0
 		self.CHORDS = 1
-		self.leadsheet_iterator_gen = leadsheet_iterator_gen
+		self.leadsheet_iterator_gen = corpus_it_gen
 		self.sequences_size = sequences_size
 		self.subdivision = len(self.tick_values)
+		self.pitch_range = [55, 84]
 
 	def __repr__(self):
 		# TODO
 		return f'LsdbDataset(' \
-		       f')'
+		       f'{self.name})'
 
 	def compute_tick_durations(self):
 		diff = [n - p
@@ -64,7 +69,9 @@ class LsdbDataset(MusicDataset):
 		"""
 		eps = 1e-4
 		notes, chords = notes_and_chords(leadsheet)
-		assert leadsheet_on_ticks(leadsheet, self.tick_values)
+		if not leadsheet_on_ticks(leadsheet, self.tick_values):
+			raise LeadsheetParsingException(
+				f'Leadsheet {leadsheet.metadata.title} has notes not on ticks')
 
 		# LEAD
 		j = 0
@@ -119,7 +126,6 @@ class LsdbDataset(MusicDataset):
 				i += 1
 				is_articulated = False
 		seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chord2index[SLUR_SYMBOL]
-		# todo padding
 		chord_tensor = torch.from_numpy(seq).long()[None, :]
 		return lead_tensor, chord_tensor
 
@@ -130,46 +136,51 @@ class LsdbDataset(MusicDataset):
 		# todo check on chorale with Chord
 		print('Making tensor dataset')
 		self.compute_index_dicts()
-		leadsheet_tensor_dataset = []
-		metadata_tensor_dataset = []
+		lead_tensor_dataset = []
+		chord_tensor_dataset = []
 		for leadsheet_id, leadsheet in tqdm(enumerate(self.leadsheet_iterator_gen())):
 			# todo transpositions
 			print(leadsheet.metadata.title)
-			lead_tensor, chord_tensor = self.lead_and_chord_tensors(leadsheet)
-			# lead
-			for offsetStart in range(-self.sequences_size + 1,
-			                         int(leadsheet.highestTime)):
-				offsetEnd = offsetStart + self.sequences_size
-				padded_lead = self.extract_with_padding(
-					tensor=lead_tensor,
-					start_tick=offsetStart * self.subdivision,
-					end_tick=offsetEnd * self.subdivision,
-					symbol2index=self.symbol2index_dicts[self.NOTES]
-				)
-				padded_chords = self.extract_with_padding(
-					tensor=chord_tensor,
-					start_tick=offsetStart,
-					end_tick=offsetEnd,
-					symbol2index=self.symbol2index_dicts[self.CHORDS]
-				)
+			if not self.is_in_range(leadsheet):
+				continue
+			try:
+				lead_tensor, chord_tensor = self.lead_and_chord_tensors(leadsheet)
+				# lead
+				for offsetStart in range(-self.sequences_size + 1,
+				                         int(leadsheet.highestTime)):
+					offsetEnd = offsetStart + self.sequences_size
+					local_lead_tensor = self.extract_with_padding(
+						tensor=lead_tensor,
+						start_tick=offsetStart * self.subdivision,
+						end_tick=offsetEnd * self.subdivision,
+						symbol2index=self.symbol2index_dicts[self.NOTES]
+					)
+					local_chord_tensor = self.extract_with_padding(
+						tensor=chord_tensor,
+						start_tick=offsetStart,
+						end_tick=offsetEnd,
+						symbol2index=self.symbol2index_dicts[self.CHORDS]
+					)
 
-	# 	# append and add batch dimension
-	# 	leadsheet_tensor_dataset.append(
-	# 		local_chorale_tensor[None, :, :])
-	# 	metadata_tensor_dataset.append(
-	# 		local_metadata_tensor[None, :, :, :])
-	# except KeyError:
-	# 	# some problems may occur with the key analyzer
-	# 	print(f'KeyError with chorale {leadsheet_id}')
+					# append and add batch dimension
+					lead_tensor_dataset.append(
+						local_lead_tensor)
+					chord_tensor_dataset.append(
+						local_chord_tensor)
+			except LeadsheetParsingException as e:
+				print(e)
 
-	# leadsheet_tensor_dataset = torch.cat(leadsheet_tensor_dataset, 0)
-	# metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
-	#
-	# dataset = TensorDataset(leadsheet_tensor_dataset,
-	#                         metadata_tensor_dataset)
+		lead_tensor_dataset = torch.cat(lead_tensor_dataset, 0)
+		chord_tensor_dataset = torch.cat(chord_tensor_dataset, 0)
 
-	# print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
-	# return dataset
+		dataset = TensorDataset(lead_tensor_dataset,
+		                        chord_tensor_dataset)
+
+		print(f'Sizes: {lead_tensor_dataset.size()},'
+		      f' {chord_tensor_dataset.size()}')
+		return dataset
+
+
 	def extract_with_padding(self, tensor,
 	                         start_tick,
 	                         end_tick,
@@ -230,6 +241,7 @@ class LsdbDataset(MusicDataset):
 			note_set.add(END_SYMBOL)
 
 		# get all notes
+		# todo filter leadsheets not in voice range
 		for leadsheet in tqdm(self.leadsheet_iterator_gen()):
 			# part is either lead or chords as lists
 			for part_id, part in enumerate(notes_and_chords(leadsheet)):
@@ -714,13 +726,20 @@ class LsdbDataset(MusicDataset):
 			score = self.leadsheet_to_music21(leadsheet)
 			score.show()
 
+	def is_in_range(self, leadsheet):
+		notes, chords = notes_and_chords(leadsheet)
+		pitches = [n.pitch.midi for n in notes if n.isNote]
+		min_pitch = min(pitches)
+		max_pitch = max(pitches)
+		return (min_pitch >= self.pitch_range[0]
+		        and max_pitch <= self.pitch_range[1])
+
+
 
 if __name__ == '__main__':
 	leadsheet_it_gen = LeadsheetIteratorGenerator(num_elements=5)
-	dataset = LsdbDataset(leadsheet_iterator_gen=leadsheet_it_gen,
+	dataset = LsdbDataset(corpus_it_gen=leadsheet_it_gen,
 	                      sequences_size=8)
 	dataset.initialize()
 # dataset.make_score_dataset()
 # dataset.test()
-
-# To obtain the chord representation of the in the score, change the music21.harmony.ChordSymbol.writeAsChord to True. Unless otherwise specified, the duration of this chord object will become 1.0. If you have a leadsheet, run music21.harmony.realizeChordSymbolDurations() on the stream to assign the correct (according to offsets) duration to each harmony object.)

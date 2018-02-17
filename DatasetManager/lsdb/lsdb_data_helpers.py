@@ -1,5 +1,5 @@
 import glob
-
+import os
 from DatasetManager.helpers import SLUR_SYMBOL
 import music21
 from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
@@ -232,7 +232,9 @@ class LeadsheetIteratorGenerator:
 		return it
 
 	def leadsheet_generator(self):
-		leadsheet_paths = glob.glob('xml/*.xml')
+		dir_path = os.path.dirname(os.path.realpath(__file__))
+		leadsheet_paths = glob.glob(
+			os.path.join(dir_path, 'xml/*.xml'))
 		if self.num_elements is not None:
 			leadsheet_paths = leadsheet_paths[:self.num_elements]
 		for leadsheet_path in leadsheet_paths:

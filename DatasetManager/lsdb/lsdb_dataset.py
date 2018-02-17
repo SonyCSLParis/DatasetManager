@@ -56,7 +56,6 @@ class LsdbDataset(MusicDataset):
 		diff = diff + [1 - self.tick_values[-1]]
 		return diff
 
-
 	def lead_and_chord_tensors(self, leadsheet):
 		"""
 
@@ -83,7 +82,7 @@ class LsdbDataset(MusicDataset):
 					           is_articulated]
 					i += 1
 					current_tick += self.tick_durations[
-						(i-1) % len(self.tick_values)]
+						(i - 1) % len(self.tick_values)]
 					is_articulated = False
 				else:
 					j += 1
@@ -138,24 +137,30 @@ class LsdbDataset(MusicDataset):
 			print(leadsheet.metadata.title)
 			lead_tensor, chord_tensor = self.lead_and_chord_tensors(leadsheet)
 			# lead
-			for offsetStart in range(leadsheet.highestTime):
+			for offsetStart in range(-self.sequences_size + 1,
+			                         int(leadsheet.highestTime)):
 				offsetEnd = offsetStart + self.sequences_size
+				padded_lead = self.extract_with_padding(
+					tensor=lead_tensor,
+					start_tick=offsetStart * self.subdivision,
+					end_tick=offsetEnd * self.subdivision,
+					symbol2index=self.symbol2index_dicts[self.NOTES]
+				)
+				padded_chords = self.extract_with_padding(
+					tensor=chord_tensor,
+					start_tick=offsetStart,
+					end_tick=offsetEnd,
+					symbol2index=self.symbol2index_dicts[self.CHORDS]
+				)
 
-			# local_chorale_tensor = self.extract_chorale_with_padding(
-			# 	chorale_tensor,
-			# 	start_tick, end_tick)
-			# local_metadata_tensor = self.extract_metadata_with_padding(
-			# 	metadata_tensor,
-			# 	start_tick, end_tick)
-		#
-		# 	# append and add batch dimension
-		# 	leadsheet_tensor_dataset.append(
-		# 		local_chorale_tensor[None, :, :])
-		# 	metadata_tensor_dataset.append(
-		# 		local_metadata_tensor[None, :, :, :])
-		# except KeyError:
-		# 	# some problems may occur with the key analyzer
-		# 	print(f'KeyError with chorale {leadsheet_id}')
+	# 	# append and add batch dimension
+	# 	leadsheet_tensor_dataset.append(
+	# 		local_chorale_tensor[None, :, :])
+	# 	metadata_tensor_dataset.append(
+	# 		local_metadata_tensor[None, :, :, :])
+	# except KeyError:
+	# 	# some problems may occur with the key analyzer
+	# 	print(f'KeyError with chorale {leadsheet_id}')
 
 	# leadsheet_tensor_dataset = torch.cat(leadsheet_tensor_dataset, 0)
 	# metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
@@ -165,6 +170,42 @@ class LsdbDataset(MusicDataset):
 
 	# print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
 	# return dataset
+	def extract_with_padding(self, tensor,
+	                         start_tick,
+	                         end_tick,
+	                         symbol2index):
+		"""
+
+		:param tensor: (batch_size, length)
+		:param start_tick:
+		:param end_tick:
+		:param symbol2index:
+		:return: (batch_size, end_tick - start_tick)
+		"""
+		assert start_tick < end_tick
+		assert end_tick > 0
+		batch_size, length = tensor.size()
+
+		padded_tensor = []
+		if start_tick < 0:
+			start_symbols = np.array([symbol2index[START_SYMBOL]])
+			start_symbols = torch.from_numpy(start_symbols).long().clone()
+			start_symbols = start_symbols.repeat(batch_size, -start_tick)
+			padded_tensor.append(start_symbols)
+
+		slice_start = start_tick if start_tick > 0 else 0
+		slice_end = end_tick if end_tick < length else length
+
+		padded_tensor.append(tensor[:, slice_start: slice_end])
+
+		if end_tick > length:
+			end_symbols = np.array([symbol2index[END_SYMBOL]])
+			end_symbols = torch.from_numpy(end_symbols).long().clone()
+			end_symbols = end_symbols.repeat(batch_size, end_tick - length)
+			padded_tensor.append(end_symbols)
+
+		padded_tensor = torch.cat(padded_tensor, 1)
+		return padded_tensor
 
 	def is_lead(self, voice_id):
 		return voice_id == self.NOTES

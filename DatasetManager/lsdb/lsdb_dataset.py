@@ -58,14 +58,19 @@ class LsdbDataset(MusicDataset):
 
 
 	def lead_and_chord_tensors(self, leadsheet):
+		"""
+
+		:param leadsheet:
+		:return: lead_tensor and chord_tensor
+		"""
 		eps = 1e-4
 		notes, chords = notes_and_chords(leadsheet)
-		length = int(leadsheet.highestTime * self.subdivision)
 		assert leadsheet_on_ticks(leadsheet, self.tick_values)
 
-		# construct sequence
+		# LEAD
 		j = 0
 		i = 0
+		length = int(leadsheet.highestTime * self.subdivision)
 		t = np.zeros((length, 2))
 		is_articulated = True
 		num_notes = len(notes)
@@ -88,9 +93,36 @@ class LsdbDataset(MusicDataset):
 				           is_articulated]
 				i += 1
 				is_articulated = False
-		seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
-		tensor = torch.from_numpy(seq).long()[None, :]
-		return tensor
+		lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
+		lead_tensor = torch.from_numpy(lead).long()[None, :]
+
+		# CHORDS
+		j = 0
+		i = 0
+		length = int(leadsheet.highestTime)
+		t = np.zeros((length, 2))
+		is_articulated = True
+		num_chords = len(chords)
+		chord2index = self.symbol2index_dicts[self.CHORDS]
+		while i < length:
+			if j < num_chords - 1:
+				if chords[j + 1].offset > i:
+					t[i, :] = [chord2index[standard_name(chords[j])],
+					           is_articulated]
+					i += 1
+					is_articulated = False
+				else:
+					j += 1
+					is_articulated = True
+			else:
+				t[i, :] = [chord2index[standard_name(chords[j])],
+				           is_articulated]
+				i += 1
+				is_articulated = False
+		seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chord2index[SLUR_SYMBOL]
+		# todo padding
+		chord_tensor = torch.from_numpy(seq).long()[None, :]
+		return lead_tensor, chord_tensor
 
 	def make_tensor_dataset(self):
 		"""
@@ -104,7 +136,7 @@ class LsdbDataset(MusicDataset):
 		for leadsheet_id, leadsheet in tqdm(enumerate(self.leadsheet_iterator_gen())):
 			# todo transpositions
 			print(leadsheet.metadata.title)
-			notes_tensor = self.lead_and_chord_tensors(leadsheet)
+			lead_tensor, chord_tensor = self.lead_and_chord_tensors(leadsheet)
 			# lead
 			for offsetStart in range(leadsheet.highestTime):
 				offsetEnd = offsetStart + self.sequences_size

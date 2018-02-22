@@ -1,6 +1,6 @@
 import music21
 from itertools import islice
-from music21 import note
+from music21 import note, harmony, expressions
 
 # constants
 SLUR_SYMBOL = '__'
@@ -9,12 +9,21 @@ END_SYMBOL = 'END'
 
 
 def standard_name(note_or_rest):
+	"""
+	Convert music21 objects to str
+	:param note_or_rest:
+	:return:
+	"""
 	if isinstance(note_or_rest, note.Note):
 		return note_or_rest.nameWithOctave
 	if isinstance(note_or_rest, note.Rest):
 		return note_or_rest.name
 	if isinstance(note_or_rest, str):
 		return note_or_rest
+	if isinstance(note_or_rest, harmony.ChordSymbol):
+		return note_or_rest.figure
+	if isinstance(note_or_rest, expressions.TextExpression):
+		return note_or_rest.content
 
 
 def standard_note(note_or_rest_string):

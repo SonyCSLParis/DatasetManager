@@ -4,6 +4,8 @@ import music21
 import torch
 from DatasetManager.chorale_dataset import ChoraleDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
+from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
+from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.metadata import TickMetadata, FermataMetadata, KeyMetadata
 from DatasetManager.music_dataset import MusicDataset
 
@@ -22,6 +24,12 @@ all_datasets = {
 		{
 			'dataset_class_name': ChoraleDataset,
 			'corpus_it_gen':      ShortChoraleIteratorGen()
+		},
+	'lsdb_test':
+		{
+			'dataset_class_name': LsdbDataset,
+			'corpus_it_gen':      LeadsheetIteratorGenerator(
+				num_elements=500)
 		},
 
 }
@@ -63,7 +71,7 @@ class DatasetManager:
 		"""
 		kwargs.update(
 			{'name':                  name,
-			 'chorale_corpus_it_gen': corpus_it_gen
+			 'corpus_it_gen': corpus_it_gen
 			 })
 		dataset = dataset_class_name(**kwargs)
 		filepath = os.path.join(
@@ -83,23 +91,39 @@ class DatasetManager:
 # Usage example
 if __name__ == '__main__':
 	datataset_manager = DatasetManager()
-	subdivision = 4
-	metadatas = [
-		TickMetadata(subdivision=subdivision),
-		FermataMetadata(),
-		KeyMetadata()
-	             ]
+	# BACH
 
-	bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
-		name='bach_chorales',
-		voice_ids=[0, 1, 2, 3],
-		metadatas=metadatas,
+	# subdivision = 4
+	# metadatas = [
+	# 	TickMetadata(subdivision=subdivision),
+	# 	FermataMetadata(),
+	# 	KeyMetadata()
+	#              ]
+	#
+	# bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
+	# 	name='bach_chorales',
+	# 	voice_ids=[0, 1, 2, 3],
+	# 	metadatas=metadatas,
+	# 	sequences_size=8,
+	# 	subdivision=subdivision
+	# )
+	# (train_dataloader,
+	#  val_dataloader,
+	#  test_dataloader) = bach_chorales_dataset.data_loaders(
+	# 	batch_size=128,
+	# 	split=(0.85, 0.10)
+	# )
+	# print(next(train_dataloader.__iter__()))
+
+
+	# LSDB
+	lsdb_dataset: LsdbDataset = datataset_manager.get_dataset(
+		name='lsdb_test',
 		sequences_size=8,
-		subdivision=subdivision
 	)
 	(train_dataloader,
 	 val_dataloader,
-	 test_dataloader) = bach_chorales_dataset.data_loaders(
+	 test_dataloader) = lsdb_dataset.data_loaders(
 		batch_size=128,
 		split=(0.85, 0.10)
 	)

@@ -105,3 +105,9 @@ ENV/
 
 # cache folder
 dataset_cache/
+tmp_database/
+ressources/
+xml/
+
+# passwords
+passwords.py

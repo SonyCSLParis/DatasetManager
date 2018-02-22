@@ -17,14 +17,14 @@ class ChoraleDataset(MusicDataset):
 	"""
 
 	def __init__(self,
-	             chorale_corpus_it_gen,
+	             corpus_it_gen,
 	             name,
 	             voice_ids,
 	             metadatas=None,
 	             sequences_size=8,
 	             subdivision=4):
 		"""
-		:param chorale_corpus_it_gen: calling this function returns an iterator
+		:param corpus_it_gen: calling this function returns an iterator
 		over chorales (as music21 scores)
 		:param name:
 		:param voice_ids: list of voice_indexes to be used
@@ -39,7 +39,7 @@ class ChoraleDataset(MusicDataset):
 		self.sequences_size = sequences_size
 		self.index2note_dicts = None
 		self.note2index_dicts = None
-		self.chorale_corpus_it_gen = chorale_corpus_it_gen
+		self.chorale_corpus_it_gen = corpus_it_gen
 		self.voice_ranges = None  # in midi pitch
 		self.metadatas = metadatas
 		self.subdivision = subdivision

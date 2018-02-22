@@ -23,8 +23,8 @@ from tqdm import tqdm
 
 class LsdbDataset(MusicDataset):
 	def __init__(self, corpus_it_gen,
-	             name,
-	             sequences_size):
+				 name,
+				 sequences_size):
 		"""
 
 		:param corpus_it_gen:
@@ -33,15 +33,21 @@ class LsdbDataset(MusicDataset):
 		super(LsdbDataset, self).__init__()
 		self.name = name
 		self.tick_values = [0,
-		                    Fraction(1, 4),
-		                    Fraction(1, 3),
-		                    Fraction(1, 2),
-		                    Fraction(2, 3),
-		                    Fraction(3, 4)]
+							Fraction(1, 4),
+							Fraction(1, 3),
+							Fraction(1, 2),
+							Fraction(2, 3),
+							Fraction(3, 4)]
 		self.tick_durations = self.compute_tick_durations()
 		self.number_of_beats = 4
-		(self.lsdb_chord_to_notes,
-		 self.notes_to_chord_lsdb) = self.compute_chord_dicts()
+		try:
+			(self.lsdb_chord_to_notes,
+			 self.notes_to_chord_lsdb) = self.compute_chord_dicts()
+		except (AttributeError, ValueError):
+			print('Chords maps cannot be loaded')
+			self.lsdb_chord_to_notes = None
+			self.notes_to_chord_lsdb = None
+
 		self.num_voices = 2
 		self.NOTES = 0
 		self.CHORDS = 1
@@ -53,11 +59,11 @@ class LsdbDataset(MusicDataset):
 	def __repr__(self):
 		# TODO
 		return f'LsdbDataset(' \
-		       f'{self.name})'
+			   f'{self.name})'
 
 	def compute_tick_durations(self):
 		diff = [n - p
-		        for n, p in zip(self.tick_values[1:], self.tick_values[:-1])]
+				for n, p in zip(self.tick_values[1:], self.tick_values[:-1])]
 		diff = diff + [1 - self.tick_values[-1]]
 		return diff
 
@@ -86,7 +92,7 @@ class LsdbDataset(MusicDataset):
 			if j < num_notes - 1:
 				if notes[j + 1].offset > current_tick + eps:
 					t[i, :] = [note2index[standard_name(notes[j])],
-					           is_articulated]
+							   is_articulated]
 					i += 1
 					current_tick += self.tick_durations[
 						(i - 1) % len(self.tick_values)]
@@ -96,7 +102,7 @@ class LsdbDataset(MusicDataset):
 					is_articulated = True
 			else:
 				t[i, :] = [note2index[standard_name(notes[j])],
-				           is_articulated]
+						   is_articulated]
 				i += 1
 				is_articulated = False
 		lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
@@ -114,7 +120,7 @@ class LsdbDataset(MusicDataset):
 			if j < num_chords - 1:
 				if chords[j + 1].offset > i:
 					t[i, :] = [chord2index[standard_name(chords[j])],
-					           is_articulated]
+							   is_articulated]
 					i += 1
 					is_articulated = False
 				else:
@@ -122,7 +128,7 @@ class LsdbDataset(MusicDataset):
 					is_articulated = True
 			else:
 				t[i, :] = [chord2index[standard_name(chords[j])],
-				           is_articulated]
+						   is_articulated]
 				i += 1
 				is_articulated = False
 		seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chord2index[SLUR_SYMBOL]
@@ -147,7 +153,7 @@ class LsdbDataset(MusicDataset):
 				lead_tensor, chord_tensor = self.lead_and_chord_tensors(leadsheet)
 				# lead
 				for offsetStart in range(-self.sequences_size + 1,
-				                         int(leadsheet.highestTime)):
+										 int(leadsheet.highestTime)):
 					offsetEnd = offsetStart + self.sequences_size
 					local_lead_tensor = self.extract_with_padding(
 						tensor=lead_tensor,
@@ -174,17 +180,17 @@ class LsdbDataset(MusicDataset):
 		chord_tensor_dataset = torch.cat(chord_tensor_dataset, 0)
 
 		dataset = TensorDataset(lead_tensor_dataset,
-		                        chord_tensor_dataset)
+								chord_tensor_dataset)
 
 		print(f'Sizes: {lead_tensor_dataset.size()},'
-		      f' {chord_tensor_dataset.size()}')
+			  f' {chord_tensor_dataset.size()}')
 		return dataset
 
 
 	def extract_with_padding(self, tensor,
-	                         start_tick,
-	                         end_tick,
-	                         symbol2index):
+							 start_tick,
+							 end_tick,
+							 symbol2index):
 		"""
 
 		:param tensor: (batch_size, length)
@@ -250,8 +256,8 @@ class LsdbDataset(MusicDataset):
 
 		# create tables
 		for note_set, index2note, note2index in zip(note_sets,
-		                                            self.index2symbol_dicts,
-		                                            self.symbol2index_dicts):
+													self.index2symbol_dicts,
+													self.symbol2index_dicts):
 			for note_index, note in enumerate(note_set):
 				index2note.update({note_index: note})
 				note2index.update({note: note_index})
@@ -278,8 +284,8 @@ class LsdbDataset(MusicDataset):
 				if 'title' not in leadsheet:
 					continue
 				if os.path.exists(os.path.join('xml',
-				                               f'{leadsheet["title"]}.xml'
-				                               )):
+											   f'{leadsheet["title"]}.xml'
+											   )):
 					print(leadsheet['title'])
 					print(leadsheet['_id'])
 					print('exists!')
@@ -289,21 +295,21 @@ class LsdbDataset(MusicDataset):
 				try:
 					score = self.leadsheet_to_music21(leadsheet)
 					export_file_name = os.path.join('xml',
-					                                f'{score.metadata.title}.xml'
-					                                )
+													f'{score.metadata.title}.xml'
+													)
 
 					score.write('xml', export_file_name)
 
 				except (KeySignatureException,
-				        TimeSignatureException,
-				        LeadsheetParsingException) as e:
+						TimeSignatureException,
+						LeadsheetParsingException) as e:
 					print(e)
 
 	def leadsheet_to_music21(self, leadsheet):
 		# must convert b to -
 		if 'keySignature' not in leadsheet:
 			raise KeySignatureException(f'Leadsheet {leadsheet["title"]} '
-			                            f'has no keySignature')
+										f'has no keySignature')
 		key_signature = leadsheet['keySignature'].replace('b', '-')
 		key_signature = music21.key.Key(key_signature)
 
@@ -312,12 +318,12 @@ class LsdbDataset(MusicDataset):
 
 		if leadsheet["time"] != '4/4':
 			raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
-			                             str(leadsheet['_id']) +
-			                             ' is not in 4/4')
+										 str(leadsheet['_id']) +
+										 ' is not in 4/4')
 		if 'changes' not in leadsheet:
 			raise LeadsheetParsingException('Leadsheet ' + leadsheet['title'] + ' ' +
-			                                str(leadsheet['_id']) +
-			                                ' do not contain "changes" attribute')
+											str(leadsheet['_id']) +
+											' do not contain "changes" attribute')
 		assert_no_time_signature_changes(leadsheet)
 
 		chords = []
@@ -332,7 +338,7 @@ class LsdbDataset(MusicDataset):
 				# Chords in bar
 				chords_in_bar = self.chords_in_bar(bar)
 				notes_in_bar = self.notes_in_bar(bar,
-				                                 altered_pitches_at_key)
+												 altered_pitches_at_key)
 				chords.extend(chords_in_bar)
 				notes.extend(notes_in_bar)
 
@@ -446,7 +452,7 @@ class LsdbDataset(MusicDataset):
 		return true_chords
 
 	def notes_in_bar(self, bar,
-	                 altered_pitches_at_key):
+					 altered_pitches_at_key):
 		"""
 
 		:param bar:
@@ -475,11 +481,11 @@ class LsdbDataset(MusicDataset):
 
 	def duration_from_json_note(self, json_note):
 		value = (json_note["duration"][:-1]
-		         if json_note["duration"][-1] == 'r'
-		         else json_note["duration"])
+				 if json_note["duration"][-1] == 'r'
+				 else json_note["duration"])
 		dot = (int(json_note["dot"])
-		       if "dot" in json_note
-		       else 0)
+			   if "dot" in json_note
+			   else 0)
 		time_modification = 1.
 		if "time_modification" in json_note:
 			# a triolet is denoted as 3/2 in json format
@@ -501,8 +507,8 @@ class LsdbDataset(MusicDataset):
 				return SLUR_SYMBOL
 
 		displayed_pitch = (REST
-		                   if json_note["duration"][-1] == 'r'
-		                   else json_note["keys"][0])
+						   if json_note["duration"][-1] == 'r'
+						   else json_note["keys"][0])
 		# if it is a rest
 		if displayed_pitch == REST:
 			return REST
@@ -521,8 +527,8 @@ class LsdbDataset(MusicDataset):
 		# compute real pitch
 		if unaltered_pitch in current_altered_pitches.keys():
 			pitch = (unaltered_pitch +
-			         current_altered_pitches[unaltered_pitch] +
-			         octave)
+					 current_altered_pitches[unaltered_pitch] +
+					 octave)
 		else:
 			pitch = unaltered_pitch + octave
 		return pitch
@@ -583,7 +589,7 @@ class LsdbDataset(MusicDataset):
 				all_notes = self.lsdb_chord_to_notes[
 					json_chord_type[:num_characters_chord_type]]
 				all_notes = [note.replace('b', '-')
-				             for note in all_notes]
+							 for note in all_notes]
 
 				interval = music21.interval.Interval(
 					noteStart=music21.note.Note('C4'),
@@ -620,7 +626,7 @@ class LsdbDataset(MusicDataset):
 				# print(chord_symbol)
 				return chord_symbol
 			except (music21.pitch.AccidentalException,
-			        ValueError) as e:
+					ValueError) as e:
 				# A7b13, m69, 13b9 not handled
 				print(e)
 				print(chord_relative, chord_relative.root())
@@ -655,7 +661,7 @@ class LsdbDataset(MusicDataset):
 			return [music21.duration.Duration(self.number_of_beats)]
 		json_chords = bar['chords']
 		chord_durations = [json_chord['beat']
-		                   for json_chord in json_chords]
+						   for json_chord in json_chords]
 		chord_durations += [self.number_of_beats + 1]
 		chord_durations = np.array(chord_durations, dtype=np.float)
 
@@ -665,7 +671,7 @@ class LsdbDataset(MusicDataset):
 
 		# convert to music21 objects
 		chord_durations = [music21.duration.Duration(d)
-		                   for d in chord_durations]
+						   for d in chord_durations]
 		return chord_durations
 
 	def compute_chord_dicts(self):
@@ -732,14 +738,21 @@ class LsdbDataset(MusicDataset):
 		min_pitch = min(pitches)
 		max_pitch = max(pitches)
 		return (min_pitch >= self.pitch_range[0]
-		        and max_pitch <= self.pitch_range[1])
+				and max_pitch <= self.pitch_range[1])
 
+	def random_leadsheet_tensor(self, sequence_length):
+		lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
+							   size=sequence_length * self.subdivision)
+		chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
+							   size=sequence_length)
+
+		return chorale_tensor
 
 
 if __name__ == '__main__':
 	leadsheet_it_gen = LeadsheetIteratorGenerator(num_elements=5)
 	dataset = LsdbDataset(corpus_it_gen=leadsheet_it_gen,
-	                      sequences_size=8)
+						  sequences_size=8)
 	dataset.initialize()
 # dataset.make_score_dataset()
 # dataset.test()

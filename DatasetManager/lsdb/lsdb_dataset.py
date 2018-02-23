@@ -9,7 +9,7 @@ import torch
 from bson import ObjectId
 
 import numpy as np
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, standard_note
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
@@ -748,6 +748,50 @@ class LsdbDataset(MusicDataset):
         chords_tensor = torch.from_numpy(chords_tensor).long()
 
         return lead_tensor, chords_tensor
+
+    def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords):
+        """
+        Converts leadsheet given as tensor_lead and tensor_chords
+        to a true music21 score
+        :param tensor_lead:
+        :param tensor_chords:
+        :return:
+        """
+        slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
+
+        score = music21.stream.Score()
+        part = music21.stream.Part()
+
+        # LEAD
+        dur = 0
+        f = music21.note.Rest()
+        for tick_index, note_index in enumerate(tensor_lead):
+            # if it is a played note
+            if not note_index == slur_index:
+                # add previous note
+                if dur > 0:
+                    f.duration = music21.duration.Duration(dur / self.subdivision)
+                    part.append(f)
+
+                dur = self.tick_durations[tick_index % self.subdivision]
+                f = standard_note(self.index2symbol_dicts[self.CHORDS][note_index])
+            else:
+                dur += self.tick_durations[tick_index % self.subdivision]
+        # add last note
+        f.duration = music21.duration.Duration(dur / self.subdivision)
+        part.append(f)
+
+        # CHORDS
+        for beat_index, chord_index in enumerate(tensor_chords):
+            slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
+            if not chord_index == slur_index:
+                chord = standard_name(
+                    self.index2symbol_dicts[self.CHORDS][chord_index]
+                )
+                part.insert(beat_index, chord)
+
+        score.insert(part)
+        return score
 
 
 if __name__ == '__main__':

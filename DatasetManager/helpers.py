@@ -2,9 +2,8 @@ import music21
 from itertools import islice
 from music21 import note, harmony, expressions
 
-# constants
-from DatasetManager.lsdb.lsdb_data_helpers import NC
 
+# constants
 SLUR_SYMBOL = '__'
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
@@ -26,23 +25,6 @@ def standard_name(note_or_rest):
         return note_or_rest.figure
     if isinstance(note_or_rest, expressions.TextExpression):
         return note_or_rest.content
-
-
-def standard_chord(chord_or_exp_str):
-    """
-
-    :param chord_or_exp: string representing a ChordSymbol or a TextExpression
-    The text expression is the N.C. symbol
-    :return: Corresponding ChordSymbol or TextExpression
-    """
-    if chord_or_exp_str == NC:
-        return music21.expressions.TextExpression(NC)
-    elif chord_or_exp_str == START_SYMBOL or chord_or_exp_str == END_SYMBOL:
-        print(f'Warning: standard_chord method called with '
-              f'{chord_or_exp_str} argument')
-        return None
-    else:
-        return music21.chord.Chord(chord_or_exp_str)
 
 
 def standard_note(note_or_rest_string):

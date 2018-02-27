@@ -9,12 +9,12 @@ import torch
 from bson import ObjectId
 
 import numpy as np
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, standard_note, standard_chord
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, standard_note
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
     is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, \
-    exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, leadsheet_on_ticks
+    exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, leadsheet_on_ticks, standard_chord_symbol
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset
@@ -770,25 +770,37 @@ class LsdbDataset(MusicDataset):
             if not note_index == slur_index:
                 # add previous note
                 if dur > 0:
-                    f.duration = music21.duration.Duration(dur / self.subdivision)
+                    f.duration = music21.duration.Duration(dur)
                     part.append(f)
 
                 dur = self.tick_durations[tick_index % self.subdivision]
-                f = standard_note(self.index2symbol_dicts[self.CHORDS][note_index])
+                f = standard_note(self.index2symbol_dicts[self.NOTES][note_index])
             else:
                 dur += self.tick_durations[tick_index % self.subdivision]
         # add last note
-        f.duration = music21.duration.Duration(dur / self.subdivision)
+        f.duration = music21.duration.Duration(dur)
         part.append(f)
 
         # CHORDS
         for beat_index, chord_index in enumerate(tensor_chords):
             slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
             if not chord_index == slur_index:
-                chord = standard_chord(
-                    self.index2symbol_dicts[self.CHORDS][chord_index]
-                )
-                part.insert(beat_index, chord)
+                chord_str = self.index2symbol_dicts[self.CHORDS][chord_index]
+                # reduce the number of characters in the string until it
+                # is parsed
+                # if correct
+                # TODO fix this
+                num_chars = len(chord_str)
+                while True:
+                    try:
+                        chord = standard_chord_symbol(chord_str[:num_chars])
+                        if chord is not None:
+                            # None is returned if there is a start or end symbol
+                            part.insert(beat_index, chord)
+                        break
+                    except ValueError:
+                        print(f'TO FIX: Chord {chord_str} is not parsable')
+                        num_chars -= 1
 
         score.insert(part)
         return score

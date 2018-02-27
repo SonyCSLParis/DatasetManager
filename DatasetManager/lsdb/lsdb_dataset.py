@@ -9,7 +9,7 @@ import torch
 from bson import ObjectId
 
 import numpy as np
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, standard_note
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, standard_note, standard_chord
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
@@ -785,7 +785,7 @@ class LsdbDataset(MusicDataset):
         for beat_index, chord_index in enumerate(tensor_chords):
             slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
             if not chord_index == slur_index:
-                chord = standard_name(
+                chord = standard_chord(
                     self.index2symbol_dicts[self.CHORDS][chord_index]
                 )
                 part.insert(beat_index, chord)

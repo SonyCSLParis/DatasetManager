@@ -178,7 +178,7 @@ class ChoraleDataset(MusicDataset):
                 md.append(
                     square_metadata[:, :, None]
                 )
-        chorale_length = int(chorale.parts[0].duration.quarterLength * self.subdivision)
+        chorale_length = int(chorale.duration.quarterLength * self.subdivision)
 
         # add voice indexes
         voice_id_metada = torch.from_numpy(np.arange(self.num_voices)).long().clone()
@@ -342,7 +342,8 @@ class ChoraleDataset(MusicDataset):
                 note2index.update({note: note_index})
 
     def is_valid(self, chorale):
-        if len(chorale.parts) < self.num_voices:
+        # We only consider 4-part chorales
+        if not len(chorale.parts) == 4:
             return False
         # todo contains chord
         return True

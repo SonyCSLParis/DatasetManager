@@ -34,6 +34,7 @@ class ChoraleDataset(MusicDataset):
 		"""
 		super(ChoraleDataset, self).__init__()
 		self.voice_ids = voice_ids
+        # TODO WARNING voice_ids is never used!
 		self.num_voices = len(voice_ids)
 		self.name = name
 		self.sequences_size = sequences_size

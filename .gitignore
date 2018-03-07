@@ -111,3 +111,5 @@ xml/
 
 # passwords
 passwords.py
+
+.DS_Store

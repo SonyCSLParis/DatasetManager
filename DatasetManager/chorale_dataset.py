@@ -34,6 +34,7 @@ class ChoraleDataset(MusicDataset):
 		"""
 		super(ChoraleDataset, self).__init__()
 		self.voice_ids = voice_ids
+        # TODO WARNING voice_ids is never used!
 		self.num_voices = len(voice_ids)
 		self.name = name
 		self.sequences_size = sequences_size
@@ -209,7 +210,7 @@ class ChoraleDataset(MusicDataset):
 
 	def chorale_to_tensor(self, chorale, offsetStart, offsetEnd):
 		chorale_tensor = []
-		for part_id, part in enumerate(chorale.parts):
+		for part_id, part in enumerate(chorale.parts[:self.num_voices]):
 			part_tensor = self.part_to_tensor(part, part_id,
 			                                  offsetStart=offsetStart,
 			                                  offsetEnd=offsetEnd)
@@ -281,7 +282,7 @@ class ChoraleDataset(MusicDataset):
 		:return:
 		"""
 		voice_ranges = []
-		for part in chorale.parts:
+		for part in chorale.parts[:self.num_voices]:
 			voice_range_part = self.voice_range_in_part(part,
 			                                            offsetStart=offsetStart,
 			                                            offsetEnd=offsetEnd)
@@ -328,7 +329,7 @@ class ChoraleDataset(MusicDataset):
 
 		# get all notes
 		for chorale in tqdm(self.chorale_iterator_gen()):
-			for part_id, part in enumerate(chorale.parts):
+			for part_id, part in enumerate(chorale.parts[:self.num_voices]):
 				for n in part.flat.notesAndRests:
 					note_sets[part_id].add(standard_name(n))
 
@@ -341,7 +342,7 @@ class ChoraleDataset(MusicDataset):
 				note2index.update({note: note_index})
 
 	def is_valid(self, chorale):
-		if not len(chorale.parts) == self.num_voices:
+		if len(chorale.parts) < self.num_voices:
 			return False
 		# todo contains chord
 		return True

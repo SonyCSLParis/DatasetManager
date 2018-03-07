@@ -209,7 +209,7 @@ class ChoraleDataset(MusicDataset):
 
 	def chorale_to_tensor(self, chorale, offsetStart, offsetEnd):
 		chorale_tensor = []
-		for part_id, part in enumerate(chorale.parts):
+		for part_id, part in enumerate(chorale.parts[:self.num_voices]):
 			part_tensor = self.part_to_tensor(part, part_id,
 			                                  offsetStart=offsetStart,
 			                                  offsetEnd=offsetEnd)
@@ -281,7 +281,7 @@ class ChoraleDataset(MusicDataset):
 		:return:
 		"""
 		voice_ranges = []
-		for part in chorale.parts:
+		for part in chorale.parts[:self.num_voices]:
 			voice_range_part = self.voice_range_in_part(part,
 			                                            offsetStart=offsetStart,
 			                                            offsetEnd=offsetEnd)
@@ -328,7 +328,7 @@ class ChoraleDataset(MusicDataset):
 
 		# get all notes
 		for chorale in tqdm(self.chorale_iterator_gen()):
-			for part_id, part in enumerate(chorale.parts):
+			for part_id, part in enumerate(chorale.parts[:self.num_voices]):
 				for n in part.flat.notesAndRests:
 					note_sets[part_id].add(standard_name(n))
 

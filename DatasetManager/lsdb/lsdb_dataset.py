@@ -9,12 +9,14 @@ import torch
 from bson import ObjectId
 
 import numpy as np
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, \
+    standard_note
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
     is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, \
-    exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, leadsheet_on_ticks
+    exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, \
+    leadsheet_on_ticks, standard_chord
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset
@@ -714,115 +716,115 @@ class LsdbDataset(MusicDataset):
         chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
 
 
-# F#7#9#11 is WRONG in the database
+    # F#7#9#11 is WRONG in the database
 
-def test(self):
-    with LsdbMongo() as client:
-        db = client.get_db()
-        leadsheets = db.leadsheets.find(
-            {'_id': ObjectId('5193841a58e3383974000079')})
-        leadsheet = next(leadsheets)
-        print(leadsheet['title'])
-        score = self.leadsheet_to_music21(leadsheet)
-        score.show()
-
-
-def is_in_range(self, leadsheet):
-    notes, chords = notes_and_chords(leadsheet)
-    pitches = [n.pitch.midi for n in notes if n.isNote]
-    min_pitch = min(pitches)
-    max_pitch = max(pitches)
-    return (min_pitch >= self.pitch_range[0]
-            and max_pitch <= self.pitch_range[1])
+    def test(self):
+        with LsdbMongo() as client:
+            db = client.get_db()
+            leadsheets = db.leadsheets.find(
+                {'_id': ObjectId('5193841a58e3383974000079')})
+            leadsheet = next(leadsheets)
+            print(leadsheet['title'])
+            score = self.leadsheet_to_music21(leadsheet)
+            score.show()
 
 
-def random_leadsheet_tensor(self, sequence_length):
-    lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
-                                    size=sequence_length * self.subdivision)
-    chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
-                                      size=sequence_length)
-    lead_tensor = torch.from_numpy(lead_tensor).long()
-    chords_tensor = torch.from_numpy(chords_tensor).long()
-
-    return lead_tensor, chords_tensor
+    def is_in_range(self, leadsheet):
+        notes, chords = notes_and_chords(leadsheet)
+        pitches = [n.pitch.midi for n in notes if n.isNote]
+        min_pitch = min(pitches)
+        max_pitch = max(pitches)
+        return (min_pitch >= self.pitch_range[0]
+                and max_pitch <= self.pitch_range[1])
 
 
-def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords):
-    """
-    Converts leadsheet given as tensor_lead and tensor_chords
-    to a true music21 score
-    :param tensor_lead:
-    :param tensor_chords:
-    :return:
-    """
-    slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
+    def random_leadsheet_tensor(self, sequence_length):
+        lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
+                                        size=sequence_length * self.subdivision)
+        chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
+                                          size=sequence_length)
+        lead_tensor = torch.from_numpy(lead_tensor).long()
+        chords_tensor = torch.from_numpy(chords_tensor).long()
 
-    score = music21.stream.Score()
-    part = music21.stream.Part()
+        return lead_tensor, chords_tensor
 
-    # LEAD
-    dur = 0
-    f = music21.note.Rest()
-    for tick_index, note_index in enumerate(tensor_lead):
-        # if it is a played note
-        if not note_index == slur_index:
-            # add previous note
-            if dur > 0:
-                f.duration = music21.duration.Duration(dur)
-                part.append(f)
 
-            dur = self.tick_durations[tick_index % self.subdivision]
-            f = standard_note(self.index2symbol_dicts[self.NOTES][note_index])
-        else:
-            dur += self.tick_durations[tick_index % self.subdivision]
-    # add last note
-    f.duration = music21.duration.Duration(dur)
-    part.append(f)
+    def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords):
+        """
+        Converts leadsheet given as tensor_lead and tensor_chords
+        to a true music21 score
+        :param tensor_lead:
+        :param tensor_chords:
+        :return:
+        """
+        slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
 
-    # CHORDS
-    slur_index = slur_indexes[self.CHORDS]
-    index2chord = self.index2symbol_dicts[self.CHORDS]
-    chord2index = self.symbol2index_dicts[self.CHORDS]
-    start_index = chord2index[START_SYMBOL]
-    end_index = chord2index[END_SYMBOL]
-    for beat_index, chord_index in enumerate(tensor_chords):
-        # if it is a played chord
-        if chord_index not in [slur_index, start_index, end_index]:
-            # add chord
-            part.insert(beat_index, standard_chord(index2chord[chord_index]))
-    # for beat_index, chord_index in enumerate(tensor_chords):
-    #     slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
-    #     if not chord_index == slur_index:
-    #         chord_str = self.index2symbol_dicts[self.CHORDS][chord_index]
-    #         # reduce the number of characters in the string until it
-    #         # is parsed
-    #         # if correct
-    #         # TODO fix this
-    #         num_chars = len(chord_str)
-    #         while True:
-    #             try:
-    #                 chord = standard_chord_symbol(chord_str[:num_chars])
-    #                 if chord is not None:
-    #                     # None is returned if there is a start or end symbol
-    #                     part.insert(beat_index, chord)
-    #                 break
-    #             except ValueError:
-    #                 print(f'TO FIX: Chord {chord_str} is not parsable')
-    #                 num_chars -= 1
+        score = music21.stream.Score()
+        part = music21.stream.Part()
 
-    # part = part.makeMeasures(
-    #     inPlace=False,
-    #     refStreamOrTimeRange=[0.0, tensor_chords.size(0)]
-    # )
-    #
-    # # add treble clef and key signature
-    # part.measure(1).clef = music21.clef.TrebleClef()
-    # # part.measure(1).keySignature = key_signature
-    # score.insert(part)
-    # score.show('txt')
+        # LEAD
+        dur = 0
+        f = music21.note.Rest()
+        for tick_index, note_index in enumerate(tensor_lead):
+            # if it is a played note
+            if not note_index == slur_index:
+                # add previous note
+                if dur > 0:
+                    f.duration = music21.duration.Duration(dur)
+                    part.append(f)
 
-    score.insert(part)
-    return score
+                dur = self.tick_durations[tick_index % self.subdivision]
+                f = standard_note(self.index2symbol_dicts[self.NOTES][note_index])
+            else:
+                dur += self.tick_durations[tick_index % self.subdivision]
+        # add last note
+        f.duration = music21.duration.Duration(dur)
+        part.append(f)
+
+        # CHORDS
+        slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
+        index2chord = self.index2symbol_dicts[self.CHORDS]
+        chord2index = self.symbol2index_dicts[self.CHORDS]
+        start_index = chord2index[START_SYMBOL]
+        end_index = chord2index[END_SYMBOL]
+        for beat_index, chord_index in enumerate(tensor_chords):
+            # if it is a played chord
+            if chord_index not in [slur_index, start_index, end_index]:
+                # add chord
+                part.insert(beat_index, standard_chord(index2chord[chord_index]))
+        # for beat_index, chord_index in enumerate(tensor_chords):
+        #     slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
+        #     if not chord_index == slur_index:
+        #         chord_str = self.index2symbol_dicts[self.CHORDS][chord_index]
+        #         # reduce the number of characters in the string until it
+        #         # is parsed
+        #         # if correct
+        #         # TODO fix this
+        #         num_chars = len(chord_str)
+        #         while True:
+        #             try:
+        #                 chord = standard_chord_symbol(chord_str[:num_chars])
+        #                 if chord is not None:
+        #                     # None is returned if there is a start or end symbol
+        #                     part.insert(beat_index, chord)
+        #                 break
+        #             except ValueError:
+        #                 print(f'TO FIX: Chord {chord_str} is not parsable')
+        #                 num_chars -= 1
+
+        # part = part.makeMeasures(
+        #     inPlace=False,
+        #     refStreamOrTimeRange=[0.0, tensor_chords.size(0)]
+        # )
+        #
+        # # add treble clef and key signature
+        # part.measure(1).clef = music21.clef.TrebleClef()
+        # # part.measure(1).keySignature = key_signature
+        # score.insert(part)
+        # score.show('txt')
+
+        score.insert(part)
+        return score
 
 
 if __name__ == '__main__':

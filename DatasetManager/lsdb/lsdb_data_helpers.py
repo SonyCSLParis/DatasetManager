@@ -1,6 +1,6 @@
 import glob
 import os
-from DatasetManager.helpers import SLUR_SYMBOL
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
 import music21
 from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
 from bson import ObjectId
@@ -212,6 +212,54 @@ def notes_and_chords(leadsheet):
 		 music21.expressions.TextExpression
 		 ])
 	return notes, chords
+
+
+def chord_symbols_from_note_list(all_notes, interval):
+	"""
+
+	:param all_notes:
+	:param interval:
+	:return:
+	"""
+	skip_notes = 0
+	while True:
+		try:
+			if skip_notes > 0:
+				notes = all_notes[:-skip_notes]
+			else:
+				notes = all_notes
+			chord_relative = music21.chord.Chord(notes)
+			chord = chord_relative.transpose(interval)
+			chord_root = chord_relative.bass().transpose(interval)
+			chord.root(chord_root)
+			chord_symbol = music21.harmony.chordSymbolFromChord(chord)
+			# print(chord_symbol)
+			return chord_symbol
+		except (music21.pitch.AccidentalException,
+		        ValueError) as e:
+			# A7b13, m69, 13b9 not handled
+			print(e)
+			print(chord_relative, chord_relative.root())
+			print(chord, chord.root())
+			print('========')
+			skip_notes += 1
+
+
+def standard_chord(chord_string):
+	assert not chord_string == START_SYMBOL
+	assert not chord_string == END_SYMBOL
+	if chord_string == NC:
+		return music21.expressions.TextExpression(NC)
+	else:
+		num_chars = len(chord_string)
+		while True:
+			try:
+				return music21.harmony.ChordSymbol(chord_string[:num_chars])
+			except:
+				print(f'{chord_string[:num_chars]} not parsable')
+				num_chars -= 1
+				if num_chars < 0:
+					raise Exception
 
 
 class LeadsheetIteratorGenerator:

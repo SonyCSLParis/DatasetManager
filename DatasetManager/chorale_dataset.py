@@ -341,7 +341,7 @@ class ChoraleDataset(MusicDataset):
 				note2index.update({note: note_index})
 
 	def is_valid(self, chorale):
-		if not len(chorale.parts) == self.num_voices:
+		if len(chorale.parts) < self.num_voices:
 			return False
 		# todo contains chord
 		return True

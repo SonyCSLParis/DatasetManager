@@ -29,7 +29,7 @@ all_datasets = {
 		{
 			'dataset_class_name': LsdbDataset,
 			'corpus_it_gen':      LeadsheetIteratorGenerator(
-				num_elements=500)
+				num_elements=None)
 		},
 
 }

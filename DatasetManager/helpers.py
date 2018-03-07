@@ -1,5 +1,6 @@
 import music21
 from itertools import islice
+
 from music21 import note, harmony, expressions
 
 # constants
@@ -39,12 +40,14 @@ def standard_note(note_or_rest_string):
 		return note.Note(note_or_rest_string)
 
 
+
 class ShortChoraleIteratorGen:
 	"""
 	Class used for debugging
 	when called, it returns an iterator over 3 Bach chorales,
 	similar to music21.corpus.chorales.Iterator()
 	"""
+
 	def __init__(self):
 		pass
 

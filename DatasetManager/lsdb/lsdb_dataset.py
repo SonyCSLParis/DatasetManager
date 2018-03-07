@@ -9,12 +9,14 @@ import torch
 from bson import ObjectId
 
 import numpy as np
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, \
+	standard_note
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
 	getUnalteredPitch, getAccidental, getOctave, note_duration, \
 	is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, \
-	exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, leadsheet_on_ticks
+	exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, \
+	leadsheet_on_ticks, standard_chord, chord_symbols_from_note_list
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset
@@ -51,9 +53,10 @@ class LsdbDataset(MusicDataset):
 		self.pitch_range = [55, 84]
 
 	def __repr__(self):
-		# TODO
 		return f'LsdbDataset(' \
-		       f'{self.name})'
+		       f'{self.name},' \
+		       f'{self.sequences_size},' \
+		       f'{self.leadsheet_iterator_gen.num_elements})'
 
 	def compute_tick_durations(self):
 		diff = [n - p
@@ -179,7 +182,6 @@ class LsdbDataset(MusicDataset):
 		print(f'Sizes: {lead_tensor_dataset.size()},'
 		      f' {chord_tensor_dataset.size()}')
 		return dataset
-
 
 	def extract_with_padding(self, tensor,
 	                         start_tick,
@@ -588,7 +590,7 @@ class LsdbDataset(MusicDataset):
 				interval = music21.interval.Interval(
 					noteStart=music21.note.Note('C4'),
 					noteEnd=music21.note.Note(json_chord_root))
-				chord_symbol = self.chord_symbols_from_note_list(
+				chord_symbol = chord_symbols_from_note_list(
 					all_notes=all_notes,
 					interval=interval
 				)
@@ -598,35 +600,6 @@ class LsdbDataset(MusicDataset):
 				print(json_chord_type[:num_characters_chord_type])
 				num_characters_chord_type -= 1
 
-	def chord_symbols_from_note_list(self, all_notes, interval):
-		"""
-
-		:param all_notes:
-		:param interval:
-		:return:
-		"""
-		skip_notes = 0
-		while True:
-			try:
-				if skip_notes > 0:
-					notes = all_notes[:-skip_notes]
-				else:
-					notes = all_notes
-				chord_relative = music21.chord.Chord(notes)
-				chord = chord_relative.transpose(interval)
-				chord_root = chord_relative.bass().transpose(interval)
-				chord.root(chord_root)
-				chord_symbol = music21.harmony.chordSymbolFromChord(chord)
-				# print(chord_symbol)
-				return chord_symbol
-			except (music21.pitch.AccidentalException,
-			        ValueError) as e:
-				# A7b13, m69, 13b9 not handled
-				print(e)
-				print(chord_relative, chord_relative.root())
-				print(chord, chord.root())
-				print('========')
-				skip_notes += 1
 
 	def chords_duration(self, bar):
 		"""
@@ -734,6 +707,80 @@ class LsdbDataset(MusicDataset):
 		return (min_pitch >= self.pitch_range[0]
 		        and max_pitch <= self.pitch_range[1])
 
+	def random_leadsheet_tensor(self, sequence_size):
+		"""
+
+		:param sequence_size: in beats
+		:return:
+		"""
+		lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
+		                                size=sequence_size * self.subdivision)
+		chords_tensor = np.random.randint(
+			len(self.symbol2index_dicts[self.CHORDS]),
+			size=sequence_size
+		)
+
+		lead_tensor = torch.from_numpy(lead_tensor).long().clone()
+		chords_tensor = torch.from_numpy(chords_tensor).long().clone()
+		return lead_tensor, chords_tensor
+
+	def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords):
+		"""
+
+		:param tensor_lead:
+		:param tensor_chords:
+		:return:
+		"""
+		slur_indexes = [symbol2index[SLUR_SYMBOL]
+		                for symbol2index in self.symbol2index_dicts]
+
+		score = music21.stream.Score()
+		part = music21.stream.Part(id='part')
+		# ==== lead ======
+		dur = 0
+		slur_index = slur_indexes[self.NOTES]
+		index2note = self.index2symbol_dicts[self.NOTES]
+		f = music21.note.Rest()
+		for tick_index, note_index in enumerate(tensor_lead):
+			# if it is a played note
+			if not note_index == slur_index:
+				# add previous note
+				if dur > 0:
+					f.duration = music21.duration.Duration(dur)
+					part.append(f)
+
+				dur = self.tick_durations[tick_index % len(self.tick_durations)]
+				f = standard_note(index2note[note_index])
+			else:
+				dur += self.tick_durations[tick_index % len(self.tick_durations)]
+		# add last note
+		f.duration = music21.duration.Duration(dur)
+		part.append(f)
+
+		# ==== chord ======
+		slur_index = slur_indexes[self.CHORDS]
+		index2chord = self.index2symbol_dicts[self.CHORDS]
+		chord2index = self.symbol2index_dicts[self.CHORDS]
+		start_index = chord2index[START_SYMBOL]
+		end_index = chord2index[END_SYMBOL]
+		for beat_index, chord_index in enumerate(tensor_chords):
+			# if it is a played chord
+			if chord_index not in [slur_index, start_index, end_index]:
+				# add chord
+				part.insert(beat_index, standard_chord(index2chord[chord_index]))
+
+
+		part = part.makeMeasures(
+			inPlace=False,
+			refStreamOrTimeRange=[0.0, tensor_chords.size(0)]
+		)
+
+		# add treble clef and key signature
+		part.measure(1).clef = music21.clef.TrebleClef()
+		# part.measure(1).keySignature = key_signature
+		score.insert(part)
+		score.show('txt')
+		return score
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
     standard_note
+from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
 
 
@@ -188,6 +189,18 @@ class ChoraleDataset(MusicDataset):
 
         all_metadata = torch.cat(md, 2)
         return all_metadata
+
+    def add_fermata(self, metadata_tensor, time_index_start,
+                    time_index_stop):
+        if self.metadatas:
+            for metadata_index, metadata in enumerate(self.metadatas):
+                if isinstance(metadata, FermataMetadata):
+                    metadata_tensor[:,
+                    time_index_start: time_index_stop,
+                    metadata_index] = 1
+            return metadata_tensor
+        else:
+            return metadata_tensor
 
     def min_max_transposition(self, current_subseq_ranges):
         if current_subseq_ranges is None:

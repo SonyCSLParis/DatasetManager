@@ -50,14 +50,24 @@ class MusicDataset(ABC):
 
     @property
     def tensor_dataset_filepath(self):
-        return os.path.join(
+        tensor_datasets_cache_dir = os.path.join(
             self.cache_dir,
-            'tensor_datasets',
+            'tensor_datasets')
+        if not os.path.exists(tensor_datasets_cache_dir):
+            os.mkdir(tensor_datasets_cache_dir)
+        fp = os.path.join(
+            tensor_datasets_cache_dir,
             self.__repr__()
         )
+        return fp
 
     @property
     def filepath(self):
+        tensor_datasets_cache_dir = os.path.join(
+            self.cache_dir,
+            'tensor_datasets')
+        if not os.path.exists(tensor_datasets_cache_dir):
+            os.mkdir(tensor_datasets_cache_dir)
         return os.path.join(
             self.cache_dir,
             'datasets',

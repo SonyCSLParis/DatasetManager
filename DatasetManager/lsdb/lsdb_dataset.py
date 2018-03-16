@@ -102,7 +102,7 @@ class LsdbDataset(MusicDataset):
                 i += 1
                 is_articulated = False
         lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
-        lead_tensor = torch.from_numpy(lead).long()[None, :]
+        lead_tensor = torch.from_numpy(lead).int()[None, :]
 
         # CHORDS
         j = 0
@@ -128,7 +128,7 @@ class LsdbDataset(MusicDataset):
                 i += 1
                 is_articulated = False
         seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chord2index[SLUR_SYMBOL]
-        chord_tensor = torch.from_numpy(seq).long()[None, :]
+        chord_tensor = torch.from_numpy(seq).int()[None, :]
         return lead_tensor, chord_tensor
 
     def make_tensor_dataset(self):
@@ -201,7 +201,7 @@ class LsdbDataset(MusicDataset):
         padded_tensor = []
         if start_tick < 0:
             start_symbols = np.array([symbol2index[START_SYMBOL]])
-            start_symbols = torch.from_numpy(start_symbols).long().clone()
+            start_symbols = torch.from_numpy(start_symbols).int().clone()
             start_symbols = start_symbols.repeat(batch_size, -start_tick)
             padded_tensor.append(start_symbols)
 
@@ -212,7 +212,7 @@ class LsdbDataset(MusicDataset):
 
         if end_tick > length:
             end_symbols = np.array([symbol2index[END_SYMBOL]])
-            end_symbols = torch.from_numpy(end_symbols).long().clone()
+            end_symbols = torch.from_numpy(end_symbols).int().clone()
             end_symbols = end_symbols.repeat(batch_size, end_tick - length)
             padded_tensor.append(end_symbols)
 
@@ -743,8 +743,8 @@ class LsdbDataset(MusicDataset):
                                         size=sequence_length * self.subdivision)
         chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
                                           size=sequence_length)
-        lead_tensor = torch.from_numpy(lead_tensor).long()
-        chords_tensor = torch.from_numpy(chords_tensor).long()
+        lead_tensor = torch.from_numpy(lead_tensor).int()
+        chords_tensor = torch.from_numpy(chords_tensor).int()
 
         return lead_tensor, chords_tensor
 

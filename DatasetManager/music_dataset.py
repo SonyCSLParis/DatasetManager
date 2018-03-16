@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-
+import os
 from torch.utils.data import TensorDataset, DataLoader
+import torch
 
 
 class MusicDataset(ABC):
@@ -9,11 +10,9 @@ class MusicDataset(ABC):
     Must return
     """
 
-    def __init__(self):
+    def __init__(self, cache_dir):
         self._tensor_dataset = None
-
-    def initialize(self):
-        self._tensor_dataset = self.make_tensor_dataset()
+        self.cache_dir = cache_dir
 
     @abstractmethod
     def make_tensor_dataset(self):
@@ -25,9 +24,45 @@ class MusicDataset(ABC):
 
     @property
     def tensor_dataset(self):
+        """
+        Loads or computes TensorDataset
+        :return: TensorDataset
+        """
         if self._tensor_dataset is None:
-            self.initialize()
+            if self.tensor_dataset_is_cached():
+                print(f'Loading TensorDataset for {self.__repr__()}')
+                self._tensor_dataset = torch.load(self.tensor_dataset_filepath)
+            else:
+                print(f'Creating {self.__repr__()} TensorDataset'
+                      f' since it is not cached')
+                self._tensor_dataset = self.make_tensor_dataset()
+                torch.save(self._tensor_dataset, self.tensor_dataset_filepath)
+                print(f'TensorDataset for {self.__repr__()} '
+                      f'saved in {self.tensor_dataset_filepath}')
         return self._tensor_dataset
+
+    @tensor_dataset.setter
+    def tensor_dataset(self, value):
+        self._tensor_dataset = value
+
+    def tensor_dataset_is_cached(self):
+        return os.path.exists(self.tensor_dataset_filepath)
+
+    @property
+    def tensor_dataset_filepath(self):
+        return os.path.join(
+            self.cache_dir,
+            'tensor_datasets',
+            self.__repr__()
+        )
+
+    @property
+    def filepath(self):
+        return os.path.join(
+            self.cache_dir,
+            'datasets',
+            self.__repr__()
+        )
 
     def data_loaders(self, batch_size, split=(0.85, 0.10)):
         """

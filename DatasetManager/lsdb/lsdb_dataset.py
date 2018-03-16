@@ -26,13 +26,14 @@ from tqdm import tqdm
 class LsdbDataset(MusicDataset):
     def __init__(self, corpus_it_gen,
                  name,
-                 sequences_size):
+                 sequences_size,
+                 cache_dir):
         """
 
         :param corpus_it_gen:
         :param sequences_size: in beats
         """
-        super(LsdbDataset, self).__init__()
+        super(LsdbDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.tick_values = [0,
                             Fraction(1, 4),
@@ -55,7 +56,8 @@ class LsdbDataset(MusicDataset):
     def __repr__(self):
         # TODO
         return f'LsdbDataset(' \
-               f'{self.name})'
+               f'{self.name},' \
+               f'{self.sequences_size})'
 
     def compute_tick_durations(self):
         diff = [n - p
@@ -715,7 +717,6 @@ class LsdbDataset(MusicDataset):
         notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
         chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
 
-
     # F#7#9#11 is WRONG in the database
 
     def test(self):
@@ -728,7 +729,6 @@ class LsdbDataset(MusicDataset):
             score = self.leadsheet_to_music21(leadsheet)
             score.show()
 
-
     def is_in_range(self, leadsheet):
         notes, chords = notes_and_chords(leadsheet)
         pitches = [n.pitch.midi for n in notes if n.isNote]
@@ -736,7 +736,6 @@ class LsdbDataset(MusicDataset):
         max_pitch = max(pitches)
         return (min_pitch >= self.pitch_range[0]
                 and max_pitch <= self.pitch_range[1])
-
 
     def random_leadsheet_tensor(self, sequence_length):
         lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
@@ -747,7 +746,6 @@ class LsdbDataset(MusicDataset):
         chords_tensor = torch.from_numpy(chords_tensor).int()
 
         return lead_tensor, chords_tensor
-
 
     def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords):
         """

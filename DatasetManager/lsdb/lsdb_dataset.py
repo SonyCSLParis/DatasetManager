@@ -14,7 +14,7 @@ from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
     is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, \
-    exclude_list_ids, set_metadata, notes_and_chords, LeadsheetIteratorGenerator, \
+    exclude_list_ids, set_metadata, notes_and_chords, \
     leadsheet_on_ticks, standard_chord
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *

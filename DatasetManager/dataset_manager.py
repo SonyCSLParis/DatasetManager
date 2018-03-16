@@ -6,7 +6,6 @@ from DatasetManager.chorale_dataset import ChoraleDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
-from DatasetManager.metadata import TickMetadata, FermataMetadata, KeyMetadata
 from DatasetManager.music_dataset import MusicDataset
 
 # Basically, all you have to do to use an existing dataset is to
@@ -89,8 +88,9 @@ class DatasetManager:
             print(f'Creating {dataset.__repr__()}, '
                   f'both tensor dataset and parameters')
             # initialize and force the computation of the tensor_dataset
-            # first remove the cached data
-            os.remove(dataset.tensor_dataset_filepath)
+            # first remove the cached data if it exists
+            if os.path.exists(dataset.tensor_dataset_filepath):
+                os.remove(dataset.tensor_dataset_filepath)
             # recompute dataset parameters and tensor_dataset
             # this saves the tensor_dataset in dataset.tensor_dataset_filepath
             tensor_dataset = dataset.tensor_dataset

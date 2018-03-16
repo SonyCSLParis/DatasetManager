@@ -1,4 +1,3 @@
-import pickle
 from fractions import Fraction
 
 import music21
@@ -104,7 +103,7 @@ class LsdbDataset(MusicDataset):
                 i += 1
                 is_articulated = False
         lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
-        lead_tensor = torch.from_numpy(lead).int()[None, :]
+        lead_tensor = torch.from_numpy(lead).long()[None, :]
 
         # CHORDS
         j = 0
@@ -130,7 +129,7 @@ class LsdbDataset(MusicDataset):
                 i += 1
                 is_articulated = False
         seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chord2index[SLUR_SYMBOL]
-        chord_tensor = torch.from_numpy(seq).int()[None, :]
+        chord_tensor = torch.from_numpy(seq).long()[None, :]
         return lead_tensor, chord_tensor
 
     def make_tensor_dataset(self):
@@ -167,10 +166,11 @@ class LsdbDataset(MusicDataset):
                     )
 
                     # append and add batch dimension
+                    # cast to int
                     lead_tensor_dataset.append(
-                        local_lead_tensor)
+                        local_lead_tensor.int())
                     chord_tensor_dataset.append(
-                        local_chord_tensor)
+                        local_chord_tensor.int())
             except LeadsheetParsingException as e:
                 print(e)
 
@@ -203,7 +203,7 @@ class LsdbDataset(MusicDataset):
         padded_tensor = []
         if start_tick < 0:
             start_symbols = np.array([symbol2index[START_SYMBOL]])
-            start_symbols = torch.from_numpy(start_symbols).int().clone()
+            start_symbols = torch.from_numpy(start_symbols).long().clone()
             start_symbols = start_symbols.repeat(batch_size, -start_tick)
             padded_tensor.append(start_symbols)
 
@@ -214,7 +214,7 @@ class LsdbDataset(MusicDataset):
 
         if end_tick > length:
             end_symbols = np.array([symbol2index[END_SYMBOL]])
-            end_symbols = torch.from_numpy(end_symbols).int().clone()
+            end_symbols = torch.from_numpy(end_symbols).long().clone()
             end_symbols = end_symbols.repeat(batch_size, end_tick - length)
             padded_tensor.append(end_symbols)
 
@@ -742,8 +742,8 @@ class LsdbDataset(MusicDataset):
                                         size=sequence_length * self.subdivision)
         chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
                                           size=sequence_length)
-        lead_tensor = torch.from_numpy(lead_tensor).int()
-        chords_tensor = torch.from_numpy(chords_tensor).int()
+        lead_tensor = torch.from_numpy(lead_tensor).long()
+        chords_tensor = torch.from_numpy(chords_tensor).long()
 
         return lead_tensor, chords_tensor
 
@@ -823,12 +823,3 @@ class LsdbDataset(MusicDataset):
 
         score.insert(part)
         return score
-
-
-if __name__ == '__main__':
-    leadsheet_it_gen = LeadsheetIteratorGenerator(num_elements=5)
-    dataset = LsdbDataset(corpus_it_gen=leadsheet_it_gen,
-                          sequences_size=8)
-    dataset.initialize()
-# dataset.make_score_dataset()
-# dataset.test()

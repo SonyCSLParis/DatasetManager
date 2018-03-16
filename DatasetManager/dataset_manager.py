@@ -6,7 +6,6 @@ from DatasetManager.chorale_dataset import ChoraleDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
-from DatasetManager.metadata import TickMetadata, FermataMetadata, KeyMetadata
 from DatasetManager.music_dataset import MusicDataset
 
 # Basically, all you have to do to use an existing dataset is to
@@ -26,6 +25,12 @@ all_datasets = {
             'corpus_it_gen':      ShortChoraleIteratorGen()
         },
     'lsdb_test':
+        {
+            'dataset_class_name': LsdbDataset,
+            'corpus_it_gen':      LeadsheetIteratorGenerator(
+                num_elements=10)
+        },
+    'lsdb':
         {
             'dataset_class_name': LsdbDataset,
             'corpus_it_gen':      LeadsheetIteratorGenerator(
@@ -71,20 +76,30 @@ class DatasetManager:
         """
         kwargs.update(
             {'name':          name,
-             'corpus_it_gen': corpus_it_gen
+             'corpus_it_gen': corpus_it_gen,
+             'cache_dir': self.cache_dir
              })
         dataset = dataset_class_name(**kwargs)
-        filepath = os.path.join(
-            self.cache_dir,
-            dataset.__repr__()
-        )
-        if os.path.exists(filepath):
-            print(f'Loading {dataset.__repr__()}')
-            dataset = torch.load(filepath)
+        if os.path.exists(dataset.filepath):
+            print(f'Loading {dataset.__repr__()} from {dataset.filepath}')
+            dataset = torch.load(dataset.filepath)
+            print(f'(the corresponding TensorDataset is not loaded)')
         else:
-            dataset.initialize()
-            torch.save(dataset, filepath)
-            print(f'{dataset.__repr__()} saved in {filepath}')
+            print(f'Creating {dataset.__repr__()}, '
+                  f'both tensor dataset and parameters')
+            # initialize and force the computation of the tensor_dataset
+            # first remove the cached data if it exists
+            if os.path.exists(dataset.tensor_dataset_filepath):
+                os.remove(dataset.tensor_dataset_filepath)
+            # recompute dataset parameters and tensor_dataset
+            # this saves the tensor_dataset in dataset.tensor_dataset_filepath
+            tensor_dataset = dataset.tensor_dataset
+            # save all dataset parameters EXCEPT the tensor dataset
+            # which is stored elsewhere
+            dataset.tensor_dataset = None
+            torch.save(dataset, dataset.filepath)
+            print(f'{dataset.__repr__()} saved in {dataset.filepath}')
+            dataset.tensor_dataset = tensor_dataset
         return dataset
 
 
@@ -118,7 +133,7 @@ if __name__ == '__main__':
     # LSDB
     lsdb_dataset: LsdbDataset = datataset_manager.get_dataset(
         name='lsdb_test',
-        sequences_size=8,
+        sequences_size=64,
     )
     (train_dataloader,
      val_dataloader,

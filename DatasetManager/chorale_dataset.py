@@ -174,7 +174,7 @@ class ChoraleDataset(MusicDataset):
         if self.metadatas:
             for metadata in self.metadatas:
                 sequence_metadata = torch.from_numpy(
-                    metadata.evaluate(chorale, self.subdivision)).long().clone()
+                    metadata.evaluate(chorale, self.subdivision)).int().clone()
                 square_metadata = sequence_metadata.repeat(self.num_voices, 1)
                 md.append(
                     square_metadata[:, :, None]
@@ -182,7 +182,7 @@ class ChoraleDataset(MusicDataset):
         chorale_length = int(chorale.duration.quarterLength * self.subdivision)
 
         # add voice indexes
-        voice_id_metada = torch.from_numpy(np.arange(self.num_voices)).long().clone()
+        voice_id_metada = torch.from_numpy(np.arange(self.num_voices)).int().clone()
         square_metadata = torch.transpose(voice_id_metada.repeat(chorale_length, 1),
                                           0, 1)
         md.append(square_metadata[:, :, None])
@@ -237,7 +237,7 @@ class ChoraleDataset(MusicDataset):
         :param part_id:
         :param offsetStart:
         :param offsetEnd:
-        :return: torch LongTensor (1, length)
+        :return: torch IntTensor (1, length)
         """
         list_notes_and_rests = list(part.flat.getElementsByOffset(
             offsetStart=offsetStart,
@@ -283,7 +283,7 @@ class ChoraleDataset(MusicDataset):
                 is_articulated = False
         seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
         # todo padding
-        tensor = torch.from_numpy(seq).long()[None, :]
+        tensor = torch.from_numpy(seq).int()[None, :]
         return tensor
 
     def voice_range_in_subsequence(self, chorale, offsetStart, offsetEnd):
@@ -397,7 +397,7 @@ class ChoraleDataset(MusicDataset):
         if start_tick < 0:
             start_symbols = np.array([note2index[START_SYMBOL]
                                       for note2index in self.note2index_dicts])
-            start_symbols = torch.from_numpy(start_symbols).long().clone()
+            start_symbols = torch.from_numpy(start_symbols).int().clone()
             start_symbols = start_symbols.repeat(-start_tick, 1).transpose(0, 1)
             padded_chorale.append(start_symbols)
 
@@ -409,7 +409,7 @@ class ChoraleDataset(MusicDataset):
         if end_tick > length:
             end_symbols = np.array([note2index[END_SYMBOL]
                                     for note2index in self.note2index_dicts])
-            end_symbols = torch.from_numpy(end_symbols).long().clone()
+            end_symbols = torch.from_numpy(end_symbols).int().clone()
             end_symbols = end_symbols.repeat(end_tick - length, 1).transpose(0, 1)
             padded_chorale.append(end_symbols)
 
@@ -434,7 +434,7 @@ class ChoraleDataset(MusicDataset):
         if start_tick < 0:
             # TODO more subtle padding
             start_symbols = np.zeros((self.num_voices, -start_tick, num_metadatas))
-            start_symbols = torch.from_numpy(start_symbols).long().clone()
+            start_symbols = torch.from_numpy(start_symbols).int().clone()
             padded_tensor_metadata.append(start_symbols)
 
         slice_start = start_tick if start_tick > 0 else 0
@@ -443,7 +443,7 @@ class ChoraleDataset(MusicDataset):
 
         if end_tick > length:
             end_symbols = np.zeros((self.num_voices, end_tick - length, num_metadatas))
-            end_symbols = torch.from_numpy(end_symbols).long().clone()
+            end_symbols = torch.from_numpy(end_symbols).int().clone()
             padded_tensor_metadata.append(end_symbols)
 
         padded_tensor_metadata = torch.cat(padded_tensor_metadata, 1)
@@ -452,7 +452,7 @@ class ChoraleDataset(MusicDataset):
     def empty_chorale(self, chorale_length):
         start_symbols = np.array([note2index[START_SYMBOL]
                                   for note2index in self.note2index_dicts])
-        start_symbols = torch.from_numpy(start_symbols).long().clone()
+        start_symbols = torch.from_numpy(start_symbols).int().clone()
         start_symbols = start_symbols.repeat(chorale_length, 1).transpose(0, 1)
         return start_symbols
 
@@ -461,7 +461,7 @@ class ChoraleDataset(MusicDataset):
             [np.random.randint(len(note2index),
                                size=chorale_length)
              for note2index in self.note2index_dicts])
-        chorale_tensor = torch.from_numpy(chorale_tensor).long().clone()
+        chorale_tensor = torch.from_numpy(chorale_tensor).int().clone()
         return chorale_tensor
 
     def tensor_chorale_to_score(self, tensor_chorale):

@@ -454,7 +454,6 @@ class LsdbDataset(MusicDataset):
 
         :param bar:
         :param altered_pitches_at_key:
-        :param current_altered_pitches:
         :return: list of music21.note.Note
         """
         if 'melody' not in bar:

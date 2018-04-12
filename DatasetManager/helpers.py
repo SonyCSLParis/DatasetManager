@@ -7,6 +7,7 @@ from music21 import note, harmony, expressions
 SLUR_SYMBOL = '__'
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
+OUT_OF_RANGE = 'OOR'
 
 
 def standard_name(note_or_rest):

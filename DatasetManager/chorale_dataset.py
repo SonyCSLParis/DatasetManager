@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_note
+    standard_note, OUT_OF_RANGE
 from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
 
@@ -153,7 +153,6 @@ class ChoraleDataset(MusicDataset):
         """
         # transpose
         # compute the most "natural" interval given a number of semi-tones
-        # todo could be improved
         interval_type, interval_nature = interval.convertSemitoneToSpecifierGeneric(
             semi_tone)
         transposition_interval = interval.Interval(
@@ -247,15 +246,19 @@ class ChoraleDataset(MusicDataset):
             offsetEnd=offsetEnd,
             classList=[music21.note.Note,
                        music21.note.Rest]))
-        list_note_strings = [n.nameWithOctave for n in list_notes_and_rests
-                             if n.isNote]
+        list_note_strings_and_pitches = [(n.nameWithOctave, n.pitch.midi)
+                                         for n in list_notes_and_rests
+                                         if n.isNote]
         length = int((offsetEnd - offsetStart) * self.subdivision)  # in ticks
 
         # add entries to dictionaries if not present
         # should only be called by make_dataset when transposing
-        for note_name in list_note_strings:
-            note2index = self.note2index_dicts[part_id]
-            index2note = self.index2note_dicts[part_id]
+        note2index = self.note2index_dicts[part_id]
+        index2note = self.index2note_dicts[part_id]
+        for note_name, pitch in list_note_strings_and_pitches:
+            if pitch not in self.voice_ranges[part_id]:
+                note_name = OUT_OF_RANGE
+
             if note_name not in note2index:
                 new_index = len(note2index)
                 index2note.update({new_index: note_name})

@@ -22,7 +22,7 @@ def standard_name(note_or_rest, voice_range=None):
             pitch = note_or_rest.pitch.midi
             if pitch < min_pitch or pitch > max_pitch:
                 return OUT_OF_RANGE
-            return note_or_rest.nameWithOctave
+        return note_or_rest.nameWithOctave
     if isinstance(note_or_rest, note.Rest):
         return note_or_rest.name
     if isinstance(note_or_rest, str):

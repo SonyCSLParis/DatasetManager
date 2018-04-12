@@ -37,7 +37,7 @@ def standard_note(note_or_rest_string):
     if note_or_rest_string == 'rest':
         return note.Rest()
     # treat other additional symbols as rests
-    elif note_or_rest_string == END_SYMBOL:
+    elif note_or_rest_string == END_SYMBOL or note_or_rest_string == START_SYMBOL:
         return note.Rest()
     elif note_or_rest_string == SLUR_SYMBOL:
         print('Warning: SLUR_SYMBOL used in standard_note')

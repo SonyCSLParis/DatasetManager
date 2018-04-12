@@ -255,8 +255,11 @@ class ChoraleDataset(MusicDataset):
         # should only be called by make_dataset when transposing
         note2index = self.note2index_dicts[part_id]
         index2note = self.index2note_dicts[part_id]
+        voice_range = self.voice_ranges[part_id]
+        min_pitch, max_pitch = voice_range
         for note_name, pitch in list_note_strings_and_pitches:
-            if pitch not in self.voice_ranges[part_id]:
+            # if out of range
+            if pitch < min_pitch or pitch > max_pitch:
                 note_name = OUT_OF_RANGE
 
             if note_name not in note2index:
@@ -274,8 +277,10 @@ class ChoraleDataset(MusicDataset):
         num_notes = len(list_notes_and_rests)
         while i < length:
             if j < num_notes - 1:
-                if list_notes_and_rests[j + 1].offset > i / self.subdivision + offsetStart:
-                    t[i, :] = [note2index[standard_name(list_notes_and_rests[j])],
+                if (list_notes_and_rests[j + 1].offset > i
+                        / self.subdivision + offsetStart):
+                    t[i, :] = [note2index[standard_name(list_notes_and_rests[j],
+                                                        voice_range=voice_range)],
                                is_articulated]
                     i += 1
                     is_articulated = False
@@ -283,7 +288,8 @@ class ChoraleDataset(MusicDataset):
                     j += 1
                     is_articulated = True
             else:
-                t[i, :] = [note2index[standard_name(list_notes_and_rests[j])],
+                t[i, :] = [note2index[standard_name(list_notes_and_rests[j],
+                                                    voice_range=voice_range)],
                            is_articulated]
                 i += 1
                 is_articulated = False

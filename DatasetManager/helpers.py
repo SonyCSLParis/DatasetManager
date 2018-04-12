@@ -10,14 +10,19 @@ END_SYMBOL = 'END'
 OUT_OF_RANGE = 'OOR'
 
 
-def standard_name(note_or_rest):
+def standard_name(note_or_rest, voice_range=None):
     """
     Convert music21 objects to str
     :param note_or_rest:
     :return:
     """
     if isinstance(note_or_rest, note.Note):
-        return note_or_rest.nameWithOctave
+        if voice_range is not None:
+            min_pitch, max_pitch = voice_range
+            pitch = note_or_rest.pitch.midi
+            if pitch < min_pitch or pitch > max_pitch:
+                return OUT_OF_RANGE
+            return note_or_rest.nameWithOctave
     if isinstance(note_or_rest, note.Rest):
         return note_or_rest.name
     if isinstance(note_or_rest, str):
@@ -29,7 +34,7 @@ def standard_name(note_or_rest):
 
 
 def standard_note(note_or_rest_string):
-    if note_or_rest_string == 'rest':
+    if note_or_rest_string == 'rest' or note_or_rest_string == OUT_OF_RANGE:
         return note.Rest()
     # treat other additional symbols as rests
     if note_or_rest_string == START_SYMBOL or note_or_rest_string == END_SYMBOL:

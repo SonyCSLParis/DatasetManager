@@ -34,13 +34,16 @@ def standard_name(note_or_rest, voice_range=None):
 
 
 def standard_note(note_or_rest_string):
-    if note_or_rest_string == 'rest' or note_or_rest_string == OUT_OF_RANGE:
+    if note_or_rest_string == 'rest':
         return note.Rest()
     # treat other additional symbols as rests
-    if note_or_rest_string == START_SYMBOL or note_or_rest_string == END_SYMBOL:
+    elif note_or_rest_string == END_SYMBOL:
         return note.Rest()
-    if note_or_rest_string == SLUR_SYMBOL:
+    elif note_or_rest_string == SLUR_SYMBOL:
         print('Warning: SLUR_SYMBOL used in standard_note')
+        return note.Rest()
+    elif note_or_rest_string == OUT_OF_RANGE:
+        print('Warning: OUT_OF_RANGE used in standard_note')
         return note.Rest()
     else:
         return note.Note(note_or_rest_string)

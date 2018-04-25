@@ -85,7 +85,7 @@ class MusicDataset(ABC):
         assert sum(split) < 1
 
         dataset = self.tensor_dataset
-        num_examples = dataset.data_tensor.size()[0]
+        num_examples = len(dataset)
         a, b = split
         train_dataset = TensorDataset(*dataset[: int(a * num_examples)])
         val_dataset = TensorDataset(*dataset[int(a * num_examples):

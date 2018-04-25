@@ -65,7 +65,7 @@ class MusicDataset(ABC):
     def filepath(self):
         tensor_datasets_cache_dir = os.path.join(
             self.cache_dir,
-            'tensor_datasets')
+            'datasets')
         if not os.path.exists(tensor_datasets_cache_dir):
             os.mkdir(tensor_datasets_cache_dir)
         return os.path.join(
@@ -97,7 +97,7 @@ class MusicDataset(ABC):
             batch_size=batch_size,
             shuffle=True,
             num_workers=4,
-            pin_memory=False,
+            pin_memory=True,
             drop_last=True,
         )
 

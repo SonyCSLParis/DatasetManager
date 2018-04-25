@@ -27,6 +27,7 @@ def standard_name(note_or_rest, voice_range=None):
         return note_or_rest.name
     if isinstance(note_or_rest, str):
         return note_or_rest
+    
     if isinstance(note_or_rest, harmony.ChordSymbol):
         return note_or_rest.figure
     if isinstance(note_or_rest, expressions.TextExpression):

@@ -105,11 +105,12 @@ ENV/
 
 # cache folder
 dataset_cache/
+dataset_cache_old/
 tmp_database/
 ressources/
 xml/
 
 # passwords
 passwords.py
-
+stub.py
 .DS_Store

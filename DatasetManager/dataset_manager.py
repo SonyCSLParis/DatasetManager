@@ -2,7 +2,7 @@ import os
 
 import music21
 import torch
-from DatasetManager.chorale_dataset import ChoraleDataset
+from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
@@ -17,6 +17,11 @@ all_datasets = {
     'bach_chorales':
         {
             'dataset_class_name': ChoraleDataset,
+            'corpus_it_gen':      music21.corpus.chorales.Iterator
+        },
+    'bach_chorales_beats':
+        {
+            'dataset_class_name': ChoraleBeatsDataset,
             'corpus_it_gen':      music21.corpus.chorales.Iterator
         },
     'bach_chorales_test':

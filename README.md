@@ -6,7 +6,7 @@ Clone repository and then
 `pip install -e .` in root directory.
 
 ## Usage
-```
+```python
 from DatasetManager.dataset_manager import DatasetManager
 datataset_manager = DatasetManager()
 

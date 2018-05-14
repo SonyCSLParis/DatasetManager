@@ -493,7 +493,7 @@ class ChoraleDataset(MusicDataset):
             part = stream.Part(id='part' + str(voice_index))
             dur = 0
             f = music21.note.Rest()
-            for note_index in voice:
+            for note_index in [n.item() for n in voice]:
                 # if it is a played note
                 if not note_index == slur_indexes[voice_index]:
                     # add previous note

@@ -1,4 +1,5 @@
 from glob2 import glob
+from music21.abcFormat import ABCHandlerException
 
 from DatasetManager.dataset_manager import DatasetManager
 from DatasetManager.music_dataset import MusicDataset
@@ -64,7 +65,7 @@ class FolkDataset(MusicDataset):
 
     def find_tune_as_leadsheet(self):
         # todo remove add
-        offset = 29217
+        offset = 43434
         tune_filepaths = glob(f'{self.raw_dataset_dir}/tune*')
         # tune_filepaths = [f'{self.raw_dataset_dir}/tune_29777.abc']
         count = 0
@@ -93,7 +94,8 @@ class FolkDataset(MusicDataset):
                     music21.abcFormat.ABCTokenException,
                     music21.duration.DurationException,
                     UnboundLocalError,
-                    ValueError) as e:
+                    ValueError,
+                    ABCHandlerException) as e:
                 print('Error when parsing ABC file')
                 print(e)
 

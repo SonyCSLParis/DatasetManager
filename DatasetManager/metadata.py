@@ -240,10 +240,11 @@ class FermataMetadata(Metadata):
         self.name = 'fermata'
 
     def get_index(self, value):
-        # values are 1 and 0
+        # possible values are 1 and 0, thus value = index
         return value
 
     def get_value(self, index):
+        # possible values are 1 and 0, thus value = index
         return index
 
     def evaluate(self, chorale, subdivision):

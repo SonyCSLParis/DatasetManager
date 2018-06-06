@@ -30,7 +30,7 @@ class ChoraleDataset(MusicDataset):
         over chorales (as music21 scores)
         :param name:
         :param voice_ids: list of voice_indexes to be used
-        :param metadatas: list[Metadata]
+        :param metadatas: list[Metadata], the list of used metadatas
         :param sequences_size: in beats
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
@@ -192,17 +192,30 @@ class ChoraleDataset(MusicDataset):
         all_metadata = torch.cat(md, 2)
         return all_metadata
 
-    def add_fermata(self, metadata_tensor, time_index_start,
-                    time_index_stop):
+    def set_fermatas(self, metadata_tensor, fermata_tensor):
+        """
+        Impose fermatas for all chorales in a batch
+
+        :param metadata_tensor: a (batch_size, sequences_size, num_metadatas)
+            tensor
+        :param fermata_tensor: a (sequences_size) binary tensor
+        """
         if self.metadatas:
             for metadata_index, metadata in enumerate(self.metadatas):
                 if isinstance(metadata, FermataMetadata):
-                    metadata_tensor[:,
-                    time_index_start: time_index_stop,
-                    metadata_index] = 1
-            return metadata_tensor
-        else:
-            return metadata_tensor
+                    # uses broadcasting
+                    metadata_tensor[:, :, metadata_index] = fermata_tensor
+                    break
+        return metadata_tensor
+
+    def add_fermata(self, metadata_tensor, time_index_start, time_index_stop):
+        """
+        Shorthand function to impose a fermata between two time indexes
+        """
+        fermata_tensor = torch.zeros(self.sequences_size)
+        fermata_tensor[time_index_start:time_index_stop] = 1
+        metadata_tensor = self.set_fermatas(metadata_tensor, fermata_tensor)
+        return metadata_tensor
 
     def min_max_transposition(self, current_subseq_ranges):
         if current_subseq_ranges is None:

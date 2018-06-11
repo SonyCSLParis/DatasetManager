@@ -9,7 +9,7 @@ from bson import ObjectId
 
 import numpy as np
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, \
-    standard_note
+    standard_note, PAD_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
     getUnalteredPitch, getAccidental, getOctave, note_duration, \
@@ -202,9 +202,10 @@ class LsdbDataset(MusicDataset):
 
         padded_tensor = []
         if start_tick < 0:
-            start_symbols = np.array([symbol2index[START_SYMBOL]])
+            start_symbols = np.array([symbol2index[PAD_SYMBOL]])
             start_symbols = torch.from_numpy(start_symbols).long().clone()
             start_symbols = start_symbols.repeat(batch_size, -start_tick)
+            start_symbols[:, -1] = symbol2index[START_SYMBOL]
             padded_tensor.append(start_symbols)
 
         slice_start = start_tick if start_tick > 0 else 0
@@ -213,9 +214,10 @@ class LsdbDataset(MusicDataset):
         padded_tensor.append(tensor[:, slice_start: slice_end])
 
         if end_tick > length:
-            end_symbols = np.array([symbol2index[END_SYMBOL]])
+            end_symbols = np.array([symbol2index[PAD_SYMBOL]])
             end_symbols = torch.from_numpy(end_symbols).long().clone()
             end_symbols = end_symbols.repeat(batch_size, end_tick - length)
+            end_symbols[:, 0] = symbol2index[END_SYMBOL]
             padded_tensor.append(end_symbols)
 
         padded_tensor = torch.cat(padded_tensor, 1)
@@ -242,6 +244,7 @@ class LsdbDataset(MusicDataset):
             note_set.add(SLUR_SYMBOL)
             note_set.add(START_SYMBOL)
             note_set.add(END_SYMBOL)
+            note_set.add(PAD_SYMBOL)
 
         # get all notes
         # todo filter leadsheets not in voice range

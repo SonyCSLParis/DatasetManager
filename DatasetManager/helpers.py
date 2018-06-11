@@ -8,6 +8,7 @@ SLUR_SYMBOL = '__'
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
 OUT_OF_RANGE = 'OOR'
+PAD_SYMBOL = 'XX'
 
 
 def standard_name(note_or_rest, voice_range=None):

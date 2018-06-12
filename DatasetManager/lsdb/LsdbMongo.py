@@ -1,22 +1,29 @@
+import json
+from glob import glob
+
 from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
 
-from DatasetManager.lsdb.passwords import LOGIN_READONLY, PASSWORD_READONLY, SERVER_ADDRESS
+from DatasetManager.lsdb.passwords import LOGIN_READONLY, PASSWORD_READONLY, SERVER_ADDRESS, \
+    SSH_PKEY, SSH_USER_NAME
 
 
 class LsdbMongo:
     def __init__(self):
         self.server = SSHTunnelForwarder(
             SERVER_ADDRESS,
-            ssh_username='gaetan',
-            remote_bind_address=('127.0.0.1', 27017)
+            ssh_username=SSH_USER_NAME,
+            remote_bind_address=('127.0.0.1', 27017),
+            ssh_pkey=SSH_PKEY
         )
         self.server.start()
 
-        self.client = MongoClient('localhost', self.server.local_bind_port)
+        self.client = MongoClient('localhost',
+                                  self.server.local_bind_port,
+                                  )
 
     def get_db(self):
-        db = self.client.get_database('lsdb')
+        db = self.client.get_database('admin')
         db.authenticate(LOGIN_READONLY, PASSWORD_READONLY,
                         mechanism='SCRAM-SHA-1')
         return db
@@ -44,6 +51,7 @@ class LsdbMongo:
 if __name__ == '__main__':
     lsdb_client = LsdbMongo()
     db = lsdb_client.get_db()
-    cursor = lsdb_client.get_songbook_leadsheets_cursor(db)
-    print(next(cursor))
+    # cursor = lsdb_client.get_songbook_leadsheets_cursor(db)
+    # print(next(cursor))
+    print(db.find())
     lsdb_client.close()

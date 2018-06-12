@@ -23,10 +23,12 @@ class LsdbMongo:
                                   )
 
     def get_db(self):
+        # Cannot connect directly to lsdb and then performing auth
         db = self.client.get_database('admin')
         db.authenticate(LOGIN_READONLY, PASSWORD_READONLY,
                         mechanism='SCRAM-SHA-1')
-        return db
+        lsdb = self.client.get_database('lsdb')
+        return lsdb
 
     def get_songbook_leadsheets_cursor(self, db):
         """Return a cursor all songbook leadsheets, excluding user input ones

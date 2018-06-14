@@ -1,57 +1,67 @@
 import glob
 import os
+import re
+
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
 import music21
-from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
+
+from DatasetManager.lsdb.LsdbMongo import LsdbMongo
+from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException, LeadsheetParsingException
 from bson import ObjectId
+import numpy as np
 
 REST = 'R'
 NC = 'N.C.'
 
 # dictionary
 note_values = {
-	'q':  1.,
-	'h':  2.,
-	'w':  4.,
-	'8':  0.5,
-	'16': 0.25,
-	'32': 0.125,
+    'q':  1.,
+    'h':  2.,
+    'w':  4.,
+    '8':  0.5,
+    '16': 0.25,
+    '32': 0.125,
 }
 
 music21_alterations_to_json = {
-	'-': 'b',
-	'#': '#',
-	'':  'n'
+    '-': 'b',
+    '#': '#',
+    '':  'n'
 }
+
+# list of badly-formatted leadsheets
+exclude_list_ids = [
+    ObjectId('512dbeca58e3380f1c000000'),  # And on the third day
+]
 
 
 class FakeNote:
-	"""
-	Class used to have SLUR_SYMBOLS with a duration
-	"""
+    """
+    Class used to have SLUR_SYMBOLS with a duration
+    """
 
-	def __init__(self, symbol, duration):
-		self.symbol = symbol
-		self.duration = duration
+    def __init__(self, symbol, duration):
+        self.symbol = symbol
+        self.duration = duration
 
-	def __repr__(self):
-		return f'<FakeNote {self.symbol}>'
+    def __repr__(self):
+        return f'<FakeNote {self.symbol}>'
 
 
 def general_note(pitch: str, duration: float):
-	duration = music21.duration.Duration(duration)
+    duration = music21.duration.Duration(duration)
 
-	if pitch == SLUR_SYMBOL:
-		return FakeNote(symbol=pitch,
-		                duration=duration)
-	elif pitch == REST:
-		f = music21.note.Rest()
-		f.duration = duration
-		return f
-	else:
-		f = music21.note.Note(pitch=pitch)
-		f.duration = duration
-		return f
+    if pitch == SLUR_SYMBOL:
+        return FakeNote(symbol=pitch,
+                        duration=duration)
+    elif pitch == REST:
+        f = music21.note.Rest()
+        f.duration = duration
+        return f
+    else:
+        f = music21.note.Note(pitch=pitch)
+        f.duration = duration
+        return f
 
 
 def standard_chord_symbol(chord_or_exp_str):
@@ -71,166 +81,166 @@ def standard_chord_symbol(chord_or_exp_str):
         return music21.harmony.ChordSymbol(chord_or_exp_str)
 
 
-
-
 def is_tied_left(json_note):
-	"""
+    """
 
-	:param json_note:
-	:return: True is the json_note is tied FROM the left
-	"""
-	return ('tie' in json_note
-	        and
-	        'stop' in json_note["tie"].split('_'))
+    :param json_note:
+    :return: True is the json_note is tied FROM the left
+    """
+    return ('tie' in json_note
+            and
+            'stop' in json_note["tie"].split('_'))
 
 
 def is_tied_right(json_note):
-	"""
+    """
 
-	:param json_note:
-	:return: True is the json_note is tied FROM the right
-	"""
-	return ('tie' in json_note
-	        and
-	        'start' in json_note["tie"].split('_'))
+    :param json_note:
+    :return: True is the json_note is tied FROM the right
+    """
+    return ('tie' in json_note
+            and
+            'start' in json_note["tie"].split('_'))
 
 
 def note_duration(note_value, dots, time_modification):
-	"""
+    """
 
-	:param time_modification:
-	:type note_value: str
-	:param note_value: duration of the note regardless of the dots
-	:param dots: number of dots (0, 1 or 2)
-	:return: the actual duration in beats (float)
-	"""
-	duration = note_values[note_value]
-	for dot in range(dots):
-		duration *= 1.5
-	return duration * time_modification
+    :param time_modification:
+    :type note_value: str
+    :param note_value: duration of the note regardless of the dots
+    :param dots: number of dots (0, 1 or 2)
+    :return: the actual duration in beats (float)
+    """
+    duration = note_values[note_value]
+    for dot in range(dots):
+        duration *= 1.5
+    return duration * time_modification
 
 
 def getAccidental(json_note):
-	"""
+    """
 
-	:param json_note:
-	:return:
-	"""
-	# Pas plus de bémols ni dièses
-	if '##' in json_note['keys'][0]:
-		return '##'
-	if 'bb' in json_note['keys'][0]:
-		return '--'
-	if 'n' in json_note['keys'][0]:
-		return 'becarre'
-	if 'b' in json_note['keys'][0]:
-		return '-'
-	if '#' in json_note['keys'][0]:
-		return '#'
-	return ''
+    :param json_note:
+    :return:
+    """
+    # Pas plus de bémols ni dièses
+    if '##' in json_note['keys'][0]:
+        return '##'
+    if 'bb' in json_note['keys'][0]:
+        return '--'
+    if 'n' in json_note['keys'][0]:
+        return 'becarre'
+    if 'b' in json_note['keys'][0]:
+        return '-'
+    if '#' in json_note['keys'][0]:
+        return '#'
+    return ''
 
 
 def getOctave(json_note):
-	"""
+    """
 
-	:param json_note:
-	:return: octave as string
-	"""
-	return json_note['keys'][0][-1]
+    :param json_note:
+    :return: octave as string
+    """
+    return json_note['keys'][0][-1]
 
 
 def getUnalteredPitch(json_note):
-	"""
+    """
 
-	:param json_note:
-	:return: 'Bb/4' -> B
-	"""
-	return json_note['keys'][0][0]
+    :param json_note:
+    :return: 'Bb/4' -> B
+    """
+    return json_note['keys'][0][0]
 
 
 def retain_altered_pitches_if_tied(altered_pitches, json_note):
-	"""
+    """
 
-	:param altered_pitches: dict
-	:param note: json note
-	:return:
-	"""
-	pitch = getUnalteredPitch(json_note)
-	if pitch in altered_pitches.keys():
-		return {pitch: altered_pitches[pitch]}
-	else:
-		return {}
+    :param altered_pitches: dict
+    :param note: json note
+    :return:
+    """
+    pitch = getUnalteredPitch(json_note)
+    if pitch in altered_pitches.keys():
+        return {pitch: altered_pitches[pitch]}
+    else:
+        return {}
 
 
 def altered_pitches_music21_to_dict(alteredPitches):
-	"""
+    """
 
-	:param alteredPitches:
-	:return: dictionary {'B': 'b', 'C': ''}
-	"""
-	d = {}
-	# todo natural ?
-	for pitch in alteredPitches:
-		d.update({pitch.name[0]: music21_alterations_to_json[pitch.name[1]]})
-	return d
+    :param alteredPitches:
+    :return: dictionary {'B': 'b', 'C': ''}
+    """
+    d = {}
+    # todo natural ?
+    for pitch in alteredPitches:
+        d.update({pitch.name[0]: music21_alterations_to_json[pitch.name[1]]})
+    return d
 
 
 def assert_no_time_signature_changes(leadsheet):
-	changes = leadsheet['changes']
-	for change in changes:
-		if ('(timeSig' in change or
-				('timeSignature' in change
-				 and
-				 not change['timeSignature'] == '')
-		):
-			raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
-			                             str(leadsheet['_id']) +
-			                             ' has multiple time changes')
+    changes = leadsheet['changes']
+    for change in changes:
+        if ('(timeSig' in change or
+                ('timeSignature' in change
+                 and
+                 not change['timeSignature'] == '')
+        ):
+            raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
+                                         str(leadsheet['_id']) +
+                                         ' has multiple time changes')
 
 
 def leadsheet_on_ticks(leadsheet, tick_values):
-	notes, chords = notes_and_chords(leadsheet)
-	eps = 1e-5
-	for n in notes:
-		i, d = divmod(n.offset, 1)
-		flag = False
-		for tick_value in tick_values:
-			if tick_value - eps < d < tick_value + eps:
-				flag = True
-		if not flag:
-			return False
+    notes, chords = notes_and_chords(leadsheet)
+    eps = 1e-5
+    for n in notes:
+        i, d = divmod(n.offset, 1)
+        flag = False
+        for tick_value in tick_values:
+            if tick_value - eps < d < tick_value + eps:
+                flag = True
+        if not flag:
+            return False
 
-	return True
+    return True
 
 
 def set_metadata(score, lsdb_leadsheet):
-	"""
-	
-	:param score: 
-	:param lsdb_leadsheet: 
-	:return: 
-	"""
-	score.insert(0, music21.metadata.Metadata())
+    """
+    Add metadata extracted from lsdb_leadsheet to score
+    In place
 
-	if 'title' in lsdb_leadsheet:
-		score.metadata.title = lsdb_leadsheet['title']
-	if 'composer' in lsdb_leadsheet:
-		score.metadata.composer = lsdb_leadsheet['composer']
+    :param score:
+    :param lsdb_leadsheet:
+    :return:
+    """
+    score.insert(0, music21.metadata.Metadata())
+
+    if 'title' in lsdb_leadsheet:
+        score.metadata.title = lsdb_leadsheet['title']
+    if 'composer' in lsdb_leadsheet:
+        score.metadata.composer = lsdb_leadsheet['composer']
 
 
 def notes_and_chords(leadsheet):
-	"""
+    """
 
-	:param leadsheet: music21 score
-	:return:
-	"""
-	notes = leadsheet.parts[0].flat.notesAndRests
-	notes = [n for n in notes if not isinstance(n, music21.harmony.ChordSymbol)]
-	chords = leadsheet.parts[0].flat.getElementsByClass(
-		[music21.harmony.ChordSymbol,
-		 music21.expressions.TextExpression
-		 ])
-	return notes, chords
+    :param leadsheet: music21 score
+    :return:
+    """
+    notes = leadsheet.parts[0].flat.notesAndRests
+    notes = [n for n in notes if not isinstance(n, music21.harmony.ChordSymbol)]
+    chords = leadsheet.parts[0].flat.getElementsByClass(
+        [music21.harmony.ChordSymbol,
+         music21.expressions.TextExpression
+         ])
+    return notes, chords
 
 
 def chord_symbols_from_note_list(all_notes, interval):
@@ -281,37 +291,378 @@ def standard_chord(chord_string):
                     raise Exception
 
 
+def chords_duration(bar, number_of_beats):
+    """
+
+    :param bar: lsdb bar
+    :param number_of_beats:
+    :return: list of Durations in beats of each chord in bar
+    it is of length num_chords_in_bar + 1
+    the first element indicates the duration of a possible
+    __ chord (if there are no chords on the first beat)
+
+    Example:(
+    if bar has chords on beats 1 and 3
+    [d.quarterLength
+    for d in self.chords_duration(bar)] = [0, 2, 2]
+
+    if bar has one chord on beat 3
+    [d.quarterLength
+    for d in self.chords_duration(bar)] = [2, 2]
+
+    if there are no chord (in 4/4):
+    [d.quarterLength
+    for d in self.chords_duration(bar)] = [4]
+    """
+    # if there are no chords
+    if 'chords' not in bar:
+        return [music21.duration.Duration(number_of_beats)]
+    json_chords = bar['chords']
+    chord_durations = [json_chord['beat']
+                       for json_chord in json_chords]
+    chord_durations += [number_of_beats + 1]
+    chord_durations = np.array(chord_durations, dtype=np.float)
+
+    # beat starts at 1...
+    chord_durations -= 1
+    chord_durations[1:] -= chord_durations[:-1]
+
+    # convert to music21 objects
+    chord_durations = [music21.duration.Duration(d)
+                       for d in chord_durations]
+    return chord_durations
+
+
+def chords_in_bar(bar, number_of_beats):
+    """
+
+    :param bar: bar of lsdb_leadsheet
+    :param number_of_beats:
+    :return: list of music21.chord.Chord with their durations
+    if there are no chord on the first beat, a there is a rest
+    of the correct duration instead
+    """
+    chord_durations = chords_duration(bar=bar,
+                                      number_of_beats=number_of_beats)
+    rest_duration = chord_durations[0]
+
+    # Rest chord during all the measure if no chords in bar
+    if 'chords' not in bar:
+        rest_chord = music21.note.Rest(duration=rest_duration)
+        return [rest_chord]
+
+    json_chords = bar['chords']
+    chords = []
+
+    # add Rest chord if there are no chord on the first beat
+    if rest_duration.quarterLength > 0:
+        rest_chord = music21.note.Rest(duration=rest_duration)
+        chords.append(rest_chord)
+
+    for json_chord, duration in zip(json_chords, chord_durations[1:]):
+        chord = music21_chord_from_json_chord(json_chord)
+        chord.duration = duration
+        chords.append(chord)
+
+    return chords
+
+
+def notes_in_bar(self, bar,
+                 altered_pitches_at_key):
+    """
+
+    :param bar:
+    :param altered_pitches_at_key:
+    :return: list of music21.note.Note
+    """
+    if 'melody' not in bar:
+        raise LeadsheetParsingException('No melody')
+    bar_melody = bar["melody"]
+    current_altered_pitches = altered_pitches_at_key.copy()
+
+    notes = []
+    for json_note in bar_melody:
+        # pitch is Natural pitch + accidental alteration
+        # do not take into account key signatures and previous alterations
+        pitch = self.pitch_from_json_note(
+            json_note=json_note,
+            current_altered_pitches=current_altered_pitches)
+
+        duration = self.duration_from_json_note(json_note)
+
+        note = general_note(pitch, duration)
+        notes.append(note)
+    return notes
+
+
+def duration_from_json_note(json_note):
+    value = (json_note["duration"][:-1]
+             if json_note["duration"][-1] == 'r'
+             else json_note["duration"])
+    dot = (int(json_note["dot"])
+           if "dot" in json_note
+           else 0)
+    time_modification = 1.
+    if "time_modification" in json_note:
+        # a triolet is denoted as 3/2 in json format
+        numerator, denominator = json_note["time_modification"].split('/')
+        time_modification = int(denominator) / int(numerator)
+    return note_duration(value, dot, time_modification)
+
+
+def pitch_from_json_note(json_note, current_altered_pitches) -> str:
+    """
+    Compute the real pitch of a json_note given the current_altered_pitches
+    Modifies current_altered_pitches in place!
+    :param json_note:
+    :param current_altered_pitches:
+    :return: string of the pitch or SLUR_SYMBOL if the note is tied
+    """
+    # if it is a tied note
+    if "tie" in json_note:
+        if is_tied_left(json_note):
+            return SLUR_SYMBOL
+
+    displayed_pitch = (REST
+                       if json_note["duration"][-1] == 'r'
+                       else json_note["keys"][0])
+    # if it is a rest
+    if displayed_pitch == REST:
+        return REST
+
+    # Otherwise, if it is a true note
+    # put real alterations
+    unaltered_pitch = getUnalteredPitch(json_note)
+    displayed_accidental = getAccidental(json_note)
+    octave = getOctave(json_note)
+    if displayed_accidental:
+        # special case if natural
+        if displayed_accidental == 'becarre':
+            displayed_accidental = ''
+        current_altered_pitches.update(
+            {unaltered_pitch: displayed_accidental})
+    # compute real pitch
+    if unaltered_pitch in current_altered_pitches.keys():
+        pitch = (unaltered_pitch +
+                 current_altered_pitches[unaltered_pitch] +
+                 octave)
+    else:
+        pitch = unaltered_pitch + octave
+    return pitch
+
+
+def compute_lsdb_chord_dicts():
+    # Search LSDB for chord names
+    with LsdbMongo() as mongo_client:
+        db = mongo_client.get_db()
+        modes = db.modes
+        cursor_modes = modes.find({})
+        chord2notes = {}  # Chord to notes dictionary
+        notes2chord = {}  # Notes to chord dictionary
+        for chord in cursor_modes:
+            notes = []
+            # Remove white spaces from notes string
+            for note in re.compile("\s*,\s*").split(chord["chordNotes"]):
+                notes.append(note)
+            notes = tuple(notes)
+
+            # Enter entries in dictionaries
+            chord2notes[chord['mode']] = notes
+            if notes in notes2chord:
+                notes2chord[notes] = notes2chord[notes] + [chord["mode"]]
+            else:
+                notes2chord[notes] = [chord["mode"]]
+
+        correct_chord_dicts(chord2notes, notes2chord)
+
+        return chord2notes, notes2chord
+
+
+def correct_chord_dicts(chord2notes, notes2chord):
+    """
+    Modifies chord2notes and notes2chord in place
+    to correct errors in LSDB modes (dict of chord symbols with notes)
+    :param chord2notes:
+    :param notes2chord:
+    :return:
+    """
+    # Add missing chords
+    # b5
+    notes2chord[('C4', 'E4', 'Gb4')] = notes2chord[('C4', 'E4', 'Gb4')] + ['b5']
+    chord2notes['b5'] = ('C4', 'E4', 'Gb4')
+    # b9#5
+    notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
+    chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
+    # 7#5#11 is WRONG in the database
+    # C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
+    notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
+    chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
+    # F#7#9#11 is WRONG in the database
+
+
+def chord_symbols_from_note_list(all_notes, interval):
+    """
+
+    :param all_notes:
+    :param interval:
+    :return:
+    """
+    # Todo check
+    skip_notes = 0
+    while True:
+        try:
+            if skip_notes > 0:
+                notes = all_notes[:-skip_notes]
+            else:
+                notes = all_notes
+            chord_relative = music21.chord.Chord(notes)
+            chord = chord_relative.transpose(interval)
+            chord_root = chord_relative.bass().transpose(interval)
+            chord.root(chord_root)
+            chord_symbol = music21.harmony.chordSymbolFromChord(chord)
+            # print(chord_symbol)
+            return chord_symbol
+        except (music21.pitch.AccidentalException,
+                ValueError) as e:
+            # A7b13, m69, 13b9 not handled
+            print(e)
+            print(chord_relative, chord_relative.root())
+            print(chord, chord.root())
+            print('========')
+            skip_notes += 1
+
+
+def remove_fake_notes(notes):
+    """
+    Transforms a list of notes possibly containing FakeNotes
+    to a list of music21.note.Note with the correct durations
+    :param notes:
+    :return:
+    """
+    previous_note = None
+
+    true_notes = []
+    for note in notes:
+        if isinstance(note, FakeNote):
+            assert note.symbol == SLUR_SYMBOL
+            # will raise an error if the first note is a FakeNote
+            cumulated_duration += note.duration.quarterLength
+        else:
+            if previous_note is not None:
+                previous_note.duration = music21.duration.Duration(
+                    cumulated_duration)
+                true_notes.append(previous_note)
+            previous_note = note
+            cumulated_duration = previous_note.duration.quarterLength
+
+    # add last note
+    previous_note.duration = music21.duration.Duration(
+        cumulated_duration)
+    true_notes.append(previous_note)
+    return true_notes
+
+
+# todo could be merged with remove_fake_notes
+def remove_rest_chords(chords):
+    """
+    Transforms a list of ChordSymbols possibly containing Rests
+    to a list of ChordSymbols with the correct durations
+    :param chords:
+    :return:
+    """
+    previous_chord = None
+
+    true_chords = []
+    for chord in chords:
+        if isinstance(chord, music21.note.Rest):
+            # if the first chord is a Rest,
+            # replace it with a N.C.
+            if previous_chord is None:
+                previous_chord = music21.expressions.TextExpression(NC)
+                cumulated_duration = 0
+            cumulated_duration += chord.duration.quarterLength
+        else:
+            if previous_chord is not None:
+                previous_chord.duration = music21.duration.Duration(
+                    cumulated_duration)
+                true_chords.append(previous_chord)
+            previous_chord = chord
+            cumulated_duration = previous_chord.duration.quarterLength
+
+    # add last note
+    previous_chord.duration = music21.duration.Duration(
+        cumulated_duration)
+    true_chords.append(previous_chord)
+    return true_chords
+
+
+def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
+    """
+    Tries to find closest chordSymbol for json_chord using lsdb_chord_to_notes
+    :param json_chord:
+    :param lsdb_chord_to_notes: dictionnary
+    :return:
+    """
+    assert 'p' in json_chord
+    # root
+    json_chord_root = json_chord['p']
+    # chord type
+    if 'ch' in json_chord:
+        json_chord_type = json_chord['ch']
+    else:
+        json_chord_type = ''
+
+    # N.C. chords
+    if json_chord_root == 'NC':
+        return music21.expressions.TextExpression(NC)
+
+    num_characters_chord_type = len(json_chord_type)
+    while True:
+        try:
+            all_notes = lsdb_chord_to_notes[
+                json_chord_type[:num_characters_chord_type]]
+            all_notes = [note.replace('b', '-')
+                         for note in all_notes]
+
+            interval = music21.interval.Interval(
+                noteStart=music21.note.Note('C4'),
+                noteEnd=music21.note.Note(json_chord_root))
+            chord_symbol = chord_symbols_from_note_list(
+                all_notes=all_notes,
+                interval=interval
+            )
+            return chord_symbol
+        except (AttributeError, KeyError):
+            # if the preceding procedure did not work
+            print(json_chord_type[:num_characters_chord_type])
+            num_characters_chord_type -= 1
+
+
 class LeadsheetIteratorGenerator:
-	"""
-	Object that returns a iterator over leadsheet (as music21 scores)
-	when called
-	:return:
-	"""
+    """
+    Object that returns a iterator over leadsheet (as music21 scores)
+    when called
+    :return:
+    """
 
-	def __init__(self, num_elements=None):
-		self.num_elements = num_elements
+    def __init__(self, num_elements=None):
+        self.num_elements = num_elements
 
-	def __call__(self, *args, **kwargs):
-		it = (
-			leadsheet
-			for leadsheet in self.leadsheet_generator()
-		)
-		return it
+    def __call__(self, *args, **kwargs):
+        it = (
+            leadsheet
+            for leadsheet in self.leadsheet_generator()
+        )
+        return it
 
-	def leadsheet_generator(self):
-		dir_path = os.path.dirname(os.path.realpath(__file__))
-		leadsheet_paths = glob.glob(
-			os.path.join(dir_path, 'xml/*.xml'))
-		if self.num_elements is not None:
-			leadsheet_paths = leadsheet_paths[:self.num_elements]
-		for leadsheet_path in leadsheet_paths:
-			try:
-				yield music21.converter.parse(leadsheet_path)
-			except ZeroDivisionError:
-				print(f'{leadsheet_path} is not parsable')
-
-
-# list of badly-formatted leadsheets
-exclude_list_ids = [
-	ObjectId('512dbeca58e3380f1c000000'),  # And on the third day
-]
+    def leadsheet_generator(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        leadsheet_paths = glob.glob(
+            os.path.join(dir_path, 'xml/*.xml'))
+        if self.num_elements is not None:
+            leadsheet_paths = leadsheet_paths[:self.num_elements]
+        for leadsheet_path in leadsheet_paths:
+            try:
+                yield music21.converter.parse(leadsheet_path)
+            except ZeroDivisionError:
+                print(f'{leadsheet_path} is not parsable')

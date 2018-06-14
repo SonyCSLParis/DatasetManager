@@ -6,7 +6,8 @@ from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
 import music21
 
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
-from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException, LeadsheetParsingException
+from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException, LeadsheetParsingException, \
+    KeySignatureException
 from bson import ObjectId
 import numpy as np
 
@@ -367,7 +368,7 @@ def chords_in_bar(bar, number_of_beats):
     return chords
 
 
-def notes_in_bar(self, bar,
+def notes_in_bar(bar,
                  altered_pitches_at_key):
     """
 
@@ -384,11 +385,11 @@ def notes_in_bar(self, bar,
     for json_note in bar_melody:
         # pitch is Natural pitch + accidental alteration
         # do not take into account key signatures and previous alterations
-        pitch = self.pitch_from_json_note(
+        pitch = pitch_from_json_note(
             json_note=json_note,
             current_altered_pitches=current_altered_pitches)
 
-        duration = self.duration_from_json_note(json_note)
+        duration = duration_from_json_note(json_note)
 
         note = general_note(pitch, duration)
         notes.append(note)
@@ -636,6 +637,94 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
             # if the preceding procedure did not work
             print(json_chord_type[:num_characters_chord_type])
             num_characters_chord_type -= 1
+
+
+def leadsheet_to_music21(leadsheet):
+    # must convert b to -
+    if 'keySignature' not in leadsheet:
+        raise KeySignatureException(f'Leadsheet {leadsheet["title"]} '
+                                    f'has no keySignature')
+    key_signature = leadsheet['keySignature'].replace('b', '-')
+    key_signature = music21.key.Key(key_signature)
+
+    altered_pitches_at_key = altered_pitches_music21_to_dict(
+        key_signature.alteredPitches)
+
+    if 'changes' not in leadsheet:
+        raise LeadsheetParsingException('Leadsheet ' + leadsheet['title'] + ' ' +
+                                        str(leadsheet['_id']) +
+                                        ' do not contain "changes" attribute')
+
+    assert_no_time_signature_changes(leadsheet)
+    time_signature = music21.meter.TimeSignature(leadsheet['time'])
+    number_of_beats = time_signature.numerator
+    assert time_signature.denominator == 4
+
+    # todo put filtering in lsdb_to_xml
+
+    chords = []
+    notes = []
+
+    score = music21.stream.Score()
+    part_notes = music21.stream.Part()
+    part_chords = music21.stream.Part()
+    for section_index, section in enumerate(leadsheet['changes']):
+        for bar_index, bar in enumerate(section['bars']):
+            # We consider only 4/4 pieces
+            # Chords in bar
+            bar_chords = chords_in_bar(bar=bar,
+                                       number_of_beats=number_of_beats)
+            bar_notes = notes_in_bar(bar,
+                                     altered_pitches_at_key)
+            chords.extend(bar_chords)
+            notes.extend(bar_notes)
+
+    # remove FakeNotes
+    notes = remove_fake_notes(notes)
+    chords = remove_rest_chords(chords)
+
+    # voice_notes = music21.stream.Voice()
+    # voice_chords = music21.stream.Voice()
+    # todo there might be a cleaner way to do this
+    part_notes.append(notes)
+    part_chords.append(chords)
+    for chord in part_chords.flat.getElementsByClass(
+            [music21.harmony.ChordSymbol,
+             music21.expressions.TextExpression
+             ]):
+        # put durations to 0.0 as required for a good rendering
+        # handles both textExpression (for N.C.) and ChordSymbols
+        if isinstance(chord, music21.harmony.ChordSymbol):
+            new_chord = music21.harmony.ChordSymbol(chord.figure)
+        elif isinstance(chord, music21.expressions.TextExpression):
+            new_chord = music21.expressions.TextExpression(NC)
+        else:
+            raise ValueError
+        part_notes.insert(chord.offset, new_chord)
+    # new_chord = music21.harmony.ChordSymbol(chord.figure)
+    # part_notes.insert(chord.offset, chord)
+    # part_chords.append(chords)
+    # voice_notes.append(notes)
+    # voice_chords.append(chords)
+    # part = music21.stream.Part()
+    # part.insert(0, voice_notes)
+    # part.insert(0, voice_chords)
+    # score.append((part_notes, part_chords))
+    # score.append(part)
+
+    part_notes = part_notes.makeMeasures(
+        inPlace=False,
+        refStreamOrTimeRange=[0.0, part_chords.highestTime])
+
+    # add treble clef and key signature
+    part_notes.measure(1).clef = music21.clef.TrebleClef()
+    part_notes.measure(1).keySignature = key_signature
+    score.append(part_notes)
+    set_metadata(score, leadsheet)
+    # normally we should use this but it does not look good...
+    # score = music21.harmony.realizeChordSymbolDurations(score)
+
+    return score
 
 
 class LeadsheetIteratorGenerator:

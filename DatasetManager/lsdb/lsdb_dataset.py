@@ -41,6 +41,7 @@ class LsdbDataset(MusicDataset):
                             Fraction(3, 4)]
         self.tick_durations = self.compute_tick_durations()
         self.number_of_beats = 4
+        # todo redo compute_chord_dicts from xml
         (self.lsdb_chord_to_notes,
          self.notes_to_chord_lsdb) = self.compute_chord_dicts()
         self.num_voices = 2

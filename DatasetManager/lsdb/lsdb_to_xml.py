@@ -48,22 +48,24 @@ class LsdbConverter:
         with LsdbMongo() as client:
             db = client.get_db()
             leadsheets = db.leadsheets.find({'_id': {
-                '$nin': exclude_list_ids
+                '$nin': exclude_list_ids,
             }})
             # todo remove slicing
             for leadsheet in leadsheets[:10]:
                 # discard leadsheet with no title
                 if 'title' not in leadsheet:
                     continue
-                if os.path.exists(os.path.join(self.dataset_dir,
-                                               f'{leadsheet["title"]}.xml'
-                                               )):
-                    print(leadsheet['title'])
-                    print(leadsheet['_id'])
-                    print('exists!')
-                    continue
+                # if os.path.exists(os.path.join(self.dataset_dir,
+                #                                f'{leadsheet["title"]}.xml'
+                #                                )):
+                #     print(leadsheet['title'])
+                #     print(leadsheet['_id'])
+                #     print('exists!')
+                #     continue
                 print(leadsheet['title'])
                 print(leadsheet['_id'])
+                if not leadsheet['title'] == 'After The Rain':
+                    continue
                 try:
                     score = leadsheet_to_music21(leadsheet,
                                                  lsdb_chord_to_notes)

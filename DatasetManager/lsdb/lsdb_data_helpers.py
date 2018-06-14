@@ -1,11 +1,9 @@
 import glob
 import os
-import re
 
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
 import music21
 
-from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException, LeadsheetParsingException, \
     KeySignatureException
 from bson import ObjectId
@@ -334,11 +332,14 @@ def chords_duration(bar, number_of_beats):
     return chord_durations
 
 
-def chords_in_bar(bar, number_of_beats):
+def chords_in_bar(bar,
+                  number_of_beats,
+                  lsdb_chord_to_notes):
     """
 
     :param bar: bar of lsdb_leadsheet
     :param number_of_beats:
+    :param lsdb_chord_to_notes: dictionary
     :return: list of music21.chord.Chord with their durations
     if there are no chord on the first beat, a there is a rest
     of the correct duration instead
@@ -361,7 +362,8 @@ def chords_in_bar(bar, number_of_beats):
         chords.append(rest_chord)
 
     for json_chord, duration in zip(json_chords, chord_durations[1:]):
-        chord = music21_chord_from_json_chord(json_chord)
+        chord = music21_chord_from_json_chord(json_chord=json_chord,
+                                              lsdb_chord_to_notes=lsdb_chord_to_notes)
         chord.duration = duration
         chords.append(chord)
 
@@ -450,55 +452,6 @@ def pitch_from_json_note(json_note, current_altered_pitches) -> str:
     else:
         pitch = unaltered_pitch + octave
     return pitch
-
-
-def compute_lsdb_chord_dicts():
-    # Search LSDB for chord names
-    with LsdbMongo() as mongo_client:
-        db = mongo_client.get_db()
-        modes = db.modes
-        cursor_modes = modes.find({})
-        chord2notes = {}  # Chord to notes dictionary
-        notes2chord = {}  # Notes to chord dictionary
-        for chord in cursor_modes:
-            notes = []
-            # Remove white spaces from notes string
-            for note in re.compile("\s*,\s*").split(chord["chordNotes"]):
-                notes.append(note)
-            notes = tuple(notes)
-
-            # Enter entries in dictionaries
-            chord2notes[chord['mode']] = notes
-            if notes in notes2chord:
-                notes2chord[notes] = notes2chord[notes] + [chord["mode"]]
-            else:
-                notes2chord[notes] = [chord["mode"]]
-
-        correct_chord_dicts(chord2notes, notes2chord)
-
-        return chord2notes, notes2chord
-
-
-def correct_chord_dicts(chord2notes, notes2chord):
-    """
-    Modifies chord2notes and notes2chord in place
-    to correct errors in LSDB modes (dict of chord symbols with notes)
-    :param chord2notes:
-    :param notes2chord:
-    :return:
-    """
-    # Add missing chords
-    # b5
-    notes2chord[('C4', 'E4', 'Gb4')] = notes2chord[('C4', 'E4', 'Gb4')] + ['b5']
-    chord2notes['b5'] = ('C4', 'E4', 'Gb4')
-    # b9#5
-    notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
-    chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
-    # 7#5#11 is WRONG in the database
-    # C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
-    notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
-    chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
-    # F#7#9#11 is WRONG in the database
 
 
 def chord_symbols_from_note_list(all_notes, interval):
@@ -620,8 +573,9 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
     num_characters_chord_type = len(json_chord_type)
     while True:
         try:
-            all_notes = lsdb_chord_to_notes[
-                json_chord_type[:num_characters_chord_type]]
+            current_json_chord_type = json_chord_type[:num_characters_chord_type]
+
+            all_notes = lsdb_chord_to_notes[current_json_chord_type]
             all_notes = [note.replace('b', '-')
                          for note in all_notes]
 
@@ -635,11 +589,12 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
             return chord_symbol
         except (AttributeError, KeyError):
             # if the preceding procedure did not work
-            print(json_chord_type[:num_characters_chord_type])
+            print('Difficult chord')
+            print(current_json_chord_type)
             num_characters_chord_type -= 1
 
 
-def leadsheet_to_music21(leadsheet):
+def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     # must convert b to -
     if 'keySignature' not in leadsheet:
         raise KeySignatureException(f'Leadsheet {leadsheet["title"]} '
@@ -660,8 +615,6 @@ def leadsheet_to_music21(leadsheet):
     number_of_beats = time_signature.numerator
     assert time_signature.denominator == 4
 
-    # todo put filtering in lsdb_to_xml
-
     chords = []
     notes = []
 
@@ -673,7 +626,8 @@ def leadsheet_to_music21(leadsheet):
             # We consider only 4/4 pieces
             # Chords in bar
             bar_chords = chords_in_bar(bar=bar,
-                                       number_of_beats=number_of_beats)
+                                       number_of_beats=number_of_beats,
+                                       lsdb_chord_to_notes=lsdb_chord_to_notes)
             bar_notes = notes_in_bar(bar,
                                      altered_pitches_at_key)
             chords.extend(bar_chords)
@@ -695,7 +649,10 @@ def leadsheet_to_music21(leadsheet):
         # put durations to 0.0 as required for a good rendering
         # handles both textExpression (for N.C.) and ChordSymbols
         if isinstance(chord, music21.harmony.ChordSymbol):
-            new_chord = music21.harmony.ChordSymbol(chord.figure)
+            new_chord = chord.__deepcopy__()
+            new_chord.duration = music21.duration.Duration(0)
+            # chord.duration = music21.duration.Duration(0)
+            # new_chord = chord
         elif isinstance(chord, music21.expressions.TextExpression):
             new_chord = music21.expressions.TextExpression(NC)
         else:
@@ -734,6 +691,7 @@ class LeadsheetIteratorGenerator:
     :return:
     """
 
+    # todo redo
     def __init__(self, num_elements=None):
         self.num_elements = num_elements
 

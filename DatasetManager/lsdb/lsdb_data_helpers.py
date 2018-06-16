@@ -1,7 +1,7 @@
 import glob
 import os
 
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
+from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL
 import music21
 
 from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException, \
@@ -284,7 +284,7 @@ def chord_symbols_from_note_list(all_notes, interval):
 def standard_chord(chord_string):
     assert not chord_string == START_SYMBOL
     assert not chord_string == END_SYMBOL
-    if chord_string == NC:
+    if chord_string == NC or chord_string == PAD_SYMBOL:
         return music21.expressions.TextExpression(NC)
     else:
         num_chars = len(chord_string)
@@ -713,7 +713,7 @@ class LeadsheetIteratorGenerator:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # todo hard coded
         leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/4_4_Bill Evans/*.xml'))
+            os.path.join(dir_path, 'xml/4_4_all/*.xml'))
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:

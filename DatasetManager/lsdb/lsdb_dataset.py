@@ -448,6 +448,7 @@ class LsdbDataset(MusicDataset):
         dur = 0
         f = music21.note.Rest()
         for tick_index, note_index in enumerate(tensor_lead):
+            note_index = note_index.item()
             # if it is a played note
             if not note_index == slur_index:
                 # add previous note
@@ -470,6 +471,7 @@ class LsdbDataset(MusicDataset):
         start_index = chord2index[START_SYMBOL]
         end_index = chord2index[END_SYMBOL]
         for beat_index, chord_index in enumerate(tensor_chords):
+            chord_index = chord_index.item()
             # if it is a played chord
             if chord_index not in [slur_index, start_index, end_index]:
                 # add chord

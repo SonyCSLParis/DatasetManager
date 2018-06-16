@@ -54,7 +54,6 @@ class LsdbConverter:
                 'composer': self.composer
             },
                 no_cursor_timeout=True)
-            # todo remove slicing
             for leadsheet in leadsheets:
                 # discard leadsheet with no title
                 if 'title' not in leadsheet:
@@ -155,4 +154,8 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
-    LsdbConverter(composer='Bill Evans').make_score_dataset()
+    # LsdbConverter(composer='Bill Evans').make_score_dataset()
+    # LsdbConverter(composer='Miles Davis').make_score_dataset()
+    # LsdbConverter(composer='Duke Ellington').make_score_dataset()
+    # LsdbConverter(composer='Fats Waller').make_score_dataset()
+    LsdbConverter(composer='Michel Legrand').make_score_dataset()

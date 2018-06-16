@@ -4,8 +4,8 @@ import os
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL
 import music21
 
-from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException, LeadsheetParsingException, \
-    KeySignatureException
+from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException, \
+    LeadsheetParsingException, LeadsheetKeySignatureException
 from bson import ObjectId
 import numpy as np
 
@@ -111,6 +111,8 @@ def note_duration(note_value, dots, time_modification):
     :param dots: number of dots (0, 1 or 2)
     :return: the actual duration in beats (float)
     """
+    if note_value not in note_values:
+        raise LeadsheetParsingException(f'Note value of {note_value}')
     duration = note_values[note_value]
     for dot in range(dots):
         duration *= 1.5
@@ -183,6 +185,11 @@ def altered_pitches_music21_to_dict(alteredPitches):
 
 
 def assert_no_time_signature_changes(leadsheet):
+    if 'changes' not in leadsheet or not leadsheet['changes']:
+        raise LeadsheetParsingException(f'Leadsheet '
+                                        f'{leadsheet["title"]} '
+                                        f'{str(leadsheet["_id"])} '
+                                        f'has no "changes" field')
     changes = leadsheet['changes']
     for change in changes:
         if ('(timeSig' in change or
@@ -190,9 +197,10 @@ def assert_no_time_signature_changes(leadsheet):
                  and
                  not change['timeSignature'] == '')
         ):
-            raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
-                                         str(leadsheet['_id']) +
-                                         ' has multiple time changes')
+            raise LeadsheetTimeSignatureException(f'Leadsheet '
+                                                  f'{leadsheet["title"]} '
+                                                  f'{str(leadsheet["_id"])} '
+                                                  f'has multiple time changes')
 
 
 def leadsheet_on_ticks(leadsheet, tick_values):
@@ -596,9 +604,9 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
 
 def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     # must convert b to -
-    if 'keySignature' not in leadsheet:
-        raise KeySignatureException(f'Leadsheet {leadsheet["title"]} '
-                                    f'has no keySignature')
+    if 'keySignature' not in leadsheet or not leadsheet['keySignature']:
+        raise LeadsheetKeySignatureException(f'Leadsheet {leadsheet["title"]} '
+                                             f'has no keySignature')
     key_signature = leadsheet['keySignature'].replace('b', '-')
     key_signature = music21.key.Key(key_signature)
 
@@ -639,7 +647,6 @@ def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
 
     # voice_notes = music21.stream.Voice()
     # voice_chords = music21.stream.Voice()
-    # todo there might be a cleaner way to do this
     part_notes.append(notes)
     part_chords.append(chords)
     for chord in part_chords.flat.getElementsByClass(
@@ -704,8 +711,9 @@ class LeadsheetIteratorGenerator:
 
     def leadsheet_generator(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
+        # todo hard coded
         leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/*.xml'))
+            os.path.join(dir_path, 'xml/4_4/*.xml'))
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:

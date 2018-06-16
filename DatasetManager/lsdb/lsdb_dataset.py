@@ -41,9 +41,6 @@ class LsdbDataset(MusicDataset):
                             Fraction(3, 4)]
         self.tick_durations = self.compute_tick_durations()
         self.number_of_beats = 4
-        # todo redo compute_chord_dicts from xml
-        (self.lsdb_chord_to_notes,
-         self.notes_to_chord_lsdb) = self.compute_chord_dicts()
         self.num_voices = 2
         self.NOTES = 0
         self.CHORDS = 1
@@ -71,7 +68,7 @@ class LsdbDataset(MusicDataset):
         leadsheet_transposed = leadsheet.transpose(interval)
         leadsheet.show()
         leadsheet_transposed.show()
-        exit()
+
         return leadsheet_transposed
 
     def lead_and_chord_tensors(self, leadsheet):
@@ -320,7 +317,7 @@ class LsdbDataset(MusicDataset):
     #     notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
     #     chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
     #     # 7#5#11 is WRONG in the database
-    #     # C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
+    #     # C4 F4 G#4 B-4 D5 instead  of C4 E4 G#4 B-4 D5
     #     notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
     #     chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
     #

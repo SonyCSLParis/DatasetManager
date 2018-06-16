@@ -2,17 +2,19 @@ import os
 import re
 
 import music21
-from music21.key import KeySignatureException
-from music21.meter import TimeSignatureException
 
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
-from DatasetManager.lsdb.lsdb_data_helpers import exclude_list_ids, leadsheet_to_music21
-from DatasetManager.lsdb.lsdb_exceptions import LeadsheetParsingException
+from DatasetManager.lsdb.lsdb_data_helpers import exclude_list_ids, leadsheet_to_music21, \
+    assert_no_time_signature_changes
+from DatasetManager.lsdb.lsdb_exceptions import LeadsheetParsingException, \
+    LeadsheetTimeSignatureException, LeadsheetKeySignatureException
 
 import numpy as np
 
-
 # todo as method
+from music21.pitch import PitchException
+
+
 class LsdbConverter:
     """
     Object to handle the creation of local xml databases from LSDB
@@ -49,42 +51,55 @@ class LsdbConverter:
             db = client.get_db()
             leadsheets = db.leadsheets.find({'_id': {
                 '$nin': exclude_list_ids,
-            }})
+            }},
+                no_cursor_timeout=True)
             # todo remove slicing
-            for leadsheet in leadsheets[:10]:
+            for leadsheet in leadsheets:
                 # discard leadsheet with no title
                 if 'title' not in leadsheet:
                     continue
-                # if os.path.exists(os.path.join(self.dataset_dir,
-                #                                f'{leadsheet["title"]}.xml'
-                #                                )):
-                #     print(leadsheet['title'])
-                #     print(leadsheet['_id'])
-                #     print('exists!')
-                #     continue
+                if os.path.exists(os.path.join(self.dataset_dir,
+                                               f'{leadsheet["title"]}.xml'
+                                               )):
+                    print(leadsheet['title'])
+                    print(leadsheet['_id'])
+                    print('exists!')
+                    continue
                 print(leadsheet['title'])
                 print(leadsheet['_id'])
-                if not leadsheet['title'] == 'After The Rain':
-                    continue
                 try:
+                    self.assert_leadsheet_in_dataset(leadsheet)
                     score = leadsheet_to_music21(leadsheet,
                                                  lsdb_chord_to_notes)
-                    export_file_name = os.path.join(self.dataset_dir,
-                                                    f'{score.metadata.title}.xml'
-                                                    )
+                    export_file_name = os.path.join(
+                        self.dataset_dir,
+                        f'{self.normalize_leadsheet_name(score.metadata.title)}.xml'
+                    )
 
                     score.write('xml', export_file_name)
 
-                except (KeySignatureException,
-                        TimeSignatureException,
-                        LeadsheetParsingException) as e:
+                except (LeadsheetKeySignatureException,
+                        LeadsheetTimeSignatureException,
+                        LeadsheetParsingException,
+                        PitchException,
+                        ) as e:
                     print(e)
+            # close cursor
+            leadsheets.close()
 
     def assert_leadsheet_in_dataset(self, leadsheet):
+        if 'time' not in leadsheet:
+            raise LeadsheetParsingException(f'Leadsheet '
+                                            f'{leadsheet["title"]} '
+                                            f'{str(leadsheet["_id"])} '
+                                            f'has no "time" field')
+
         if leadsheet['time'] != self.time_signature:
-            raise TimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
-                                         str(leadsheet['_id']) +
-                                         f' is not in {self.time_signature}')
+            raise LeadsheetTimeSignatureException('Leadsheet ' + leadsheet['title'] + ' ' +
+                                                  str(leadsheet['_id']) +
+                                                  f' is not in {self.time_signature}')
+        assert_no_time_signature_changes(leadsheet)
+
     @staticmethod
     def correct_chord_dicts(chord2notes, notes2chord):
         """
@@ -132,6 +147,10 @@ class LsdbConverter:
             self.correct_chord_dicts(chord2notes, notes2chord)
 
             return chord2notes, notes2chord
+
+    @staticmethod
+    def normalize_leadsheet_name(name):
+        return name.replace('/', '-')
 
 
 if __name__ == '__main__':

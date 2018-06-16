@@ -243,10 +243,10 @@ def notes_and_chords(leadsheet):
     """
     notes = leadsheet.parts[0].flat.notesAndRests
     notes = [n for n in notes if not isinstance(n, music21.harmony.ChordSymbol)]
-    chords = leadsheet.parts[0].flat.getElementsByClass(
+    chords = list(leadsheet.parts[0].flat.getElementsByClass(
         [music21.harmony.ChordSymbol,
          music21.expressions.TextExpression
-         ])
+         ]))
     return notes, chords
 
 
@@ -713,7 +713,7 @@ class LeadsheetIteratorGenerator:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # todo hard coded
         leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/4_4/*.xml'))
+            os.path.join(dir_path, 'xml/4_4_Bill Evans/*.xml'))
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:

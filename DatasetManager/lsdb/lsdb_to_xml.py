@@ -30,7 +30,7 @@ class LsdbConverter:
 
     def __repr__(self):
         return f'{self.time_signature.replace("/","_")}' \
-               f'{f"_{composer}" if self.composer else ""}'
+               f'{"_" + self.composer if self.composer else ""}'
 
     def make_score_dataset(self):
         """
@@ -49,9 +49,10 @@ class LsdbConverter:
         # todo add query
         with LsdbMongo() as client:
             db = client.get_db()
-            leadsheets = db.leadsheets.find({'_id': {
-                '$nin': exclude_list_ids,
-            }},
+            leadsheets = db.leadsheets.find({
+                '_id':      {'$nin': exclude_list_ids, },
+                'composer': self.composer
+            },
                 no_cursor_timeout=True)
             # todo remove slicing
             for leadsheet in leadsheets:
@@ -154,4 +155,4 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
-    LsdbConverter().make_score_dataset()
+    LsdbConverter(composer='Bill Evans').make_score_dataset()

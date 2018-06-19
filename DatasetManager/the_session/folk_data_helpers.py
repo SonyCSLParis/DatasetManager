@@ -10,7 +10,7 @@ from music21 import interval, meter
 from music21.abcFormat import ABCHandlerException
 
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL
-from DatasetManager.lsdb.lsdb_exceptions import TimeSignatureException
+from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException
 from bson import ObjectId
 
 # dictionary
@@ -132,6 +132,11 @@ class FolkIteratorGenerator:
             self.package_dir,
             'raw_data',
         )
+		
+		self.raw_dataset_url = 'https://raw.githubusercontent.com/IraKorshunova/' \
+                               'folk-rnn/master/data/' \
+	                           'sessions_data_clean.txt'
+
 		if not os.path.exists(self.raw_dataset_dir):
 			os.mkdir(self.raw_dataset_dir)
 
@@ -139,13 +144,15 @@ class FolkIteratorGenerator:
             self.raw_dataset_dir,
             'raw_dataset_full.txt'
         )
+
+		if not os.path.exists(self.full_raw_dataset_filepath):
+			self.download_raw_dataset()
+			self.split_raw_dataset()
+
 		self.valid_files_list = os.path.join(
             self.raw_dataset_dir,
             'valid_tune_filepaths.txt'
         )
-		self.raw_dataset_url = 'https://raw.githubusercontent.com/IraKorshunova/' \
-                               'folk-rnn/master/data/' \
-	                           'sessions_data_clean.txt'
 		self.valid_tune_filepaths = []
 
 	def download_raw_dataset(self):

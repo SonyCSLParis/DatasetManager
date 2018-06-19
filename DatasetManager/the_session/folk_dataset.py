@@ -24,7 +24,7 @@ from DatasetManager.the_session.folk_data_helpers import get_notes, \
 
 
 class FolkDataset(MusicDataset):
-    def __init__(self,
+    def __init__(self,  
                  name,
                  corpus_it_gen=None,  # TODO: NOT BEING USED RIGHT NOW
                  metadatas=None,
@@ -40,14 +40,9 @@ class FolkDataset(MusicDataset):
         :param cache_dir: directory where the tensor_dataset is stored
         """
         super(FolkDataset, self).__init__(cache_dir=cache_dir)
-
-        self.raw_dataset_dir = os.path.join(
-            self.cache_dir,
-            'raw_dataset',
-        )
         self.name = name
         self.corpus_it_gen = corpus_it_gen
-        self.offset = 10
+        self.num_melodies = 10 ### Change this to increase / decrease the dataset size
         self.NOTES = 0
         self.num_voices = 1
         self.pitch_range = [55, 84]
@@ -63,8 +58,14 @@ class FolkDataset(MusicDataset):
                     self.beat_symbol2index_dicts = metadata.beat_symbol2index_dicts
         self.index2note_dicts = None
         self.note2index_dicts = None
+        self.dicts_dir = os.path.join(
+            self.cache_dir,
+            'dicts',
+        )
+        if not os.path.exists(self.dicts_dir):
+        	os.mkdir(self.dicts_dir)
         self.dict_path = os.path.join(
-            self.raw_dataset_dir,
+            self.dicts_dir, self.__repr__() + 
             'dict_path.txt'
         )
 
@@ -74,7 +75,7 @@ class FolkDataset(MusicDataset):
                f'{[metadata.name for metadata in self.metadatas]},' \
                f'{self.sequences_size},' \
                f'{self.subdivision})' \
-               f'{self.offset}'
+               f'{self.num_melodies}'
 
     def chorale_iterator_gen(self):
         return (chorale
@@ -210,7 +211,7 @@ class FolkDataset(MusicDataset):
             if not self.is_in_range(score):
                 continue
             try:
-                if count > self.offset:
+                if count > self.num_melodies:
                     break
                 count += 1
                 lead_tensor = self.get_lead_tensor(score)
@@ -473,7 +474,7 @@ class FolkDataset(MusicDataset):
         for _, score in tqdm(enumerate(self.corpus_it_gen())):
             # score = self.get_score_from_path(tune_filepath)
             # part is either lead or chords as lists
-            if count > self.offset:
+            if count > self.num_melodies:
                 break
             count += 1
             for part_id, part in enumerate(notes_and_chords(score)):

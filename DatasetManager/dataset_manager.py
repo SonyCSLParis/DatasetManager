@@ -4,6 +4,7 @@ import music21
 import torch
 from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
+from DatasetManager.metadata import TickMetadata, BeatMarkerMetadata
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
@@ -118,7 +119,7 @@ class DatasetManager:
 
 # Usage example
 if __name__ == '__main__':
-    datataset_manager = DatasetManager()
+    dataset_manager = DatasetManager()
     # BACH
 
     # subdivision = 4
@@ -144,13 +145,34 @@ if __name__ == '__main__':
     # print(next(train_dataloader.__iter__()))
 
     # LSDB
-    lsdb_dataset: LsdbDataset = datataset_manager.get_dataset(
-        name='lsdb_test',
-        sequences_size=64,
+    #lsdb_dataset: LsdbDataset = datataset_manager.get_dataset(
+    #    name='lsdb_test',
+    #    sequences_size=64,
+    #)
+    #(train_dataloader,
+    # val_dataloader,
+    # test_dataloader) = lsdb_dataset.data_loaders(
+    #    batch_size=128,
+    #    split=(0.85, 0.10)
+    #)
+    #print(next(train_dataloader.__iter__()))
+
+    # Folk Dataset  
+    metadatas = [
+        BeatMarkerMetadata(subdivision=6),
+        TickMetadata(subdivision=6)
+    ]
+    folk_dataset_kwargs = {
+        'metadatas':        metadatas,
+        'sequences_size':   32
+    }
+    folk_dataset: FolkDataset = dataset_manager.get_dataset(
+        name ='folk',
+        **folk_dataset_kwargs
     )
     (train_dataloader,
      val_dataloader,
-     test_dataloader) = lsdb_dataset.data_loaders(
+     test_dataloader) = folk_dataset.data_loaders(
         batch_size=128,
         split=(0.85, 0.10)
     )

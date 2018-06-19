@@ -2,7 +2,7 @@
 Metadata classes
 """
 import numpy as np
-from music21 import analysis, stream
+from music21 import analysis, stream, meter
 from DatasetManager.helpers import SLUR_SYMBOL, \
     PAD_SYMBOL, BEAT_SYMBOL, DOWNBEAT_SYMBOL
 

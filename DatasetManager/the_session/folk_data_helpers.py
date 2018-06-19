@@ -135,36 +135,42 @@ class FolkIteratorGenerator:
             self.package_dir,
             'raw_data',
         )
+		
+        self.raw_dataset_url = 'https://raw.githubusercontent.com/IraKorshunova/' \
+                               'folk-rnn/master/data/' \
+	                           'sessions_data_clean.txt'
+
         if not os.path.exists(self.raw_dataset_dir):
-            os.mkdir(self.raw_dataset_dir)
+        	os.mkdir(self.raw_dataset_dir)
 
         self.full_raw_dataset_filepath = os.path.join(
             self.raw_dataset_dir,
             'raw_dataset_full.txt'
         )
+
+        if not os.path.exists(self.full_raw_dataset_filepath):
+        	self.download_raw_dataset()
+        	self.split_raw_dataset()
+
         self.valid_files_list = os.path.join(
             self.raw_dataset_dir,
             'valid_tune_filepaths.txt'
         )
-        self.raw_dataset_url = 'https://raw.githubusercontent.com/IraKorshunova/' \
-                               'folk-rnn/master/data/' \
-                               'sessions_data_clean.txt'
         self.valid_tune_filepaths = []
 
     def download_raw_dataset(self):
-        if os.path.exists(self.full_raw_dataset_filepath):
-            print('The Session dump already exists')
-        else:
-            print('Downloading The Session dump')
-            os.system(
-                f'wget -L {self.raw_dataset_url} -O {self.full_raw_dataset_filepath}')
+    	if os.path.exists(self.full_raw_dataset_filepath):
+		    print('The Session dump already exists')
+    	else:
+		    print('Downloading The Session dump')
+		    os.system(
+		        f'wget -L {self.raw_dataset_url} -O {self.full_raw_dataset_filepath}')
 
     def split_raw_dataset(self):
-        print('Splitting raw dataset')
-        with open(self.full_raw_dataset_filepath) as full_raw_dataset_file:
+    	print('Splitting raw dataset')
+    	with open(self.full_raw_dataset_filepath) as full_raw_dataset_file:
             tune_index = 0
-
-            current_song_filepath = os.path.join(self.raw_dataset_dir,
+            current_song_filepath = os.path.join(self.raw_dataset_dir, 
                                                  f'tune_{tune_index}.abc')
             current_song_file = open(current_song_filepath, 'w+')
             for line in full_raw_dataset_file:

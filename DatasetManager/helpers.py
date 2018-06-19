@@ -28,7 +28,7 @@ def standard_name(note_or_rest, voice_range=None):
         return note_or_rest.name
     if isinstance(note_or_rest, str):
         return note_or_rest
-    
+
     if isinstance(note_or_rest, harmony.ChordSymbol):
         return note_or_rest.figure
     if isinstance(note_or_rest, expressions.TextExpression):
@@ -39,7 +39,11 @@ def standard_note(note_or_rest_string):
     if note_or_rest_string == 'rest':
         return note.Rest()
     # treat other additional symbols as rests
-    elif note_or_rest_string == END_SYMBOL or note_or_rest_string == START_SYMBOL:
+    elif (note_or_rest_string == END_SYMBOL
+          or
+          note_or_rest_string == START_SYMBOL
+          or
+          note_or_rest_string == PAD_SYMBOL):
         return note.Rest()
     elif note_or_rest_string == SLUR_SYMBOL:
         print('Warning: SLUR_SYMBOL used in standard_note')

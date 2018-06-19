@@ -36,7 +36,3 @@ bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
 print(next(train_dataloader.__iter__()))
 ```
 
-## todo
-- put Metadata class in this repo (in DeepBach project for the moment)
-- add LSDB and folk songs datasets
-

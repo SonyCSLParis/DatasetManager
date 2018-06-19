@@ -107,8 +107,9 @@ ENV/
 dataset_cache/
 dataset_cache_old/
 tmp_database/
-ressources/
+resources/
 xml/
+raw_data/
 
 # passwords
 passwords.py

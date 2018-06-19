@@ -36,19 +36,28 @@ all_datasets = {
         {
             'dataset_class_name': LsdbDataset,
             'corpus_it_gen':      LeadsheetIteratorGenerator(
-                num_elements=10)
+                num_elements=10
+            )
         },
     'lsdb':
         {
             'dataset_class_name': LsdbDataset,
             'corpus_it_gen':      LeadsheetIteratorGenerator(
-                num_elements=None)
+                num_elements=None
+            )
         },
     'folk':
         {
             'dataset_class_name': FolkDataset,
             'corpus_it_gen':      FolkIteratorGenerator(
                 num_elements=None
+            )
+        },
+    'folk_test':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=10
             )
         }
 }
@@ -174,6 +183,8 @@ if __name__ == '__main__':
      val_dataloader,
      test_dataloader) = folk_dataset.data_loaders(
         batch_size=128,
-        split=(0.85, 0.10)
+        split=(0.7, 0.2)
     )
-    print(next(train_dataloader.__iter__()))
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))

@@ -153,7 +153,7 @@ class FolkIteratorGenerator:
             self.split_raw_dataset()
 
         self.valid_files_list = os.path.join(
-            self.raw_dataset_dir,
+            self.package_dir,
             'valid_tune_filepaths.txt'
         )
         self.valid_tune_filepaths = []
@@ -194,10 +194,11 @@ class FolkIteratorGenerator:
     def score_generator(self):
         self.get_valid_tune_filepaths()
         for score_index, score_path in enumerate(self.valid_tune_filepaths):
-            if score_index > self.num_elements:
+            if score_index >= self.num_elements:
                 continue
             try:
-                yield self.get_score_from_path(score_path)
+                full_path = os.path.join(self.raw_dataset_dir, score_path)
+                yield self.get_score_from_path(full_path)
             except ZeroDivisionError:
                 print(f'{score_path} is not parsable')
 
@@ -272,7 +273,8 @@ class FolkIteratorGenerator:
                                         break
                             else:
                                 self.valid_file_indices.append(tune_index)
-                                self.valid_tune_filepaths.append(tune_filepath)
+                                file_name = os.path.basename(tune_filepath)
+                                self.valid_tune_filepaths.append(file_name)
                                 count += 1
             except (music21.abcFormat.ABCHandlerException,
                     music21.abcFormat.ABCTokenException,
@@ -332,6 +334,7 @@ class FolkIteratorGenerator:
         return score
 
     def scan_dataset(self):
+        # fix this
         num_files = len(self.valid_tune_filepaths)
         num_notes = np.zeros(num_files, dtype=int)
         num_4_4 = 0

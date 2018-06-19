@@ -170,3 +170,10 @@ if __name__ == '__main__':
         name ='folk',
         **folk_dataset_kwargs
     )
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = folk_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
+    )
+    print(next(train_dataloader.__iter__()))

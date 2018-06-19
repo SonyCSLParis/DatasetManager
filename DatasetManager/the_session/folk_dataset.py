@@ -22,13 +22,14 @@ from DatasetManager.lsdb.lsdb_exceptions import *
 from DatasetManager.the_session.folk_data_helpers import get_notes, \
     get_notes_in_measure, tick_values
 
+
 class FolkDataset(MusicDataset):
     def __init__(self,  
                  name,
-                 corpus_it_gen = None, # TODO: NOT BEING USED RIGHT NOW
+                 corpus_it_gen=None,  # TODO: NOT BEING USED RIGHT NOW
                  metadatas=None,
                  sequences_size=32,
-                 subdivision = 4, # TODO: NOT BEING USED RIGHT NOW
+                 subdivision=4,  # TODO: NOT BEING USED RIGHT NOW
                  cache_dir=None):
         """
         :param corpus_it_gen: calling this function returns an iterator
@@ -39,11 +40,6 @@ class FolkDataset(MusicDataset):
         :param cache_dir: directory where the tensor_dataset is stored
         """
         super(FolkDataset, self).__init__(cache_dir=cache_dir)
-        
-        self.raw_dataset_dir = os.path.join(
-            self.cache_dir,
-            'raw_dataset',
-        )
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.num_melodies = 10 ### Change this to increase / decrease the dataset size
@@ -62,8 +58,14 @@ class FolkDataset(MusicDataset):
                     self.beat_symbol2index_dicts = metadata.beat_symbol2index_dicts
         self.index2note_dicts = None
         self.note2index_dicts = None
-        self.dict_path = os.path.join( 
-            self.raw_dataset_dir,
+        self.dicts_dir = os.path.join(
+            self.cache_dir,
+            'dicts',
+        )
+        if not os.path.exists(self.dicts_dir):
+        	os.mkdir(self.dicts_dir)
+        self.dict_path = os.path.join(
+            self.dicts_dir, self.__repr__() + 
             'dict_path.txt'
         )
 
@@ -78,7 +80,7 @@ class FolkDataset(MusicDataset):
     def chorale_iterator_gen(self):
         return (chorale
                 for chorale in self.corpus_it_gen()
-        )
+                )
 
     def compute_tick_durations(self):
         """
@@ -149,7 +151,7 @@ class FolkDataset(MusicDataset):
         lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
         # convert to torch tensor
         lead_tensor = torch.from_numpy(lead).long()[None, :]
-        return lead_tensor #, chord_tensor
+        return lead_tensor  # , chord_tensor
 
     def get_metadata_tensor(self, score):
         """
@@ -172,15 +174,15 @@ class FolkDataset(MusicDataset):
         voice_id_metada = torch.from_numpy(np.arange(self.num_voices)).long().clone()
         square_metadata = torch.transpose(
             voice_id_metada.repeat(lead_length, 1),
-            0, 
+            0,
             1
-            )
+        )
         md.append(square_metadata[:, :, None])
 
         all_metadata = torch.cat(md, 2)
         return all_metadata
-        #all_metadata = torch.cat(md, 2)
-        #return all_metadata
+        # all_metadata = torch.cat(md, 2)
+        # return all_metadata
 
     def transposed_chorale_and_metadata_tensors(self, chorale, semi_tone):
         """
@@ -194,7 +196,7 @@ class FolkDataset(MusicDataset):
         # TODO: implement this properly. 
         if semi_tone != 0:
             raise NotImplementedError
-        
+
         chorale_tensor = self.get_lead_tensor(chorale)
         metadata_tensor = self.get_metadata_tensor(chorale)
         return chorale_tensor, metadata_tensor
@@ -273,7 +275,7 @@ class FolkDataset(MusicDataset):
                 lead_tensor = self.get_lead_tensor(score)
                 metadata_tensor = self.get_metadata_tensor(score)
                 # lead and metadata tensors should have same length
-                assert(lead_tensor.size()[1] == metadata_tensor.size()[1])
+                assert (lead_tensor.size()[1] == metadata_tensor.size()[1])
                 seq_len = lead_tensor.size()[1]
                 if seq_len > longest_seq:
                     longest_seq = seq_len
@@ -292,7 +294,7 @@ class FolkDataset(MusicDataset):
         )
         # resize tensors to fit model expectations
         # TODO: complete this part 
-        
+
         # create pytorch Tensor Dataset
         dataset = TensorDataset(lead_tensor_dataset, metadata_tensor_dataset)
         print(f'Sizes: {lead_tensor_dataset.size()}')
@@ -310,7 +312,6 @@ class FolkDataset(MusicDataset):
         # get the tensor dimensions
 
         # interate and pad zeros, keep track of number of zeros padded
-
 
     def transposed_lead_tensor(self, score, semi_tone):
         """
@@ -334,11 +335,10 @@ class FolkDataset(MusicDataset):
         lead_tensor = self.get_lead_tensor(score_tranposed)
         return lead_tensor
 
-
     def extract_lead_with_padding(self, tensor,
-                             start_tick,
-                             end_tick,
-                             symbol2index):
+                                  start_tick,
+                                  end_tick,
+                                  symbol2index):
         """
 
         :param tensor: (batch_size, length)
@@ -356,7 +356,7 @@ class FolkDataset(MusicDataset):
             start_symbols = np.array([symbol2index[START_SYMBOL]])
             start_symbols = torch.from_numpy(start_symbols).long().clone()
             start_symbols = start_symbols.repeat(batch_size, -start_tick)
-            #start_symbols[-1] = symbol2index[START_SYMBOL]
+            # start_symbols[-1] = symbol2index[START_SYMBOL]
             padded_tensor.append(start_symbols)
 
         slice_start = start_tick if start_tick > 0 else 0
@@ -368,7 +368,7 @@ class FolkDataset(MusicDataset):
             end_symbols = np.array([symbol2index[END_SYMBOL]])
             end_symbols = torch.from_numpy(end_symbols).long().clone()
             end_symbols = end_symbols.repeat(batch_size, end_tick - length)
-            #end_symbols[0] = symbol2index[END_SYMBOL]
+            # end_symbols[0] = symbol2index[END_SYMBOL]
             padded_tensor.append(end_symbols)
 
         padded_tensor = torch.cat(padded_tensor, 1)
@@ -412,7 +412,7 @@ class FolkDataset(MusicDataset):
         Computes the index dcitionaries specific to the symbols in the score
         For debugging only
         """
-        #self.compute_beatmarker_dicts
+        # self.compute_beatmarker_dicts
         print('Computing note index dicts for score')
         self.index2note_dicts = [
             {} for _ in range(self.num_voices)
@@ -427,30 +427,30 @@ class FolkDataset(MusicDataset):
             note_set.add(SLUR_SYMBOL)
             note_set.add(START_SYMBOL)
             note_set.add(END_SYMBOL)
-            #note_set.add(PAD_SYMBOL)
+            # note_set.add(PAD_SYMBOL)
         # part is either lead or chords as lists
         for part_id, part in enumerate(notes_and_chords(score)):
             for n in part:
                 note_sets[part_id].add(standard_name(n))
-         # create tables
+        # create tables
         for note_set, index2note, note2index in zip(note_sets,
                                                     self.index2note_dicts,
                                                     self.note2index_dicts):
             for note_index, note in enumerate(note_set):
                 index2note.update({note_index: note})
                 note2index.update({note: note_index})
-    
+
     def compute_index_dicts(self):
         if os.path.exists(self.dict_path):
             print('Dictionaries already exists. Reading them now')
             f = open(self.dict_path, 'r')
             dicts = [line.rstrip('\n') for line in f]
-            assert(len(dicts) == 2) # must have 2 dictionaries
+            assert (len(dicts) == 2)  # must have 2 dictionaries
             self.index2note_dicts = eval(dicts[0])
             self.note2index_dicts = eval(dicts[1])
             return
 
-        #self.compute_beatmarker_dicts()
+        # self.compute_beatmarker_dicts()
         print('Computing note index dicts')
         self.index2note_dicts = [
             {} for _ in range(self.num_voices)
@@ -465,14 +465,14 @@ class FolkDataset(MusicDataset):
             note_set.add(SLUR_SYMBOL)
             note_set.add(START_SYMBOL)
             note_set.add(END_SYMBOL)
-            #note_set.add(PAD_SYMBOL)
+            # note_set.add(PAD_SYMBOL)
 
         # get all notes
         # iteratre through all scores and fill in the notes 
-        #for tune_filepath in tqdm(self.valid_tune_filepaths):
+        # for tune_filepath in tqdm(self.valid_tune_filepaths):
         count = 0
         for _, score in tqdm(enumerate(self.corpus_it_gen())):
-            #score = self.get_score_from_path(tune_filepath)
+            # score = self.get_score_from_path(tune_filepath)
             # part is either lead or chords as lists
             if count > self.num_melodies:
                 break
@@ -488,7 +488,7 @@ class FolkDataset(MusicDataset):
             for note_index, note in enumerate(note_set):
                 index2note.update({note_index: note})
                 note2index.update({note: note_index})
-        
+
         # write as text file for use later
         f = open(self.dict_path, 'w')
         f.write("%s\n" % self.index2note_dicts)
@@ -510,7 +510,6 @@ class FolkDataset(MusicDataset):
         max_pitch = max(pitches)
         return (min_pitch >= self.pitch_range[0]
                 and max_pitch <= self.pitch_range[1])
-
 
     def tensor_chorale_to_score(self, tensor_chorale):
         """
@@ -551,8 +550,9 @@ class FolkDataset(MusicDataset):
         start_symbols = start_symbols.repeat(chorale_length, 1).transpose(0, 1)
         return start_symbols
 
+
 if __name__ == '__main__':
     # dataset_manager = DatasetManager()
     folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
-    #folk_dataset.download_raw_dataset()
+    # folk_dataset.download_raw_dataset()
     folk_dataset.make_tensor_dataset

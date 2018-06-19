@@ -3,7 +3,8 @@ Metadata classes
 """
 import numpy as np
 from music21 import analysis, stream
-
+from DatasetManager.helpers import SLUR_SYMBOL, \
+    PAD_SYMBOL, BEAT_SYMBOL, DOWNBEAT_SYMBOL
 
 class Metadata:
     def __init__(self):
@@ -79,7 +80,6 @@ class IsPlayingMetadata(Metadata):
 
     def generate(self, length):
         return np.ones(shape=(length,))
-
 
 class TickMetadata(Metadata):
     """
@@ -281,3 +281,71 @@ class FermataMetadata(Metadata):
         # fermata every 2 bars
         return np.array([1 if i % 32 >= 28 else 0
                          for i in range(length)])
+
+class BeatMarkerMetadata(Metadata):
+    """
+    Metadata class that tracks the beat and downbeat markers
+    """
+    def __init__(self, subdivision):
+        super(BeatMarkerMetadata, self).__init__()
+        self.is_global = False
+        self.num_values = subdivision
+        self.name = 'beatmarker'
+         # create beatmarker dictionaries
+        self.beat_index2symbol_dicts = {}
+        self.beat_symbol2index_dicts = {}
+        beat_set = set()
+        beat_set.add(PAD_SYMBOL)    
+        beat_set.add(SLUR_SYMBOL)
+        beat_set.add(BEAT_SYMBOL)
+        beat_set.add(DOWNBEAT_SYMBOL)
+        for beat_index, beat in enumerate(beat_set):
+            self.beat_index2symbol_dicts.update({beat_index: beat})
+            self.beat_symbol2index_dicts.update({beat: beat_index})
+        print(self.beat_index2symbol_dicts)
+
+    def get_index(self, value):
+        return value
+    
+    def get_value(self, index):
+        return index 
+
+    def evaluate(self, leadsheet, subdivision):
+        assert subdivision == self.num_values
+        # assume all pieces start on the downbeat
+        symbol2index = self.beat_symbol2index_dicts
+        # get time signature numerator (number of beats in a measure)
+        ts = leadsheet.parts[0].recurse().getElementsByClass(meter.TimeSignature)
+        if len(ts) == 1:
+            beats_per_measure = ts[0].numerator
+        else:
+            beats_per_measure = 4
+        assert(beats_per_measure == 3 or beats_per_measure == 4)
+        freq = beats_per_measure * subdivision
+
+        # find the length of the metadata tensor
+        length = int(leadsheet.highestTime * subdivision)
+        t = np.ones((1, length)) * symbol2index[SLUR_SYMBOL]
+    
+        # construct sequence
+        t[0::freq] = symbol2index[DOWNBEAT_SYMBOL]
+        t[0 + subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        t[0 + 2 * subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        if beats_per_measure == 4:
+            t[0 + 3 * subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        return t
+    
+    def generate(self, length):
+        symbol2index = self.beat_symbol2index_dicts
+        beats_per_measure = 4 # TODO: remove this hardcoding
+        subdivision = self.num_values
+        freq = beats_per_measure * subdivision
+        t = np.ones((1,length)) * symbol2index[SLUR_SYMBOL]
+    
+        # construct sequence
+        t[0::freq] = symbol2index[DOWNBEAT_SYMBOL]
+        t[0 + subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        t[0 + 2 * subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        if beats_per_measure == 4:
+            t[0 + 3 * subdivision :: freq] = symbol2index[BEAT_SYMBOL]
+        return t

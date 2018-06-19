@@ -146,7 +146,6 @@ class ChoraleDataset(MusicDataset):
         """
         Convert chorale to a couple (chorale_tensor, metadata_tensor),
         the original chorale is transposed semi_tone number of semi-tones
-
         :param chorale: music21 object
         :param semi_tone:
         :return: couple of tensors
@@ -168,7 +167,6 @@ class ChoraleDataset(MusicDataset):
     def compute_metadata(self, chorale):
         """
         Adds also the index of the voices
-
         :param chorale: music21 stream
         :return:tensor (num_voices, chorale_length, len(self.metadatas) + 1)
         """
@@ -195,7 +193,6 @@ class ChoraleDataset(MusicDataset):
     def set_fermatas(self, metadata_tensor, fermata_tensor):
         """
         Impose fermatas for all chorales in a batch
-
         :param metadata_tensor: a (batch_size, sequences_size, num_metadatas)
             tensor
         :param fermata_tensor: a (sequences_size) binary tensor
@@ -247,7 +244,6 @@ class ChoraleDataset(MusicDataset):
 
     def part_to_tensor(self, part, part_id, offsetStart, offsetEnd):
         """
-
         :param part:
         :param part_id:
         :param offsetStart:
@@ -406,7 +402,6 @@ class ChoraleDataset(MusicDataset):
 
     def extract_chorale_with_padding(self, tensor_chorale, start_tick, end_tick):
         """
-
         :param tensor_chorale: (num_voices, length in ticks)
         :param start_tick:
         :param end_tick:
@@ -444,7 +439,6 @@ class ChoraleDataset(MusicDataset):
     def extract_metadata_with_padding(self, tensor_metadata,
                                       start_tick, end_tick):
         """
-
         :param tensor_metadata: (num_voices, length, num_metadatas)
         last metadata is the voice_index
         :param start_tick:
@@ -491,7 +485,6 @@ class ChoraleDataset(MusicDataset):
 
     def tensor_chorale_to_score(self, tensor_chorale):
         """
-
         :param tensor_chorale: (num_voices, length)
         :return:
         """
@@ -614,4 +607,4 @@ class ChoraleBeatsDataset(ChoraleDataset):
                                 metadata_tensor_dataset)
 
         print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
-        return dataset
+return dataset

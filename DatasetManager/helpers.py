@@ -9,7 +9,8 @@ START_SYMBOL = 'START'
 END_SYMBOL = 'END'
 OUT_OF_RANGE = 'OOR'
 PAD_SYMBOL = 'XX'
-
+BEAT_SYMBOL = 'b'
+DOWNBEAT_SYMBOL = 'B'
 
 def standard_name(note_or_rest, voice_range=None):
     """

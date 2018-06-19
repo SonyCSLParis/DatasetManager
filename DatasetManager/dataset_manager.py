@@ -7,6 +7,8 @@ from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
+from DatasetManager.the_session.folk_dataset import FolkDataset
+from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
@@ -41,7 +43,13 @@ all_datasets = {
             'corpus_it_gen':      LeadsheetIteratorGenerator(
                 num_elements=None)
         },
-
+    'folk':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=None
+            )
+        }
 }
 
 

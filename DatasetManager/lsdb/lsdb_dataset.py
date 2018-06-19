@@ -634,6 +634,7 @@ class LsdbDataset(MusicDataset):
 
         # CHORDS LIST
         chord_list = []
+        index2chord = self.index2symbol_dicts[self.CHORDS]
         for beat_index, chord_index in enumerate(tensor_chords):
             chord_index = chord_index.item()
             # todo standardize

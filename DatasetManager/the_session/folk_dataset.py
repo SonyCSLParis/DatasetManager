@@ -73,7 +73,7 @@ class FolkDataset(MusicDataset):
                f'{[metadata.name for metadata in self.metadatas]},' \
                f'{self.sequences_size},' \
                f'{self.subdivision})' \
-               f'{self.offset}'
+               f'{self.num_melodies}'
 
     def chorale_iterator_gen(self):
         return (chorale

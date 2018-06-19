@@ -607,4 +607,4 @@ class ChoraleBeatsDataset(ChoraleDataset):
                                 metadata_tensor_dataset)
 
         print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
-return dataset
+        return dataset

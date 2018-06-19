@@ -554,4 +554,4 @@ if __name__ == '__main__':
     # dataset_manager = DatasetManager()
     folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
     # folk_dataset.download_raw_dataset()
-    folk_dataset.make_tensor_dataset
+    folk_dataset.make_tensor_dataset()

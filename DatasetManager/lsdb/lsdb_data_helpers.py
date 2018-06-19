@@ -297,6 +297,19 @@ def standard_chord(chord_string):
                 if num_chars < 0:
                     raise Exception
 
+# def get_root(chord_string):
+#     assert not chord_string == START_SYMBOL
+#     assert not chord_string == END_SYMBOL
+#     assert not chord_string == NC
+#     assert not chord_string == PAD_SYMBOL
+#
+#     if (len(chord_string) > 1
+#             and
+#             chord_string[1] in ['-', '#']):
+#         return chord_string[0:2]
+#     else:
+#         return chord_string[0]
+
 
 def chords_duration(bar, number_of_beats):
     """

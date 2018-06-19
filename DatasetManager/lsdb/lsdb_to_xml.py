@@ -154,8 +154,29 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
+    pass
     # LsdbConverter(composer='Bill Evans').make_score_dataset()
     # LsdbConverter(composer='Miles Davis').make_score_dataset()
     # LsdbConverter(composer='Duke Ellington').make_score_dataset()
     # LsdbConverter(composer='Fats Waller').make_score_dataset()
-    LsdbConverter(composer='Michel Legrand').make_score_dataset()
+    # LsdbConverter(composer='Michel Legrand').make_score_dataset()
+    # LsdbConverter(composer='Thelonious Monk').make_score_dataset()
+    # LsdbConverter(composer='Charlie Parker').make_score_dataset()
+    # LsdbConverter(composer='Antonio Carlos Jobim').make_score_dataset()
+    # LsdbConverter(composer='Wayne Shorter').make_score_dataset()
+    # LsdbConverter(composer='Sonny Rollins').make_score_dataset()
+    # LsdbConverter(composer='John Coltrane').make_score_dataset()
+    # LsdbConverter(composer='Chick Corea').make_score_dataset()
+    # LsdbConverter(composer='Cole Porter').make_score_dataset()
+    # LsdbConverter(composer='Victor Young').make_score_dataset()
+    # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
+    # LsdbConverter(composer='Antonio-Carlos Jobim').make_score_dataset()
+    # LsdbConverter(composer='Pat Metheny').make_score_dataset()
+    # LsdbConverter(composer='McCoy Tyner').make_score_dataset()
+    # LsdbConverter(composer='Victor Young').make_score_dataset()
+    # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
+
+
+
+
+

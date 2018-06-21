@@ -42,7 +42,7 @@ class FolkDataset(MusicDataset):
         super(FolkDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
-        self.num_melodies = 5000  ### Change this to increase / decrease the dataset size
+        self.num_melodies = self.corpus_it_gen.num_elements
         self.NOTES = 0
         self.num_voices = 1
         self.pitch_range = [55, 84]

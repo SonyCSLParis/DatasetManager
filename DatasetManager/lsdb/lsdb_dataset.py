@@ -245,7 +245,6 @@ class LsdbDataset(MusicDataset):
         notes = [n.pitch.midi for n in notes_and_rests if n.isNote]
         return len(notes) > 0 and len(chords) > 0
 
-
     def all_transposition_intervals(self, leadsheet):
         min_pitch, max_pitch = self.leadsheet_range(leadsheet)
         min_pitch_corpus, max_pitch_corpus = self.pitch_range
@@ -450,9 +449,8 @@ class LsdbDataset(MusicDataset):
     def is_valid(self, leadsheet):
         return (self.contains_notes_and_chords(leadsheet)
                 and
-        self.is_in_range(leadsheet)
+                self.is_in_range(leadsheet)
                 )
-
 
     def leadsheet_range(self, leadsheet):
         notes, chords = notes_and_chords(leadsheet)
@@ -563,10 +561,13 @@ class LsdbDataset(MusicDataset):
             chords_part.append(c)
             score.append(chords_part)
 
-
         return score
 
-    def tensor_to_score_and_chord_list(self, tensor_score, tensor_chords):
+    def tensor_leadsheet_to_score_and_chord_list(self,
+                                                 tensor_lead,
+                                                 tensor_chords,
+                                                 add_chord_symbols=True,
+                                                 realize_chords=False):
         """
         Converts leadsheet given as tensor_lead to a true music21 score
         and the chords as a list
@@ -598,55 +599,55 @@ class LsdbDataset(MusicDataset):
         # add last note
         f.duration = music21.duration.Duration(dur)
         lead_part.append(f)
+
+        # CHORD SYMBOLS (in lead_part)
+        if add_chord_symbols:
+            slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
+            index2chord = self.index2symbol_dicts[self.CHORDS]
+            chord2index = self.symbol2index_dicts[self.CHORDS]
+            start_index = chord2index[START_SYMBOL]
+            end_index = chord2index[END_SYMBOL]
+            for beat_index, chord_index in enumerate(tensor_chords):
+                chord_index = chord_index.item()
+                # if it is a played chord
+                if chord_index not in [slur_index, start_index, end_index]:
+                    # add chord
+                    lead_part.insert(beat_index,
+                                     standard_chord(index2chord[chord_index]))
+
         score.append(lead_part)
 
-        # CHORDS PART
-        # chords_part = music21.stream.Part()
-        #
-        # slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
-        # index2chord = self.index2symbol_dicts[self.CHORDS]
-        # chord2index = self.symbol2index_dicts[self.CHORDS]
-        # start_index = chord2index[START_SYMBOL]
-        # end_index = chord2index[END_SYMBOL]
-        # for beat_index, chord_index in enumerate(tensor_chords):
-        #     chord_index = chord_index.item()
-        #     # if it is a played chord
-        #     if chord_index not in [slur_index, start_index, end_index]:
-        #         # add chord
-        #         chords_part.insert(beat_index, standard_chord(index2chord[chord_index]))
-        #
-        # score.insert(chords_part)
+        # REALIZED CHORD PART (in another part)
+        if realize_chords:
+            slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
+            index2chord = self.index2symbol_dicts[self.CHORDS]
+            chord2index = self.symbol2index_dicts[self.CHORDS]
+            chords_part = music21.stream.Part()
+            dur = 0
+            c = music21.note.Rest()
+            for beat_index, chord_index in enumerate(tensor_chords):
+                chord_index = chord_index.item()
 
-        # REALIZED CHORD PART
-        slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
-        index2chord = self.index2symbol_dicts[self.CHORDS]
-        chord2index = self.symbol2index_dicts[self.CHORDS]
-        chords_part = music21.stream.Part()
-        dur = 0
-        c = music21.note.Rest()
-        for beat_index, chord_index in enumerate(tensor_chords):
-            chord_index = chord_index.item()
-
-            # if it is a played note
-            if not chord_index == slur_index:
-                # add previous note
-                if dur > 0:
-                    c.duration = music21.duration.Duration(dur)
-                    chords_part.append(c)
-                dur = 1
-                try:
-                    c = music21.chord.Chord([
-                        p.transpose(12) for p in
-                        standard_chord(index2chord[
-                                                               chord_index]).pitches])
-                except:
-                    c = music21.note.Rest()
-            else:
-                dur += 1
-        # add last note
-        c.duration = music21.duration.Duration(dur)
-        chords_part.append(c)
-        score.append(chords_part)
+                # if it is a played note
+                if not chord_index == slur_index:
+                    # add previous note
+                    if dur > 0:
+                        c.duration = music21.duration.Duration(dur)
+                        chords_part.append(c)
+                    dur = 1
+                    try:
+                        c = music21.chord.Chord([
+                            p.transpose(12) for p in
+                            standard_chord(
+                                index2chord[chord_index]).pitches])
+                    except:
+                        c = music21.note.Rest()
+                else:
+                    dur += 1
+            # add last note
+            c.duration = music21.duration.Duration(dur)
+            chords_part.append(c)
+            score.append(chords_part)
 
         # for beat_index, chord_index in enumerate(tensor_chords):
         #     slur_index = self.symbol2index_dicts[self.CHORDS][SLUR_SYMBOL]
@@ -679,9 +680,9 @@ class LsdbDataset(MusicDataset):
         # score.insert(part)
         # score.show('txt')
 
-
         # CHORDS LIST
         chord_list = []
+        index2chord = self.index2symbol_dicts[self.CHORDS]
         for beat_index, chord_index in enumerate(tensor_chords):
             chord_index = chord_index.item()
             # todo standardize
@@ -697,17 +698,15 @@ if __name__ == '__main__':
         'sequences_size': 32,
     }
 
-    bach_chorales_dataset: LsdbDataset = dataset_manager.get_dataset(
+    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
         name='lsdb',
         **leadsheet_dataset_kwargs
     )
 
-    dl, _, _ = bach_chorales_dataset.data_loaders(1)
+    dl, _, _ = lsdb_dataset.data_loaders(1)
     tensor_lead, tensor_chord = next(dl.__iter__())
-    score, chord_list = bach_chorales_dataset.tensor_leadsheet_to_score_and_chord_list(
+    score, chord_list = lsdb_dataset.tensor_leadsheet_to_score_and_chord_list(
         tensor_lead[0],
-                                                                   tensor_chord[0])
+        tensor_chord[0])
     score.show()
     print(chord_list)
-
-

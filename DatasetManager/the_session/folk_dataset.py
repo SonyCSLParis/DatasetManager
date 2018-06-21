@@ -24,7 +24,7 @@ from DatasetManager.the_session.folk_data_helpers import get_notes, \
 
 
 class FolkDataset(MusicDataset):
-    def __init__(self,  
+    def __init__(self,
                  name,
                  corpus_it_gen=None,  # TODO: NOT BEING USED RIGHT NOW
                  metadatas=None,
@@ -42,7 +42,7 @@ class FolkDataset(MusicDataset):
         super(FolkDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
-        self.num_melodies = self.corpus_it_gen.num_elements ### Change this to increase / decrease the dataset size
+        self.num_melodies = 5000  ### Change this to increase / decrease the dataset size
         self.NOTES = 0
         self.num_voices = 1
         self.pitch_range = [55, 84]
@@ -63,10 +63,10 @@ class FolkDataset(MusicDataset):
             'dicts',
         )
         if not os.path.exists(self.dicts_dir):
-        	os.mkdir(self.dicts_dir)
+            os.mkdir(self.dicts_dir)
         self.dict_path = os.path.join(
-            self.dicts_dir, self.__repr__() + 
-            'dict_path.txt'
+            self.dicts_dir, self.__repr__() +
+                            'dict_path.txt'
         )
 
     def __repr__(self):
@@ -570,4 +570,4 @@ if __name__ == '__main__':
     # dataset_manager = DatasetManager()
     folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
     # folk_dataset.download_raw_dataset()
-    folk_dataset.make_tensor_dataset
+    folk_dataset.make_tensor_dataset()

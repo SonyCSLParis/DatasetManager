@@ -4,12 +4,18 @@ import music21
 import torch
 from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
-from DatasetManager.metadata import TickMetadata, BeatMarkerMetadata
+from DatasetManager.metadata import TickMetadata, \
+                                    BeatMarkerMetadata, \
+                                    FermataMetadata, \
+                                    KeyMetadata
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset
-from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
+from DatasetManager.the_session.folk_data_helpers \
+             import FolkIteratorGenerator, \
+                    Folk4by4IteratorGenerator, \
+                    Folk3by4IteratorGenerator
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
@@ -59,7 +65,36 @@ all_datasets = {
             'corpus_it_gen':      FolkIteratorGenerator(
                 num_elements=10
             )
+        },
+    'folk_4by4_test':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      Folk4by4IteratorGenerator(
+                num_elements=10
+            ) 
+        },
+    'folk_4by4':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      Folk4by4IteratorGenerator(
+                num_elements=None
+            ) 
+        },
+    'folk_3by4_test':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      Folk3by4IteratorGenerator(
+                num_elements=10
+            ) 
+        },
+    'folk_3by4_test':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen':      Folk3by4IteratorGenerator(
+                num_elements=None
+            ) 
         }
+
 }
 
 
@@ -130,42 +165,47 @@ class DatasetManager:
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
     # BACH
-
-    # subdivision = 4
-    # metadatas = [
-    # 	TickMetadata(subdivision=subdivision),
-    # 	FermataMetadata(),
-    # 	KeyMetadata()
-    #              ]
-    #
-    # bach_chorales_dataset: ChoraleDataset = datataset_manager.get_dataset(
-    # 	name='bach_chorales',
-    # 	voice_ids=[0, 1, 2, 3],
-    # 	metadatas=metadatas,
-    # 	sequences_size=8,
-    # 	subdivision=subdivision
-    # )
-    # (train_dataloader,
-    #  val_dataloader,
-    #  test_dataloader) = bach_chorales_dataset.data_loaders(
-    # 	batch_size=128,
-    # 	split=(0.85, 0.10)
-    # )
-    # print(next(train_dataloader.__iter__()))
-
+    '''
+    subdivision = 4
+    metadatas = [
+     	TickMetadata(subdivision=subdivision),
+     	FermataMetadata(),
+     	KeyMetadata()
+    ]
+    
+    bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
+     	name='bach_chorales_test',
+     	voice_ids=[0, 1, 2, 3],
+     	metadatas=metadatas,
+     	sequences_size=8,
+     	subdivision=subdivision
+    )
+    (train_dataloader,
+      val_dataloader,
+      test_dataloader) = bach_chorales_dataset.data_loaders(
+     	batch_size=128,
+     	split=(0.85, 0.10)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+    '''
     # LSDB
-    #lsdb_dataset: LsdbDataset = datataset_manager.get_dataset(
-    #    name='lsdb_test',
-    #    sequences_size=64,
-    #)
-    #(train_dataloader,
-    # val_dataloader,
-    # test_dataloader) = lsdb_dataset.data_loaders(
-    #    batch_size=128,
-    #    split=(0.85, 0.10)
-    #)
-    #print(next(train_dataloader.__iter__()))
-
+    '''
+    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
+        name='lsdb_test',
+        sequences_size=64,
+    )
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = lsdb_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+    '''
     # Folk Dataset  
     metadatas = [
         BeatMarkerMetadata(subdivision=6),
@@ -176,7 +216,7 @@ if __name__ == '__main__':
         'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk',
+        name ='folk_3by4_test',
         **folk_dataset_kwargs
     )
     (train_dataloader,

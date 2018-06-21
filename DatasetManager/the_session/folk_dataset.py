@@ -77,9 +77,9 @@ class FolkDataset(MusicDataset):
                f'{self.subdivision})' \
                f'{self.num_melodies}'
 
-    def chorale_iterator_gen(self):
-        return (chorale
-                for chorale in self.corpus_it_gen()
+    def iterator_gen(self):
+        return (score
+                for score in self.corpus_it_gen()
                 )
 
     def compute_tick_durations(self):
@@ -91,7 +91,7 @@ class FolkDataset(MusicDataset):
         diff = diff + [1 - self.tick_values[-1]]
         return diff
 
-    def get_lead_tensor(self, score):
+    def get_score_tensor(self, score):
         """
         Extract the lead tensor from the lead sheet
         :param score: music21 score object
@@ -184,12 +184,12 @@ class FolkDataset(MusicDataset):
         # all_metadata = torch.cat(md, 2)
         # return all_metadata
 
-    def transposed_chorale_and_metadata_tensors(self, chorale, semi_tone):
+    def transposed_score_and_metadata_tensors(self, score, semi_tone):
         """
         Convert chorale to a couple (chorale_tensor, metadata_tensor),
         the original chorale is transposed semi_tone number of semi-tones
 
-        :param chorale: music21 object
+        :param score: music21 object
         :param semi_tone:
         :return: couple of tensors
         """
@@ -197,8 +197,8 @@ class FolkDataset(MusicDataset):
         if semi_tone != 0:
             raise NotImplementedError
 
-        chorale_tensor = self.get_lead_tensor(chorale)
-        metadata_tensor = self.get_metadata_tensor(chorale)
+        chorale_tensor = self.get_score_tensor(score)
+        metadata_tensor = self.get_metadata_tensor(score)
         return chorale_tensor, metadata_tensor
 
     def make_tensor_dataset(self):
@@ -214,17 +214,16 @@ class FolkDataset(MusicDataset):
                 if count > self.num_melodies:
                     break
                 count += 1
-                lead_tensor = self.get_lead_tensor(score)
+                lead_tensor = self.get_score_tensor(score)
                 metadata_tensor = self.get_metadata_tensor(score)
                 # main loop - lead
                 for offsetStart in range(-self.sequences_size + 1,
                                          int(score.highestTime)):
                     offsetEnd = offsetStart + self.sequences_size
-                    local_lead_tensor = self.extract_lead_with_padding(
+                    local_lead_tensor = self.extract_score_tensor_with_padding(
                         tensor=lead_tensor,
                         start_tick=offsetStart * self.subdivision,
-                        end_tick=offsetEnd * self.subdivision,
-                        symbol2index=self.note2index_dicts[self.NOTES]
+                        end_tick=offsetEnd * self.subdivision
                     )
                     local_metadata_tensor = self.extract_metadata_with_padding(
                         tensor_metadata=metadata_tensor,
@@ -272,7 +271,7 @@ class FolkDataset(MusicDataset):
             if not self.is_in_range(score):
                 continue
             try:
-                lead_tensor = self.get_lead_tensor(score)
+                lead_tensor = self.get_score_tensor(score)
                 metadata_tensor = self.get_metadata_tensor(score)
                 # lead and metadata tensors should have same length
                 assert (lead_tensor.size()[1] == metadata_tensor.size()[1])
@@ -313,9 +312,9 @@ class FolkDataset(MusicDataset):
 
         # interate and pad zeros, keep track of number of zeros padded
 
-    def transposed_lead_tensor(self, score, semi_tone):
+    def transposed_score_tensor(self, score, semi_tone):
         """
-        Convert lead to a tensor,
+        Convert score to a tensor,
         the original lead is transposed semi_tone number of semi-tones
 
         :param score: music21 object
@@ -332,25 +331,24 @@ class FolkDataset(MusicDataset):
         score_tranposed = score.transpose(transposition_interval)
         if not self.is_in_range(score_tranposed):
             return None
-        lead_tensor = self.get_lead_tensor(score_tranposed)
+        lead_tensor = self.get_score_tensor(score_tranposed)
         return lead_tensor
 
-    def extract_lead_with_padding(self, tensor,
-                                  start_tick,
-                                  end_tick,
-                                  symbol2index):
+    def extract_score_tensor_with_padding(self, 
+                                          tensor,
+                                          start_tick,
+                                          end_tick):
         """
 
         :param tensor: (batch_size, length)
         :param start_tick:
         :param end_tick:
-        :param symbol2index:
         :return: (batch_size, end_tick - start_tick)
         """
         assert start_tick < end_tick
         assert end_tick > 0
         batch_size, length = tensor.size()
-
+        symbol2index = self.note2index_dicts[self.NOTES]
         padded_tensor = []
         if start_tick < 0:
             start_symbols = np.array([symbol2index[START_SYMBOL]])
@@ -511,10 +509,35 @@ class FolkDataset(MusicDataset):
         return (min_pitch >= self.pitch_range[0]
                 and max_pitch <= self.pitch_range[1])
 
-    def tensor_chorale_to_score(self, tensor_chorale):
+    def empty_score(self, score_length):
+        """
+        
+        :param score_length: int, length of the score in ticks
+        :return: torch long tensor, initialized with start indices 
+        """
+        start_symbols = np.array([note2index[START_SYMBOL]
+                                  for note2index in self.note2index_dicts])
+        start_symbols = torch.from_numpy(start_symbols).long().clone()
+        start_symbols = start_symbols.repeat(score_length, 1).transpose(0, 1)
+        return start_symbols
+
+    def random_score(self, score_length):
+        """
+        
+        :param score_length: int, length of the score in ticks
+        :return: torch long tensor, initialized with start indices 
+        """
+        tensor_score = np.array(
+            [np.random.randint(len(note2index),
+                               size=score_length)
+             for note2index in self.note2index_dicts])
+        tensor_score = torch.from_numpy(tensor_score).long().clone()
+        return tensor_score
+
+    def tensor_to_score(self, tensor_score):
         """
         Converts lead given as tensor_lead to a true music21 score
-        :param tensor_chorale:
+        :param tensor_score:
         :return:
         """
         slur_index = self.note2index_dicts[self.NOTES][SLUR_SYMBOL]
@@ -524,7 +547,7 @@ class FolkDataset(MusicDataset):
         # LEAD
         dur = 0
         f = music21.note.Rest()
-        tensor_lead_np = tensor_chorale.numpy().flatten()
+        tensor_lead_np = tensor_score.numpy().flatten()
         for tick_index, note_index in enumerate(tensor_lead_np):
             # if it is a played note
             if not note_index == slur_index:
@@ -542,14 +565,6 @@ class FolkDataset(MusicDataset):
         part.append(f)
         score.insert(part)
         return score
-
-    def empty_chorale(self, chorale_length):
-        start_symbols = np.array([note2index[START_SYMBOL]
-                                  for note2index in self.note2index_dicts])
-        start_symbols = torch.from_numpy(start_symbols).long().clone()
-        start_symbols = start_symbols.repeat(chorale_length, 1).transpose(0, 1)
-        return start_symbols
-
 
 if __name__ == '__main__':
     # dataset_manager = DatasetManager()

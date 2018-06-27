@@ -550,6 +550,14 @@ class FolkDataset(MusicDataset):
         start_symbols = start_symbols.repeat(chorale_length, 1).transpose(0, 1)
         return start_symbols
 
+    def random_chorale(self, chorale_length):
+        chorale_tensor = np.array(
+            [np.random.randint(len(note2index),
+                               size=chorale_length)
+             for note2index in self.note2index_dicts])
+        chorale_tensor = torch.from_numpy(chorale_tensor).long().clone()
+        return chorale_tensor
+
 
 if __name__ == '__main__':
     # dataset_manager = DatasetManager()

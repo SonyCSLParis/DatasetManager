@@ -45,7 +45,7 @@ class LsdbDataset(MusicDataset):
         self.num_voices = 2
         self.NOTES = 0
         self.CHORDS = 1
-        self.leadsheet_iterator_gen = corpus_it_gen
+        self.corpus_it_gen = corpus_it_gen
         self.sequences_size = sequences_size
         self.subdivision = len(self.tick_values)
         self.pitch_range = [55, 84]
@@ -56,6 +56,11 @@ class LsdbDataset(MusicDataset):
         return f'LsdbDataset(' \
                f'{self.name},' \
                f'{self.sequences_size})'
+    
+    def iterator_gen(self):
+        return (score
+                for score in self.corpus_it_gen()
+                )
 
     def compute_tick_durations(self):
         diff = [n - p
@@ -63,18 +68,18 @@ class LsdbDataset(MusicDataset):
         diff = diff + [1 - self.tick_values[-1]]
         return diff
 
-    def transpose_leadsheet(self,
-                            leadsheet: music21.stream.Score,
+    def transposed_score_and_metadata_tensors(self,
+                            score: music21.stream.Score,
                             interval: music21.interval.Interval
                             ):
         try:
-            leadsheet_transposed = leadsheet.transpose(interval)
+            leadsheet_transposed = score.transpose(interval)
         except ValueError as e:
             raise LeadsheetParsingException(f'Leadsheet {leadsheet.metadata.title} '
                                             f'not properly formatted')
         return leadsheet_transposed
 
-    def lead_and_chord_tensors(self, leadsheet, update_dicts=False):
+    def get_score_tensor(self, leadsheet, update_dicts=False):
         """
 
         :param leadsheet:
@@ -160,6 +165,15 @@ class LsdbDataset(MusicDataset):
         chord_tensor = torch.from_numpy(seq).long()[None, :]
         return lead_tensor, chord_tensor
 
+    def get_metadata_tensor(self, score):
+        """
+
+        :param score: music21 score object
+        :return: torch tensor, with the score representation
+                 as a tensor
+        """
+        raise NotImplementedError
+
     def make_tensor_dataset(self):
         """
         Implementation of the make_tensor_dataset abstract base class
@@ -170,30 +184,37 @@ class LsdbDataset(MusicDataset):
         # self.compute_index_dicts()
         lead_tensor_dataset = []
         chord_tensor_dataset = []
-        for leadsheet_id, leadsheet in tqdm(enumerate(self.leadsheet_iterator_gen())):
+        count = 0
+        num_scores = sum(1 for x in self.corpus_it_gen())
+        if num_scores == 0:
+            print('No scores available in LeadSheetIteratorGenerator')
+            raise RuntimeError
+        for _, leadsheet in tqdm(enumerate(self.corpus_it_gen())):
+            print('Entered: ', count)
+            count += 1
             print(leadsheet.metadata.title)
             if not self.is_valid(leadsheet):
                 continue
             try:
                 possible_transpositions = self.all_transposition_intervals(leadsheet)
                 for transposition_interval in possible_transpositions:
-                    transposed_leadsheet = self.transpose_leadsheet(
+                    transposed_leadsheet = self.transposed_score_and_metadata_tensors(
                         leadsheet,
                         transposition_interval)
 
-                    lead_tensor, chord_tensor = self.lead_and_chord_tensors(
+                    lead_tensor, chord_tensor = self.get_score_tensor(
                         transposed_leadsheet, update_dicts=True)
                     # lead
                     for offsetStart in range(-self.sequences_size + 1,
                                              int(transposed_leadsheet.highestTime)):
                         offsetEnd = offsetStart + self.sequences_size
-                        local_lead_tensor = self.extract_with_padding(
+                        local_lead_tensor = self.extract_score_tensor_with_padding(
                             tensor=lead_tensor,
                             start_tick=offsetStart * self.subdivision,
                             end_tick=offsetEnd * self.subdivision,
                             symbol2index=self.symbol2index_dicts[self.NOTES]
                         )
-                        local_chord_tensor = self.extract_with_padding(
+                        local_chord_tensor = self.extract_score_tensor_with_padding(
                             tensor=chord_tensor,
                             start_tick=offsetStart,
                             end_tick=offsetEnd,
@@ -241,10 +262,11 @@ class LsdbDataset(MusicDataset):
 
         return transpositions
 
-    def extract_with_padding(self, tensor,
-                             start_tick,
-                             end_tick,
-                             symbol2index):
+    def extract_score_tensor_with_padding(self, 
+                                          tensor,
+                                          start_tick,
+                                          end_tick,
+                                          symbol2index):
         """
 
         :param tensor: (batch_size, length)
@@ -279,6 +301,19 @@ class LsdbDataset(MusicDataset):
 
         padded_tensor = torch.cat(padded_tensor, 1)
         return padded_tensor
+
+    def extract_metadata_with_padding(self,
+                                      tensor_metadata,
+                                      start_tick,
+                                      end_tick):
+        """
+
+        :param tensor_metadata: torch tensor containing metadata
+        :param start_tick:
+        :param end_tick:
+        :return:
+        """
+        raise NotImplementedError
 
     def is_lead(self, voice_id):
         return voice_id == self.NOTES
@@ -330,7 +365,7 @@ class LsdbDataset(MusicDataset):
     #         note_set.add(PAD_SYMBOL)
     #
     #     # get all notes
-    #     for leadsheet in tqdm(self.leadsheet_iterator_gen()):
+    #     for leadsheet in tqdm(self.corpus_it_gen()):
     #         if self.is_in_range(leadsheet):
     #             # part is either lead or chords as lists
     #             for part_id, part in enumerate(notes_and_chords(leadsheet)):
@@ -424,17 +459,30 @@ class LsdbDataset(MusicDataset):
         max_pitch = max(pitches)
         return min_pitch, max_pitch
 
-    def random_leadsheet_tensor(self, sequence_length):
+    def empty_score(self, score_length):
+        """
+        
+        :param score_length: int, length of the score in ticks
+        :return: torch long tensor, initialized with start indices 
+        """
+        raise NotImplementedError
+
+    def random_score(self, score_length):
+        """
+
+        :param score_length: int, length of the score in ticks
+        :return: torch long tensor, initialized with random indices
+        """
         lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
-                                        size=sequence_length * self.subdivision)
+                                        size=score_length * self.subdivision)
         chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORDS]),
-                                          size=sequence_length)
+                                          size=score_length)
         lead_tensor = torch.from_numpy(lead_tensor).long()
         chords_tensor = torch.from_numpy(chords_tensor).long()
 
         return lead_tensor, chords_tensor
 
-    def tensor_leadsheet_to_score(self, tensor_lead, tensor_chords,
+    def tensor_to_score(self, tensor_score, tensor_chords,
                                   realize_chords=False):
         """
         Converts leadsheet given as tensor_lead and tensor_chords
@@ -451,7 +499,7 @@ class LsdbDataset(MusicDataset):
         # LEAD
         dur = 0
         f = music21.note.Rest()
-        for tick_index, note_index in enumerate(tensor_lead):
+        for tick_index, note_index in enumerate(tensor_score):
             note_index = note_index.item()
             # if it is a played note
             if not note_index == slur_index:
@@ -535,7 +583,7 @@ class LsdbDataset(MusicDataset):
         # LEAD PART
         dur = 0
         f = music21.note.Rest()
-        for tick_index, note_index in enumerate(tensor_lead):
+        for tick_index, note_index in enumerate(tensor_score):
             note_index = note_index.item()
             # if it is a played note
             if not note_index == slur_index:
@@ -650,14 +698,14 @@ if __name__ == '__main__':
         'sequences_size': 32,
     }
 
-    bach_chorales_dataset: LsdbDataset = dataset_manager.get_dataset(
+    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
         name='lsdb',
         **leadsheet_dataset_kwargs
     )
 
-    dl, _, _ = bach_chorales_dataset.data_loaders(1)
+    dl, _, _ = lsdb_dataset.data_loaders(1)
     tensor_lead, tensor_chord = next(dl.__iter__())
-    score, chord_list = bach_chorales_dataset.tensor_leadsheet_to_score_and_chord_list(
+    score, chord_list = lsdb_dataset.tensor_leadsheet_to_score_and_chord_list(
         tensor_lead[0],
         tensor_chord[0])
     score.show()

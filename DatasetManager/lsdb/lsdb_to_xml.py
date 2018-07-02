@@ -2,7 +2,7 @@ import os
 import re
 
 import music21
-
+import sys
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import exclude_list_ids, leadsheet_to_music21, \
     assert_no_time_signature_changes
@@ -77,7 +77,6 @@ class LsdbConverter:
                     )
 
                     score.write('xml', export_file_name)
-
                 except (LeadsheetKeySignatureException,
                         LeadsheetTimeSignatureException,
                         LeadsheetParsingException,
@@ -114,13 +113,19 @@ class LsdbConverter:
         notes2chord[('C4', 'E4', 'Gb4')] = notes2chord[('C4', 'E4', 'Gb4')] + ['b5']
         chord2notes['b5'] = ('C4', 'E4', 'Gb4')
         # b9#5
-        notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#b'
+        notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'D#5')] = 'b9#5'
         chord2notes['b9#5'] = ('C4', 'E4', 'G#4', 'Bb4', 'D#5')
         # 7#5#11 is WRONG in the database
         # C4 F4 G#4 B-4 D5 instead of C4 E4 G#4 B-4 D5
         notes2chord[('C4', 'E4', 'G#4', 'Bb4', 'F#5')] = '7#5#11'
         chord2notes['7#5#11'] = ('C4', 'E4', 'G#4', 'Bb4', 'F#5')
         # F#7#9#11 is WRONG in the database
+        # M7#4 is WRONG in the database
+        chord2notes['M7#4'] = ('C4', 'E4', 'G4', 'B4', 'F#5')
+        notes2chord[('C4', 'E4', 'G4', 'B4', 'F#5')] = 'M7#4'
+        # 9b5b13 is WRONG in the database
+        chord2notes['9b5b13'] = ('C4', 'E4', 'Gb4', 'Bb4', 'D5', 'Ab5')
+        notes2chord[('C4', 'E4', 'Gb4', 'Bb4', 'D5', 'Ab5')] = '9b5b13'
 
     def compute_lsdb_chord_dicts(self):
         # Search LSDB for chord names
@@ -154,27 +159,23 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
-    pass
-    # LsdbConverter(composer='Bill Evans').make_score_dataset()
-    # LsdbConverter(composer='Miles Davis').make_score_dataset()
-    # LsdbConverter(composer='Duke Ellington').make_score_dataset()
-    # LsdbConverter(composer='Fats Waller').make_score_dataset()
-    # LsdbConverter(composer='Michel Legrand').make_score_dataset()
-    # LsdbConverter(composer='Thelonious Monk').make_score_dataset()
-    # LsdbConverter(composer='Charlie Parker').make_score_dataset()
-    # LsdbConverter(composer='Antonio Carlos Jobim').make_score_dataset()
-    # LsdbConverter(composer='Wayne Shorter').make_score_dataset()
-    # LsdbConverter(composer='Sonny Rollins').make_score_dataset()
-    # LsdbConverter(composer='John Coltrane').make_score_dataset()
-    # LsdbConverter(composer='Chick Corea').make_score_dataset()
-    # LsdbConverter(composer='Cole Porter').make_score_dataset()
-    # LsdbConverter(composer='Victor Young').make_score_dataset()
-    # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
-    # LsdbConverter(composer='Antonio-Carlos Jobim').make_score_dataset()
-    # LsdbConverter(composer='Pat Metheny').make_score_dataset()
-    # LsdbConverter(composer='McCoy Tyner').make_score_dataset()
-    # LsdbConverter(composer='Victor Young').make_score_dataset()
-    # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
+    LsdbConverter(composer='Bill Evans').make_score_dataset()
+    LsdbConverter(composer='Miles Davis').make_score_dataset()
+    LsdbConverter(composer='Duke Ellington').make_score_dataset()
+    LsdbConverter(composer='Fats Waller').make_score_dataset()
+    LsdbConverter(composer='Michel Legrand').make_score_dataset()
+    LsdbConverter(composer='Thelonious Monk').make_score_dataset()
+    LsdbConverter(composer='Charlie Parker').make_score_dataset()
+    LsdbConverter(composer='Antonio Carlos Jobim').make_score_dataset()
+    LsdbConverter(composer='Wayne Shorter').make_score_dataset()
+    LsdbConverter(composer='Sonny Rollins').make_score_dataset()
+    LsdbConverter(composer='John Coltrane').make_score_dataset()
+    LsdbConverter(composer='Chick Corea').make_score_dataset()
+    LsdbConverter(composer='Cole Porter').make_score_dataset()
+    LsdbConverter(composer='Victor Young').make_score_dataset()
+    LsdbConverter(composer='Herbie Hancock').make_score_dataset()
+    LsdbConverter(composer='Pat Metheny').make_score_dataset()
+    LsdbConverter(composer='McCoy Tyner').make_score_dataset()
 
 
 

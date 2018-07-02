@@ -70,7 +70,7 @@ all_datasets = {
         {
             'dataset_class_name': FolkDataset,
             'corpus_it_gen':      Folk4by4IteratorGenerator(
-                num_elements=10
+                num_elements=1000
             ) 
         },
     'folk_4by4':
@@ -93,8 +93,7 @@ all_datasets = {
             'corpus_it_gen':      Folk3by4IteratorGenerator(
                 num_elements=None
             ) 
-        }
-
+        },
 }
 
 
@@ -191,9 +190,9 @@ if __name__ == '__main__':
     print('Num Test Batches: ', len(test_dataloader))
     '''
     # LSDB
-    '''
+    
     lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb_test',
+        name='lsdb',
         sequences_size=64,
     )
     (train_dataloader,
@@ -213,18 +212,19 @@ if __name__ == '__main__':
     ]
     folk_dataset_kwargs = {
         'metadatas':        metadatas,
-        'sequences_size':   32
+        'sequences_size':   48
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_3by4_test',
+        name ='folk_4by4_test',
         **folk_dataset_kwargs
     )
     (train_dataloader,
      val_dataloader,
      test_dataloader) = folk_dataset.data_loaders(
-        batch_size=128,
+        batch_size=256,
         split=(0.7, 0.2)
     )
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
+    '''

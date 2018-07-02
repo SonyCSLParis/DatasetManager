@@ -3,11 +3,12 @@ import os
 
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL
 import music21
-
+from music21.chord_symbols.jazz_chords import JazzChord
 from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException, \
     LeadsheetParsingException, LeadsheetKeySignatureException
 from bson import ObjectId
 import numpy as np
+
 
 REST = 'R'
 NC = 'N.C.'
@@ -244,7 +245,7 @@ def notes_and_chords(leadsheet):
     notes = leadsheet.parts[0].flat.notesAndRests
     notes = [n for n in notes if not isinstance(n, music21.harmony.ChordSymbol)]
     chords = list(leadsheet.parts[0].flat.getElementsByClass(
-        [music21.harmony.ChordSymbol,
+        [music21.chord_symbols.jazz_chords.JazzChord,
          music21.expressions.TextExpression
          ]))
     return notes, chords
@@ -581,6 +582,7 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
     assert 'p' in json_chord
     # root
     json_chord_root = json_chord['p']
+    music21_root_pitch = music21.pitch.Pitch(json_chord_root)
     # chord type
     if 'ch' in json_chord:
         json_chord_type = json_chord['ch']
@@ -597,32 +599,38 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
             current_json_chord_type = json_chord_type[:num_characters_chord_type]
 
             all_notes = lsdb_chord_to_notes[current_json_chord_type]
-            all_notes = [note.replace('b', '-')
-                         for note in all_notes]
+            all_notes_list = list(all_notes)
+            # strip the octave identifier
+            all_notes_str_list = [note[:-1] for note in all_notes_list]
+            all_notes_str = ' '.join(note for note in all_notes_str_list)
 
-            interval = music21.interval.Interval(
-                noteStart=music21.note.Note('C4'),
-                noteEnd=music21.note.Note(json_chord_root))
-            chord_symbol = chord_symbols_from_note_list(
-                all_notes=all_notes,
-                interval=interval
-            )
+            #all_pitches_list = [music21.pitch.Pitch(note) for note in all_notes_list]
+            #all_notes = [note.replace('b', '-')
+            #             for note in all_notes]
+            chord_symbol = JazzChord(all_notes_str, music21_root_pitch)
+            #interval = music21.interval.Interval(
+            #    noteStart=music21.note.Note('C4'),
+            #    noteEnd=music21.note.Note(json_chord_root))
+            #chord_symbol = chord_symbols_from_note_list(
+            #    all_notes=all_notes,
+            #    interval=interval
+            #)
             return chord_symbol
         except (AttributeError, KeyError):
             # if the preceding procedure did not work
             print('Difficult chord')
-            print(current_json_chord_type)
+            print(current_json_chord_type, all_notes_list)
             num_characters_chord_type -= 1
 
 
 def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     # must convert b to -
+    print(leadsheet)
     if 'keySignature' not in leadsheet or not leadsheet['keySignature']:
         raise LeadsheetKeySignatureException(f'Leadsheet {leadsheet["title"]} '
                                              f'has no keySignature')
     key_signature = leadsheet['keySignature'].replace('b', '-')
     key_signature = music21.key.Key(key_signature)
-
     altered_pitches_at_key = altered_pitches_music21_to_dict(
         key_signature.alteredPitches)
 
@@ -663,32 +671,19 @@ def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     part_notes.append(notes)
     part_chords.append(chords)
     for chord in part_chords.flat.getElementsByClass(
-            [music21.harmony.ChordSymbol,
+            [JazzChord,
              music21.expressions.TextExpression
              ]):
         # put durations to 0.0 as required for a good rendering
         # handles both textExpression (for N.C.) and ChordSymbols
-        if isinstance(chord, music21.harmony.ChordSymbol):
+        if isinstance(chord, JazzChord):
             new_chord = chord.__deepcopy__()
             new_chord.duration = music21.duration.Duration(0)
-            # chord.duration = music21.duration.Duration(0)
-            # new_chord = chord
         elif isinstance(chord, music21.expressions.TextExpression):
             new_chord = music21.expressions.TextExpression(NC)
         else:
             raise ValueError
         part_notes.insert(chord.offset, new_chord)
-    # new_chord = music21.harmony.ChordSymbol(chord.figure)
-    # part_notes.insert(chord.offset, chord)
-    # part_chords.append(chords)
-    # voice_notes.append(notes)
-    # voice_chords.append(chords)
-    # part = music21.stream.Part()
-    # part.insert(0, voice_notes)
-    # part.insert(0, voice_chords)
-    # score.append((part_notes, part_chords))
-    # score.append(part)
-
     part_notes = part_notes.makeMeasures(
         inPlace=False,
         refStreamOrTimeRange=[0.0, part_chords.highestTime])
@@ -731,6 +726,7 @@ class LeadsheetIteratorGenerator:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:
             try:
+                print(leadsheet_path)
                 yield music21.converter.parse(leadsheet_path)
             except ZeroDivisionError:
                 print(f'{leadsheet_path} is not parsable')

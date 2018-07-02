@@ -509,7 +509,7 @@ class FolkDataset(MusicDataset):
         return (min_pitch >= self.pitch_range[0]
                 and max_pitch <= self.pitch_range[1])
 
-    def empty_score(self, score_length):
+    def empty_score_tensor(self, score_length):
         """
         
         :param score_length: int, length of the score in ticks
@@ -521,7 +521,7 @@ class FolkDataset(MusicDataset):
         start_symbols = start_symbols.repeat(score_length, 1).transpose(0, 1)
         return start_symbols
 
-    def random_score(self, score_length):
+    def random_score_tensor(self, score_length):
         """
         
         :param score_length: int, length of the score in ticks

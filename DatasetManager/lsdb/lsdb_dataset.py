@@ -458,7 +458,7 @@ class LsdbDataset(MusicDataset):
         max_pitch = max(pitches)
         return min_pitch, max_pitch
 
-    def empty_score(self, score_length):
+    def empty_score_tensor(self, score_length):
         """
         
         :param score_length: int, length of the score in ticks
@@ -466,7 +466,7 @@ class LsdbDataset(MusicDataset):
         """
         raise NotImplementedError
 
-    def random_score(self, score_length):
+    def random_score_tensor(self, score_length):
         """
 
         :param score_length: int, length of the score in ticks

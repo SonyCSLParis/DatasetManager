@@ -468,14 +468,14 @@ class ChoraleDataset(MusicDataset):
         padded_tensor_metadata = torch.cat(padded_tensor_metadata, 1)
         return padded_tensor_metadata
 
-    def empty_score(self, score_length):
+    def empty_score_tensor(self, score_length):
         start_symbols = np.array([note2index[START_SYMBOL]
                                   for note2index in self.note2index_dicts])
         start_symbols = torch.from_numpy(start_symbols).long().clone()
         start_symbols = start_symbols.repeat(score_length, 1).transpose(0, 1)
         return start_symbols
 
-    def random_score(self, score_length):
+    def random_score_tensor(self, score_length):
         chorale_tensor = np.array(
             [np.random.randint(len(note2index),
                                size=score_length)

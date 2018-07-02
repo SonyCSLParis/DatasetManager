@@ -91,7 +91,7 @@ class MusicDataset(ABC):
         pass
 
     @abstractmethod
-    def empty_score(self, score_length):
+    def empty_score_tensor(self, score_length):
         """
         
         :param score_length: int, length of the score in ticks
@@ -100,7 +100,7 @@ class MusicDataset(ABC):
         pass 
 
     @abstractmethod
-    def random_score(self, score_length):
+    def random_score_tensor(self, score_length):
         """
 
         :param score_length: int, length of the score in ticks

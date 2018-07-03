@@ -198,7 +198,7 @@ class FolkIteratorGenerator:
                 continue
             try:
                 full_path = os.path.join(self.raw_dataset_dir, score_path)
-                yield self.get_score_from_path(full_path)
+                yield self.get_score_from_path(full_path, fix_and_expand=True)
             except ZeroDivisionError:
                 print(f'{score_path} is not parsable')
 
@@ -272,6 +272,7 @@ class FolkIteratorGenerator:
                                     if len(dur.components) > 2:
                                         break
                             else:
+                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -281,10 +282,14 @@ class FolkIteratorGenerator:
                     music21.duration.DurationException,
                     music21.pitch.AccidentalException,
                     music21.meter.MeterException,
+                    music21.repeat.ExpanderException,
+                    music21.exceptions21.StreamException,
+                    AttributeError,
+                    IndexError,
                     UnboundLocalError,
                     ValueError,
                     ABCHandlerException) as e:
-                print('Error when parsing ABC file')
+                print('Error when parsing ABC file: ', tune_index)
                 print(e)
 
         f = open(self.valid_files_list, 'w')
@@ -295,17 +300,19 @@ class FolkIteratorGenerator:
         self.num_with_chords = num_chords
         self.num_multivoice = num_multivoice
 
-    def get_score_from_path(self, tune_filepath):
+    def get_score_from_path(self, tune_filepath, fix_and_expand=False):
         """
         Extract music21 score from provided path to the tune
 
         :param tune_filepath: path to tune in .abc format
         :return: music21 score object
         """
-        print(tune_filepath)
         score = music21.converter.parse(tune_filepath, format='abc')
-        score = self.fix_pick_up_measure_offset(score)
+        if fix_and_expand:
+            score = self.fix_pick_up_measure_offset(score)
+            score = score.expandRepeats()
         return score
+
 
     def fix_pick_up_measure_offset(self, score):
         """
@@ -531,6 +538,7 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
                                     if len(dur.components) > 2:
                                         break
                             else:
+                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -540,10 +548,14 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
                     music21.duration.DurationException,
                     music21.pitch.AccidentalException,
                     music21.meter.MeterException,
+                    music21.repeat.ExpanderException,
+                    music21.exceptions21.StreamException,
+                    AttributeError,
+                    IndexError,
                     UnboundLocalError,
                     ValueError,
                     ABCHandlerException) as e:
-                print('Error when parsing ABC file')
+                print('Error when parsing ABC file: ', tune_index)
                 print(e)
 
         f = open(self.valid_files_list, 'w')
@@ -634,6 +646,7 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
                                     if len(dur.components) > 2:
                                         break
                             else:
+                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -643,10 +656,14 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
                     music21.duration.DurationException,
                     music21.pitch.AccidentalException,
                     music21.meter.MeterException,
+                    music21.repeat.ExpanderException,
+                    music21.exceptions21.StreamException,
+                    AttributeError,
+                    IndexError,
                     UnboundLocalError,
                     ValueError,
                     ABCHandlerException) as e:
-                print('Error when parsing ABC file')
+                print('Error when parsing ABC file: ', tune_index)
                 print(e)
 
         f = open(self.valid_files_list, 'w')

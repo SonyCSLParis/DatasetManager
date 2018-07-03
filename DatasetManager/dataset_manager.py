@@ -215,7 +215,7 @@ if __name__ == '__main__':
         'sequences_size':   48
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4_test',
+        name ='folk_3by4_test',
         **folk_dataset_kwargs
     )
     (train_dataloader,

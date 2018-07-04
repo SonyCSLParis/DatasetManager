@@ -112,6 +112,6 @@ xml/
 raw_data/
 
 # passwords
-passwords.py
+passwords.json
 stub.py
 .DS_Store

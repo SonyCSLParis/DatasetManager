@@ -1,20 +1,20 @@
 import json
+import os
 from glob import glob
 
 from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
 
-from DatasetManager.lsdb.passwords import LOGIN_READONLY, PASSWORD_READONLY, SERVER_ADDRESS, \
-    SSH_PKEY, SSH_USER_NAME
-
 
 class LsdbMongo:
     def __init__(self):
+        self.credentials = self.load_credentials()
+
         self.server = SSHTunnelForwarder(
-            SERVER_ADDRESS,
-            ssh_username=SSH_USER_NAME,
+            self.credentials['SERVER_ADDRESS'],
+            ssh_username=self.credentials['SSH_USER_NAME'],
             remote_bind_address=('127.0.0.1', 27017),
-            ssh_pkey=SSH_PKEY
+            ssh_pkey=self.credentials['SSH_PKEY']
         )
         self.server.start()
 
@@ -25,7 +25,8 @@ class LsdbMongo:
     def get_db(self):
         # Cannot connect directly to lsdb and then performing auth
         db = self.client.get_database('admin')
-        db.authenticate(LOGIN_READONLY, PASSWORD_READONLY,
+        db.authenticate(self.credentials['LOGIN_READONLY'],
+                        self.credentials['PASSWORD_READONLY'],
                         mechanism='SCRAM-SHA-1')
         lsdb = self.client.get_database('lsdb')
         return lsdb
@@ -48,6 +49,24 @@ class LsdbMongo:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    @staticmethod
+    def load_credentials():
+        if not os.path.exists('passwords.json'):
+            with open('passwords.json', 'w') as f:
+                passwords_form = '''{
+                    "SERVER_ADDRESS":    "",
+                    "SSH_USER_NAME":     "",
+                    "SSH_PKEY":          "",
+                    "LOGIN_READONLY":    "",
+                    "PASSWORD_READONLY": ""
+                }'''
+                f.write(passwords_form)
+                print('An empty passwords.json file has been generated.')
+                print('Please edit this file.')
+
+        credentials = json.load(open('passwords.json', 'r'))
+        return credentials
 
 
 if __name__ == '__main__':

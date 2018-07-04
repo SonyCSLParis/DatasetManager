@@ -2,8 +2,6 @@ from fractions import Fraction
 
 import music21
 from music21.chord_symbols.jazz_chords import JazzChord
-import re
-import os
 
 import torch
 from bson import ObjectId
@@ -12,11 +10,7 @@ import numpy as np
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, \
     standard_note, PAD_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
-from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
-    getUnalteredPitch, getAccidental, getOctave, note_duration, \
-    is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, set_metadata, \
-    notes_and_chords, \
-    leadsheet_on_ticks, standard_chord
+from DatasetManager.lsdb.lsdb_data_helpers import NC, notes_and_chords, leadsheet_on_ticks
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset

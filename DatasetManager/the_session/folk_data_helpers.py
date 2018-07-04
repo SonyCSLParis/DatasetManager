@@ -233,21 +233,7 @@ class FolkIteratorGenerator:
             try:
                 score = self.get_score_from_path(tune_filepath)
                 ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files where notes are not on ticks
-                if not score_on_ticks(score, tick_values):
-                    continue
-                    # ignore files with no notes
-                notes, _ = notes_and_chords(score)
-
-                pitches = [n.pitch.midi for n in notes if n.isNote]
-                if pitches == []:
-                    continue
-                # ignore files with too few or too high notes
-                MAX_NOTES = 140
-                MIN_NOTES = 40
-                if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                    continue
-                # ignotre files with non 4/4 and 3/4 time signatures
+                # ignore files with non 3/4 time signatures
                 if len(ts) > 1:
                     continue
                 else:
@@ -256,9 +242,19 @@ class FolkIteratorGenerator:
                     if ts_den != 4:
                         continue
                     else:
-                        if ts_num != 4 and ts_num != 3:
+                        if ts_num != 3 and ts_num != 4:
                             continue
                         else:
+                            # ignore files with no notes
+                            notes, _ = notes_and_chords(score)
+                            pitches = [n.pitch.midi for n in notes if n.isNote]
+                            if pitches == []:
+                                continue
+                            # ignore files with too few or too high notes
+                            MAX_NOTES = 100
+                            MIN_NOTES = 20
+                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
+                                continue
                             # ignore files with 32nd and 64th notes
                             dur_list = [n.duration for n in notes if n.isNote]
                             for dur in dur_list:
@@ -271,8 +267,13 @@ class FolkIteratorGenerator:
                                     # TODO: bad hack. fix this !!!
                                     if len(dur.components) > 2:
                                         break
+                            # check if expand repeat works
+                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                            # ignore files where notes are not on ticks
+                            if not score_on_ticks(score, tick_values):
+                                continue
                             else:
-                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                                # add to valid tunes list
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -499,21 +500,7 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
             try:
                 score = self.get_score_from_path(tune_filepath)
                 ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files where notes are not on ticks
-                if not score_on_ticks(score, tick_values):
-                    continue
-                    # ignore files with no notes
-                notes, _ = notes_and_chords(score)
-
-                pitches = [n.pitch.midi for n in notes if n.isNote]
-                if pitches == []:
-                    continue
-                # ignore files with too few or too high notes
-                MAX_NOTES = 140
-                MIN_NOTES = 40
-                if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                    continue
-                # ignore files with non 4/4 time signatures
+                # ignore files with non 3/4 time signatures
                 if len(ts) > 1:
                     continue
                 else:
@@ -525,6 +512,16 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
                         if ts_num != 4:
                             continue
                         else:
+                            # ignore files with no notes
+                            notes, _ = notes_and_chords(score)
+                            pitches = [n.pitch.midi for n in notes if n.isNote]
+                            if pitches == []:
+                                continue
+                            # ignore files with too few or too high notes
+                            MAX_NOTES = 140
+                            MIN_NOTES = 40
+                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
+                                continue
                             # ignore files with 32nd and 64th notes
                             dur_list = [n.duration for n in notes if n.isNote]
                             for dur in dur_list:
@@ -537,8 +534,13 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
                                     # TODO: bad hack. fix this !!!
                                     if len(dur.components) > 2:
                                         break
+                            # check if expand repeat works
+                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                            # ignore files where notes are not on ticks
+                            if not score_on_ticks(score, tick_values):
+                                continue
                             else:
-                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                                # add to valid tunes list
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -554,9 +556,10 @@ class Folk4by4IteratorGenerator(FolkIteratorGenerator):
                     IndexError,
                     UnboundLocalError,
                     ValueError,
-                    ABCHandlerException) as e:
-                print('Error when parsing ABC file: ', tune_index)
-                print(e)
+                    ABCHandlerException):
+                #print('Error when parsing ABC file: ', tune_index)
+                #print(e)
+                pass
 
         f = open(self.valid_files_list, 'w')
         for tune_filepath in self.valid_tune_filepaths:
@@ -607,20 +610,6 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
             try:
                 score = self.get_score_from_path(tune_filepath)
                 ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files where notes are not on ticks
-                if not score_on_ticks(score, tick_values):
-                    continue
-                    # ignore files with no notes
-                notes, _ = notes_and_chords(score)
-
-                pitches = [n.pitch.midi for n in notes if n.isNote]
-                if pitches == []:
-                    continue
-                # ignore files with too few or too high notes
-                MAX_NOTES = 140
-                MIN_NOTES = 40
-                if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                    continue
                 # ignore files with non 3/4 time signatures
                 if len(ts) > 1:
                     continue
@@ -633,6 +622,16 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
                         if ts_num != 3:
                             continue
                         else:
+                            # ignore files with no notes
+                            notes, _ = notes_and_chords(score)
+                            pitches = [n.pitch.midi for n in notes if n.isNote]
+                            if pitches == []:
+                                continue
+                            # ignore files with too few or too high notes
+                            MAX_NOTES = 100
+                            MIN_NOTES = 20
+                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
+                                continue
                             # ignore files with 32nd and 64th notes
                             dur_list = [n.duration for n in notes if n.isNote]
                             for dur in dur_list:
@@ -645,8 +644,13 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
                                     # TODO: bad hack. fix this !!!
                                     if len(dur.components) > 2:
                                         break
+                            # check if expand repeat works
+                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                            # ignore files where notes are not on ticks
+                            if not score_on_ticks(score, tick_values):
+                                continue
                             else:
-                                _ = self.get_score_from_path(tune_filepath, fix_and_expand=True)
+                                # add to valid tunes list
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
@@ -673,3 +677,5 @@ class Folk3by4IteratorGenerator(FolkIteratorGenerator):
         self.num_valid_files = count
         self.num_with_chords = num_chords
         self.num_multivoice = num_multivoice
+
+

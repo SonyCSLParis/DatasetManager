@@ -9,7 +9,6 @@ from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException,
 from bson import ObjectId
 import numpy as np
 
-
 REST = 'R'
 NC = 'N.C.'
 
@@ -298,6 +297,7 @@ def standard_chord(chord_string):
                 if num_chars < 0:
                     raise Exception
 
+
 # def get_root(chord_string):
 #     assert not chord_string == START_SYMBOL
 #     assert not chord_string == END_SYMBOL
@@ -582,16 +582,17 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
     assert 'p' in json_chord
     # root
     json_chord_root = json_chord['p']
+
+    # N.C. chords
+    if json_chord_root == 'NC':
+        return music21.expressions.TextExpression(NC)
+
     music21_root_pitch = music21.pitch.Pitch(json_chord_root)
     # chord type
     if 'ch' in json_chord:
         json_chord_type = json_chord['ch']
     else:
         json_chord_type = ''
-
-    # N.C. chords
-    if json_chord_root == 'NC':
-        return music21.expressions.TextExpression(NC)
 
     num_characters_chord_type = len(json_chord_type)
     while True:
@@ -604,17 +605,17 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
             all_notes_str_list = [note[:-1] for note in all_notes_list]
             all_notes_str = ' '.join(note for note in all_notes_str_list)
 
-            #all_pitches_list = [music21.pitch.Pitch(note) for note in all_notes_list]
-            #all_notes = [note.replace('b', '-')
+            # all_pitches_list = [music21.pitch.Pitch(note) for note in all_notes_list]
+            # all_notes = [note.replace('b', '-')
             #             for note in all_notes]
             chord_symbol = JazzChord(all_notes_str, music21_root_pitch)
-            #interval = music21.interval.Interval(
+            # interval = music21.interval.Interval(
             #    noteStart=music21.note.Note('C4'),
             #    noteEnd=music21.note.Note(json_chord_root))
-            #chord_symbol = chord_symbols_from_note_list(
+            # chord_symbol = chord_symbols_from_note_list(
             #    all_notes=all_notes,
             #    interval=interval
-            #)
+            # )
             return chord_symbol
         except (AttributeError, KeyError):
             # if the preceding procedure did not work

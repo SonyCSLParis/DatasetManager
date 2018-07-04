@@ -1,9 +1,7 @@
 from fractions import Fraction
 
 import music21
-from music21.chord_symbols.jazz_chords import  JazzChord
-import re
-import os
+from music21.chord_symbols.jazz_chords import JazzChord
 
 import torch
 from bson import ObjectId
@@ -12,15 +10,12 @@ import numpy as np
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, standard_name, \
     standard_note, PAD_SYMBOL
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
-from DatasetManager.lsdb.lsdb_data_helpers import altered_pitches_music21_to_dict, REST, \
-    getUnalteredPitch, getAccidental, getOctave, note_duration, \
-    is_tied_left, general_note, FakeNote, assert_no_time_signature_changes, NC, set_metadata, \
-    notes_and_chords, \
-    leadsheet_on_ticks, standard_chord
+from DatasetManager.lsdb.lsdb_data_helpers import NC, notes_and_chords, leadsheet_on_ticks
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
+
 
 class LsdbDataset(MusicDataset):
     def __init__(self, corpus_it_gen,
@@ -57,7 +52,7 @@ class LsdbDataset(MusicDataset):
         return f'LsdbDataset(' \
                f'{self.name},' \
                f'{self.sequences_size})'
-    
+
     def iterator_gen(self):
         return (score
                 for score in self.corpus_it_gen()
@@ -70,9 +65,9 @@ class LsdbDataset(MusicDataset):
         return diff
 
     def transposed_score_and_metadata_tensors(self,
-                            score: music21.stream.Score,
-                            interval: music21.interval.Interval
-                            ):
+                                              score: music21.stream.Score,
+                                              interval: music21.interval.Interval
+                                              ):
         try:
             leadsheet_transposed = score.transpose(interval)
         except ValueError as e:
@@ -171,7 +166,7 @@ class LsdbDataset(MusicDataset):
                     index2chordname[new_index] = content
                 chord_root_index = chordroot2index[content]
                 chord_name_index = chordname2index[content]
-            
+
             if j < num_chords - 1:
                 if chords[j + 1].offset > i:
                     t[i, :] = [chord_root_index,
@@ -234,7 +229,7 @@ class LsdbDataset(MusicDataset):
                         leadsheet,
                         transposition_interval)
                     lead_tensor, chord_root_tensor, chord_name_tensor = self.get_score_tensor(
-                            transposed_leadsheet, update_dicts=True
+                        transposed_leadsheet, update_dicts=True
                     )
                     # lead
                     for offsetStart in range(-self.sequences_size + 1,
@@ -277,7 +272,7 @@ class LsdbDataset(MusicDataset):
         dataset = TensorDataset(lead_tensor_dataset,
                                 chord_root_tensor_dataset,
                                 chord_name_tensor_dataset
-        )
+                                )
 
         print(f'Sizes: {lead_tensor_dataset.size()},'
               f' {chord_root_tensor_dataset.size()},'
@@ -307,7 +302,7 @@ class LsdbDataset(MusicDataset):
 
         return transpositions
 
-    def extract_score_tensor_with_padding(self, 
+    def extract_score_tensor_with_padding(self,
                                           tensor,
                                           start_tick,
                                           end_tick,
@@ -523,12 +518,14 @@ class LsdbDataset(MusicDataset):
         """
         lead_tensor = np.random.randint(len(self.symbol2index_dicts[self.NOTES]),
                                         size=score_length * self.subdivision)
-        chords_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORD_ROOT]),
-                                          size=score_length)
+        chord_roots_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORD_ROOT]),
+                                               size=score_length)
+        chord_types_tensor = np.random.randint(len(self.symbol2index_dicts[self.CHORD_NAME]),
+                                               size=score_length)
         lead_tensor = torch.from_numpy(lead_tensor).long()
-        chords_tensor = torch.from_numpy(chords_tensor).long()
-
-        return lead_tensor, chords_tensor
+        chord_roots_tensor = torch.from_numpy(chord_roots_tensor).long()
+        chord_types_tensor = torch.from_numpy(chord_types_tensor).long()
+        return lead_tensor, chord_roots_tensor, chord_types_tensor
 
     def get_jazzchord_from_index(self, chord_root_index, chord_name_index):
         '''
@@ -545,7 +542,7 @@ class LsdbDataset(MusicDataset):
         return jazz_chord
 
     def tensor_to_score(self, tensor_score, tensor_chords,
-                                  realize_chords=False):
+                        realize_chords=False):
         """
         Converts leadsheet given as tensor_lead and tensor_chords
         to a true music21 score
@@ -579,10 +576,10 @@ class LsdbDataset(MusicDataset):
         part.append(f)
 
         # CHORD SYMBOLS
-        #index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+        # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
         chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
-        #index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
-        #chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
+        # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
+        # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
         start_index = chordroot2index[START_SYMBOL]
         end_index = chordroot2index[END_SYMBOL]
         slur_index = chordroot2index[SLUR_SYMBOL]
@@ -592,19 +589,19 @@ class LsdbDataset(MusicDataset):
         tensor_chords_root_np = tensor_chords_root.numpy().flatten()
         tensor_chords_name_np = tensor_chords_name.numpy().flatten()
         for beat_index, (chord_root_index, chord_name_index) \
-                        in enumerate(
-                            zip(
-                                tensor_chords_root_np,
-                                tensor_chords_name_np
-                               )
-                        ):
+                in enumerate(
+            zip(
+                tensor_chords_root_np,
+                tensor_chords_name_np
+            )
+        ):
             chord_root_index = chord_root_index.item()
             chord_name_index = chord_name_index.item()
             # if it is a played chord
-            if chord_root_index not in [slur_index, 
-                                        start_index, 
-                                        end_index, 
-                                        pad_index, 
+            if chord_root_index not in [slur_index,
+                                        start_index,
+                                        end_index,
+                                        pad_index,
                                         nc_index]:
                 # add chord
                 jazz_chord = self.get_jazzchord_from_index(
@@ -616,7 +613,7 @@ class LsdbDataset(MusicDataset):
         score.append(part)
 
         if realize_chords:
-            #index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+            # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
             chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
             start_index = chordroot2index[START_SYMBOL]
             end_index = chordroot2index[END_SYMBOL]
@@ -629,19 +626,19 @@ class LsdbDataset(MusicDataset):
             tensor_chords_root_np = tensor_chords_root.numpy().flatten()
             tensor_chords_name_np = tensor_chords_name.numpy().flatten()
             for beat_index, (chord_root_index, chord_name_index) \
-                        in enumerate(
-                            zip(
-                                tensor_chords_root_np,
-                                tensor_chords_name_np
-                               )
-                        ):
+                    in enumerate(
+                zip(
+                    tensor_chords_root_np,
+                    tensor_chords_name_np
+                )
+            ):
                 chord_root_index = chord_root_index.item()
                 chord_name_index = chord_name_index.item()
                 # if it is a played note
-                if chord_root_index not in [slur_index, 
-                                            start_index, 
-                                            end_index, 
-                                            pad_index, 
+                if chord_root_index not in [slur_index,
+                                            start_index,
+                                            end_index,
+                                            pad_index,
                                             nc_index]:
                     # add previous note
                     if dur > 0:
@@ -694,9 +691,9 @@ class LsdbDataset(MusicDataset):
         tensor_chords_root_np = tensor_chords_root.numpy().flatten()
         tensor_chords_name_np = tensor_chords_name.numpy().flatten()
         for chord_root_index, chord_name_index \
-                        in zip(tensor_chords_root_np,
-                               tensor_chords_name_np
-                        ):
+                in zip(tensor_chords_root_np,
+                       tensor_chords_name_np
+                       ):
             chord_root_index = chord_root_index.item()
             chord_name_index = chord_name_index.item()
             chord_desc = index2chordroot[chord_root_index] + \
@@ -719,7 +716,7 @@ if __name__ == '__main__':
     )
     dl, _, _ = lsdb_dataset.data_loaders(1)
     tensor_lead, tensor_chord_root, tensor_chord_name = next(dl.__iter__())
-    print(tensor_lead[0].size(), 
+    print(tensor_lead[0].size(),
           tensor_chord_root[0].size(),
           tensor_chord_name[0].size())
     tensor_chord = (tensor_chord_root[0], tensor_chord_name[0])
@@ -728,13 +725,13 @@ if __name__ == '__main__':
         tensor_chord)
     score.show()
     print(chord_list)
-    #leadsheet_path = '/home/ashis/Documents/AnticipationRNNFolkDataset/DatasetManager/DatasetManager/lsdb/xml/4_4_all/52nd Street Theme.xml'
-    #leadsheet = music21.converter.parse(leadsheet_path)
-    #lead, chord_root, chord_name = lsdb_dataset.get_score_tensor(leadsheet)
-    #chord = (chord_root, chord_name)
-    #score = lsdb_dataset.tensor_to_score(
+    # leadsheet_path = '/home/ashis/Documents/AnticipationRNNFolkDataset/DatasetManager/DatasetManager/lsdb/xml/4_4_all/52nd Street Theme.xml'
+    # leadsheet = music21.converter.parse(leadsheet_path)
+    # lead, chord_root, chord_name = lsdb_dataset.get_score_tensor(leadsheet)
+    # chord = (chord_root, chord_name)
+    # score = lsdb_dataset.tensor_to_score(
     #    lead, 
     #    chord,
     #    realize_chords=True
-    #)
-    #score.show()
+    # )
+    # score.show()

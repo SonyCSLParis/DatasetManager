@@ -582,6 +582,11 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
     assert 'p' in json_chord
     # root
     json_chord_root = json_chord['p']
+
+    # N.C. chords
+    if json_chord_root == 'NC':
+        return music21.expressions.TextExpression(NC)
+
     music21_root_pitch = music21.pitch.Pitch(json_chord_root)
     # chord type
     if 'ch' in json_chord:
@@ -589,9 +594,6 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
     else:
         json_chord_type = ''
 
-    # N.C. chords
-    if json_chord_root == 'NC':
-        return music21.expressions.TextExpression(NC)
 
     num_characters_chord_type = len(json_chord_type)
     while True:

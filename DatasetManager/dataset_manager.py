@@ -15,7 +15,8 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator, \
                     Folk4by4IteratorGenerator, \
-                    Folk3by4IteratorGenerator
+                    Folk3by4IteratorGenerator, \
+                    Folk4by4ChordsIteratorGenerator
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
@@ -70,7 +71,7 @@ all_datasets = {
         {
             'dataset_class_name': FolkDataset,
             'corpus_it_gen':      Folk4by4IteratorGenerator(
-                num_elements=1000
+                num_elements=100
             ) 
         },
     'folk_4by4':
@@ -94,6 +95,13 @@ all_datasets = {
                 num_elements=None
             ) 
         },
+    'folk_4by4chords':
+        {
+            'dataset_class_name': FolkDataset,
+            'corpus_it_gen': Folk4by4ChordsIteratorGenerator(
+                num_elements=None
+            )
+        }
 }
 
 
@@ -212,10 +220,10 @@ if __name__ == '__main__':
     ]
     folk_dataset_kwargs = {
         'metadatas':        metadatas,
-        'sequences_size':   48
+        'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_3by4_test',
+        name ='folk_4by4chords',
         **folk_dataset_kwargs
     )
     (train_dataloader,

@@ -16,10 +16,9 @@ from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
     standard_name, PAD_SYMBOL, standard_note, OUT_OF_RANGE, \
     BEAT_SYMBOL, DOWNBEAT_SYMBOL
-from DatasetManager.lsdb.lsdb_data_helpers import notes_and_chords
 from DatasetManager.lsdb.lsdb_exceptions import *
 from DatasetManager.the_session.folk_data_helpers import get_notes, \
-    get_notes_in_measure, tick_values, score_on_ticks
+    get_notes_in_measure, tick_values, score_on_ticks, notes_and_chords
 
 
 class FolkDataset(MusicDataset):

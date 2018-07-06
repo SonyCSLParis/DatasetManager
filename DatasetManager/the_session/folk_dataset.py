@@ -16,11 +16,9 @@ from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
     standard_name, PAD_SYMBOL, standard_note, OUT_OF_RANGE, \
     BEAT_SYMBOL, DOWNBEAT_SYMBOL
-from DatasetManager.lsdb.lsdb_data_helpers import notes_and_chords, \
-    leadsheet_on_ticks
 from DatasetManager.lsdb.lsdb_exceptions import *
 from DatasetManager.the_session.folk_data_helpers import get_notes, \
-    get_notes_in_measure, tick_values
+    get_notes_in_measure, tick_values, score_on_ticks, notes_and_chords
 
 
 class FolkDataset(MusicDataset):
@@ -99,9 +97,9 @@ class FolkDataset(MusicDataset):
         """
         eps = 1e-4
         notes, _ = notes_and_chords(score)
-        if not leadsheet_on_ticks(score, self.tick_values):
+        if not score_on_ticks(score, self.tick_values):
             raise LeadsheetParsingException(
-                f'Leadsheet {score.metadata.title} has notes not on ticks')
+                f'Score {score.metadata.title} has notes not on ticks')
 
         # add entries to dictionaries if not present
         # should only be called by make_tensor_dataset when transposing
@@ -567,7 +565,24 @@ class FolkDataset(MusicDataset):
         return score
 
 if __name__ == '__main__':
-    # dataset_manager = DatasetManager()
-    folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
+
+    from DatasetManager.dataset_manager import DatasetManager
+    from DatasetManager.metadata import BeatMarkerMetadata, TickMetadata
+
+    dataset_manager = DatasetManager()
+    metadatas = [
+        BeatMarkerMetadata(subdivision=6),
+        TickMetadata(subdivision=6)
+    ]
+    folk_dataset_kwargs = {
+        'metadatas': metadatas,
+        'sequences_size': 32
+    }
+    folk_dataset: FolkDataset = dataset_manager.get_dataset(
+        name='folk_4by4chords',
+        **folk_dataset_kwargs
+    )
+
+    #folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
     # folk_dataset.download_raw_dataset()
-    folk_dataset.make_tensor_dataset()
+    #folk_dataset.make_tensor_dataset()

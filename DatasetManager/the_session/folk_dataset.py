@@ -32,7 +32,7 @@ class FolkDataset(MusicDataset):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over the files (as music21 scores)
-        :pram name
+        :param name
         :param sequences_size: in beats
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where the tensor_dataset is stored

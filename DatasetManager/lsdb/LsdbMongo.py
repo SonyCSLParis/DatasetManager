@@ -74,5 +74,4 @@ if __name__ == '__main__':
     db = lsdb_client.get_db()
     # cursor = lsdb_client.get_songbook_leadsheets_cursor(db)
     # print(next(cursor))
-    print(db.find())
     lsdb_client.close()

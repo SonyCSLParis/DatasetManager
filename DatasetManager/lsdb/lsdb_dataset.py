@@ -585,10 +585,20 @@ class LsdbDataset(MusicDataset):
         slur_index = chordroot2index[SLUR_SYMBOL]
         pad_index = chordroot2index[PAD_SYMBOL]
         nc_index = chordroot2index[NC]
+
+        chordtype2index = self.symbol2index_dicts[self.CHORD_NAME]
+        # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
+        # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
+        type_start_index = chordtype2index[START_SYMBOL]
+        type_end_index = chordtype2index[END_SYMBOL]
+        type_slur_index = chordtype2index[SLUR_SYMBOL]
+        type_pad_index = chordtype2index[PAD_SYMBOL]
+        type_nc_index = chordtype2index[NC]
+
         tensor_chords_root, tensor_chords_name = tensor_chords
         tensor_chords_root_np = tensor_chords_root.numpy().flatten()
         tensor_chords_name_np = tensor_chords_name.numpy().flatten()
-        for beat_index, (chord_root_index, chord_name_index) \
+        for beat_index, (chord_root_index, chord_type_index) \
                 in enumerate(
             zip(
                 tensor_chords_root_np,
@@ -596,17 +606,25 @@ class LsdbDataset(MusicDataset):
             )
         ):
             chord_root_index = chord_root_index.item()
-            chord_name_index = chord_name_index.item()
+            chord_type_index = chord_type_index.item()
             # if it is a played chord
-            if chord_root_index not in [slur_index,
-                                        start_index,
-                                        end_index,
-                                        pad_index,
-                                        nc_index]:
+            # todo check also chord_type_index!
+            if (chord_root_index not in [slur_index,
+                                         start_index,
+                                         end_index,
+                                         pad_index,
+                                         nc_index]
+                    and
+                    chord_type_index not in [type_slur_index,
+                                             type_start_index,
+                                             type_end_index,
+                                             type_pad_index,
+                                             type_nc_index]
+            ):
                 # add chord
                 jazz_chord = self.get_jazzchord_from_index(
                     chord_root_index,
-                    chord_name_index
+                    chord_type_index
                 )
                 part.insert(beat_index, jazz_chord)
 
@@ -625,7 +643,8 @@ class LsdbDataset(MusicDataset):
             c = music21.note.Rest()
             tensor_chords_root_np = tensor_chords_root.numpy().flatten()
             tensor_chords_name_np = tensor_chords_name.numpy().flatten()
-            for beat_index, (chord_root_index, chord_name_index) \
+            for (beat_index,
+                 (chord_root_index, chord_type_index)) \
                     in enumerate(
                 zip(
                     tensor_chords_root_np,
@@ -633,7 +652,7 @@ class LsdbDataset(MusicDataset):
                 )
             ):
                 chord_root_index = chord_root_index.item()
-                chord_name_index = chord_name_index.item()
+                chord_type_index = chord_type_index.item()
                 # if it is a played note
                 if chord_root_index not in [slur_index,
                                             start_index,
@@ -648,7 +667,7 @@ class LsdbDataset(MusicDataset):
                     try:
                         jazz_chord = self.get_jazzchord_from_index(
                             chord_root_index,
-                            chord_name_index
+                            chord_type_index
                         )
                         voicing_pitch_list = jazz_chord.get_pitchlist_from_chord()
                         c = music21.chord.Chord([

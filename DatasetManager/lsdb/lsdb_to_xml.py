@@ -12,6 +12,7 @@ from DatasetManager.lsdb.lsdb_exceptions import LeadsheetParsingException, \
 import numpy as np
 
 # todo as method
+from bson import ObjectId
 from music21.pitch import PitchException
 
 
@@ -22,15 +23,17 @@ class LsdbConverter:
 
     # todo other mongodb queries?
     # todo num_elements ...
-    def __init__(self, time_signature='4/4', composer=None):
+    def __init__(self, time_signature='4/4', composer=None, songset_id=None):
         self.time_signature = time_signature
         self.composer = composer
+        self.songset_id = songset_id
         self.dataset_dir = os.path.join('xml',
                                         self.__repr__())
 
     def __repr__(self):
         return f'{self.time_signature.replace("/","_")}' \
-               f'{"_" + self.composer if self.composer else ""}'
+               f'{"_" + self.composer if self.composer else ""}' \
+               f'{"_" + self.songset_id if self.songset_id else ""}'
 
     def make_score_dataset(self):
         """
@@ -49,10 +52,25 @@ class LsdbConverter:
         # todo add query
         with LsdbMongo() as client:
             db = client.get_db()
-            leadsheets = db.leadsheets.find({
-                '_id':      {'$nin': exclude_list_ids, },
-                'composer': self.composer
-            },
+
+            # restrict on a specific songset
+            query_ids = {'$nin': exclude_list_ids, }
+            if self.songset_id:
+                songset = db.songsets.find_one({
+                    '_id': ObjectId(self.songset_id)
+                })
+                leadsheet_ids_in_songset = [ObjectId(leadsheet_id)
+                                            for leadsheet_id in
+                                            songset['elements']
+                                            ]
+                query_ids['$in'] = leadsheet_ids_in_songset
+
+            query = {'_id':      query_ids}
+            if self.composer:
+                query['composer'] = self.composer
+
+            leadsheets = db.leadsheets.find(
+                query,
                 no_cursor_timeout=True)
             for leadsheet in leadsheets:
                 # discard leadsheet with no title
@@ -159,25 +177,35 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
-    LsdbConverter(composer='Bill Evans').make_score_dataset()
-    LsdbConverter(composer='Miles Davis').make_score_dataset()
-    LsdbConverter(composer='Duke Ellington').make_score_dataset()
-    LsdbConverter(composer='Fats Waller').make_score_dataset()
-    LsdbConverter(composer='Michel Legrand').make_score_dataset()
-    LsdbConverter(composer='Thelonious Monk').make_score_dataset()
-    LsdbConverter(composer='Charlie Parker').make_score_dataset()
-    LsdbConverter(composer='Antonio Carlos Jobim').make_score_dataset()
-    LsdbConverter(composer='Wayne Shorter').make_score_dataset()
-    LsdbConverter(composer='Sonny Rollins').make_score_dataset()
-    LsdbConverter(composer='John Coltrane').make_score_dataset()
-    LsdbConverter(composer='Chick Corea').make_score_dataset()
-    LsdbConverter(composer='Cole Porter').make_score_dataset()
-    LsdbConverter(composer='Victor Young').make_score_dataset()
-    LsdbConverter(composer='Herbie Hancock').make_score_dataset()
-    LsdbConverter(composer='Pat Metheny').make_score_dataset()
-    LsdbConverter(composer='McCoy Tyner').make_score_dataset()
+    # Blues
+    LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
 
+    # Pop
+    # LsdbConverter(songset_id='5660684458e3383e7f7b23c6').make_score_dataset()
 
+    # American Songwriter
+    # LsdbConverter(songset_id='545a6c8a3004f53efa0382fe').make_score_dataset()
 
+    # Real book
+    # LsdbConverter(songset_id='545a6c893004f53efa0382e4').make_score_dataset()
 
+    # Real book Vol3 2nd Edition
+    # LsdbConverter(songset_id='545a6c893004f53efa0382e3').make_score_dataset()
 
+    # LsdbConverter(composer='Bill Evans').make_score_dataset()
+    # LsdbConverter(composer='Miles Davis').make_score_dataset()
+    # LsdbConverter(composer='Duke Ellington').make_score_dataset()
+    # LsdbConverter(composer='Fats Waller').make_score_dataset()
+    # LsdbConverter(composer='Michel Legrand').make_score_dataset()
+    # LsdbConverter(composer='Thelonious Monk').make_score_dataset()
+    # LsdbConverter(composer='Charlie Parker').make_score_dataset()
+    # LsdbConverter(composer='Antonio Carlos Jobim').make_score_dataset()
+    # LsdbConverter(composer='Wayne Shorter').make_score_dataset()
+    # LsdbConverter(composer='Sonny Rollins').make_score_dataset()
+    # LsdbConverter(composer='John Coltrane').make_score_dataset()
+    # LsdbConverter(composer='Chick Corea').make_score_dataset()
+    # LsdbConverter(composer='Cole Porter').make_score_dataset()
+    # LsdbConverter(composer='Victor Young').make_score_dataset()
+    # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
+    # LsdbConverter(composer='Pat Metheny').make_score_dataset()
+    # LsdbConverter(composer='McCoy Tyner').make_score_dataset()

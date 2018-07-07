@@ -693,7 +693,7 @@ class LsdbDataset(MusicDataset):
         Converts leadsheet given as tensor_lead to a true music21 score
         and the chords as a list
         :param tensor_score:
-        :param tensor_chords:
+        :param tensor_chords: tuple (tensor_chord_roots, tensor_chord_types)
         :return:
         """
         score = self.tensor_to_score(

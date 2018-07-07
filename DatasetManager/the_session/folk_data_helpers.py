@@ -97,21 +97,13 @@ def get_notes(score):
     # score.show()
 
     measures = s.recurse().getElementsByClass(music21.stream.Measure)
-    num_measures = len(measures)
     # check for pick-up measures
     if measures[0].barDurationProportion() != 1.0:
         offset = measures[0].paddingLeft
         measures[0].insertAndShift(
             0.0, music21.note.Rest(quarterLength=offset))
     for m in measures:
-        # check for pick-up measure
         notes = get_notes_in_measure(m)
-    # offset_map = leadsheet.parts[0].measureOffsetMap()
-    # num_measures = len(offset_map)
-    # offest_list = list(offset_map.keys())
-    # for i in np.arange(num_measures):
-    #    m = offset_map[offest_list[i]][0]
-    # leadsheet.show()
     notes = s.flat.notesAndRests
     notes = [n for n in notes if not isinstance(
         n, music21.harmony.ChordSymbol)]
@@ -125,11 +117,19 @@ class FolkIteratorGenerator:
     :return:
     """
 
-    def __init__(self, num_elements=None):
-        if num_elements == None:
-            self.num_elements = 25000
-        else:
-            self.num_elements = num_elements
+    def __init__(self, 
+                 num_elements=None, 
+                 has_chords=False, 
+                 time_sigs = [(4,4)]):
+        """
+        :param num_elements: int, number of tunes to be considered
+        :param has_chords: bool, True if tunes should have chords, 
+        :param time_sigs: list of tuples, each tuple should specify
+                          the allowed time signatures, with the first 
+                          element being the time signature numerator and
+                          the second element being the time signature
+                          denominator 
+        """
         self.package_dir = os.path.dirname(os.path.realpath(__file__))
         self.raw_dataset_dir = os.path.join(
             self.package_dir,
@@ -152,11 +152,36 @@ class FolkIteratorGenerator:
             self.download_raw_dataset()
             self.split_raw_dataset()
 
+        self.has_chords = has_chords
+        if time_sigs is None:
+            self.time_sigs = [(4, 4)]    # 4by4 is the default time signature
+        else:
+            self.time_sigs = time_sigs
+
         self.valid_files_list = os.path.join(
             self.package_dir,
-            'valid_tune_filepaths.txt'
+            self.__repr__() + 'valid_filepaths.txt'
         )
+        
+        # read and store the valid file paths
         self.valid_tune_filepaths = []
+        self.valid_file_indices = []
+        
+        # set num_elements for the iterator
+        if num_elements == None:
+            self.num_elements = 25000
+        else:
+            self.num_elements = num_elements
+
+    def __repr__(self):
+        if self.has_chords:
+            chord_str = 'chords'
+        else:
+            chord_str = ''
+        name_str = 'FolkItGen(' + \
+                    chord_str + \
+                    str(self.time_sigs).replace(" ", "") + ')'
+        return name_str
 
     def download_raw_dataset(self):
         if os.path.exists(self.full_raw_dataset_filepath):
@@ -215,34 +240,40 @@ class FolkIteratorGenerator:
 
         print('Checking dataset for valid files')
         tune_filepaths = glob(f'{self.raw_dataset_dir}/tune*')
-        count = 0
-        num_chords = 0
-        num_multivoice = 0
         self.valid_file_indices = []
         self.valid_tune_filepaths = []
+        # get list of allowed time signatures
+        ts_num_allowed = []
+        ts_den_allowed = []
+        for ts in self.time_sigs:
+            ts_num, ts_den = ts
+            ts_num_allowed.append(ts_num)
+            ts_den_allowed.append(ts_den)
         for tune_index, tune_filepath in tqdm(enumerate(tune_filepaths)):
             title = self.get_title(tune_filepath)
             if title is None:
                 continue
-            if self.tune_contains_chords(tune_filepath):
-                num_chords += 1
-                continue
             if self.tune_is_multivoice(tune_filepath):
-                num_multivoice += 1
                 continue
+            if self.has_chords:
+                if not self.tune_contains_chords(tune_filepath):
+                    continue
+            else:
+                if self.tune_contains_chords(tune_filepath):
+                    continue
             try:
                 score = self.get_score_from_path(tune_filepath)
+                # ignore files with not allowed time signatures
                 ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files with non 3/4 time signatures
                 if len(ts) > 1:
                     continue
                 else:
                     ts_num = ts[0].numerator
                     ts_den = ts[0].denominator
-                    if ts_den != 4:
+                    if ts_den not in ts_den_allowed:
                         continue
                     else:
-                        if ts_num != 3 and ts_num != 4:
+                        if ts_num not in ts_num_allowed:
                             continue
                         else:
                             # ignore files with no notes
@@ -251,9 +282,8 @@ class FolkIteratorGenerator:
                             if pitches == []:
                                 continue
                             # ignore files with too few or too high notes
-                            MAX_NOTES = 100
-                            MIN_NOTES = 20
-                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
+                            MAX_NOTES = 140
+                            if len(notes) > MAX_NOTES:
                                 continue
                             # ignore files with 32nd and 64th notes
                             dur_list = [n.duration for n in notes if n.isNote]
@@ -277,7 +307,6 @@ class FolkIteratorGenerator:
                                 self.valid_file_indices.append(tune_index)
                                 file_name = os.path.basename(tune_filepath)
                                 self.valid_tune_filepaths.append(file_name)
-                                count += 1
             except (music21.abcFormat.ABCHandlerException,
                     music21.abcFormat.ABCTokenException,
                     music21.duration.DurationException,
@@ -297,9 +326,6 @@ class FolkIteratorGenerator:
         for tune_filepath in self.valid_tune_filepaths:
             f.write("%s\n" % tune_filepath)
         f.close()
-        self.num_valid_files = count
-        self.num_with_chords = num_chords
-        self.num_multivoice = num_multivoice
 
     def get_score_from_path(self, tune_filepath, fix_and_expand=False):
         """
@@ -312,28 +338,6 @@ class FolkIteratorGenerator:
         if fix_and_expand:
             score = self.fix_pick_up_measure_offset(score)
             score = score.expandRepeats()
-        return score
-
-
-    def fix_pick_up_measure_offset(self, score):
-        """
-        Adds rests to the pick-up measure (if-any)
-        : param score: music21 score object
-        """
-        measures = score.recurse().getElementsByClass(music21.stream.Measure)
-        num_measures = len(measures)
-        # add rests in pick-up measures
-        if num_measures > 0:
-            m0_dur = measures[0].barDurationProportion()
-            m1_dur = measures[0].barDurationProportion()
-            if m0_dur != 1.0:
-                if m0_dur + m1_dur != 1.0:
-                    offset = measures[0].paddingLeft
-                    measures[0].insertAndShift(0.0, music21.note.Rest(quarterLength=offset))
-                    for i, m in enumerate(measures):
-                        # shift the offset of all other measures
-                        if i != 0:
-                            m.offset += offset
         return score
 
     def scan_dataset(self):
@@ -434,7 +438,35 @@ class FolkIteratorGenerator:
         return num_notes, pitch_dist, dur_dist
 
     @staticmethod
+    def fix_pick_up_measure_offset(score):
+        """
+        Adds rests to the pick-up measure (if-any)
+
+        :param score: music21 score object
+        """
+        measures = score.recurse().getElementsByClass(music21.stream.Measure)
+        num_measures = len(measures)
+        # add rests in pick-up measures
+        if num_measures > 0:
+            m0_dur = measures[0].barDurationProportion()
+            m1_dur = measures[0].barDurationProportion()
+            if m0_dur != 1.0:
+                if m0_dur + m1_dur != 1.0:
+                    offset = measures[0].paddingLeft
+                    measures[0].insertAndShift(0.0, music21.note.Rest(quarterLength=offset))
+                    for i, m in enumerate(measures):
+                        # shift the offset of all other measures
+                        if i != 0:
+                            m.offset += offset
+        return score
+
+    @staticmethod
     def get_title(tune_filepath):
+        """
+
+        :param tune_filepath: full path to the abc tune
+        :return: str, title of the abc tune
+        """
         for line in open(tune_filepath):
             if line[:2] == 'T:':
                 return line[2:]
@@ -442,6 +474,11 @@ class FolkIteratorGenerator:
 
     @staticmethod
     def tune_contains_chords(tune_filepath):
+        """
+
+        :param tune_filepath: full path to the abc tune
+        :return: bool, True if tune contains chords
+        """
         # todo write it correctly
         for line in open(tune_filepath):
             if '"' in line:
@@ -450,6 +487,11 @@ class FolkIteratorGenerator:
 
     @staticmethod
     def tune_is_multivoice(tune_filepath):
+        """
+
+        :param tune_filepath: full path to the abc tune
+        :return: bool, True if tune has mutiple voices
+        """
         for line in open(tune_filepath):
             if line[:3] == 'V:2':
                 return True
@@ -460,328 +502,3 @@ class FolkIteratorGenerator:
             if line[:5] == 'V : 2':
                 return True
         return False
-
-class Folk4by4IteratorGenerator(FolkIteratorGenerator):
-    def __init__(self, num_elements=None):
-        super(Folk4by4IteratorGenerator, self).__init__(num_elements=num_elements)
-        self.valid_files_list = os.path.join(
-            self.package_dir,
-            'valid_tune_filepaths_4by4.txt'
-        )
-    
-    def get_valid_tune_filepaths(self):
-        """
-        Stores a list of filepaths for all valid tunes in dataset
-        """
-        if os.path.exists(self.valid_files_list):
-            print('List already exists. Reading it now')
-            f = open(self.valid_files_list, 'r')
-            self.valid_tune_filepaths = [line.rstrip('\n') for line in f]
-            print(f'Number of file: {len(self.valid_tune_filepaths)}')
-            return
-
-        print('Checking dataset for valid files')
-        tune_filepaths = glob(f'{self.raw_dataset_dir}/tune*')
-        count = 0
-        num_chords = 0
-        num_multivoice = 0
-        self.valid_file_indices = []
-        self.valid_tune_filepaths = []
-        for tune_index, tune_filepath in tqdm(enumerate(tune_filepaths)):
-            title = self.get_title(tune_filepath)
-            if title is None:
-                continue
-            if self.tune_contains_chords(tune_filepath):
-                num_chords += 1
-                continue
-            if self.tune_is_multivoice(tune_filepath):
-                num_multivoice += 1
-                continue
-            try:
-                score = self.get_score_from_path(tune_filepath)
-                ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files with non 3/4 time signatures
-                if len(ts) > 1:
-                    continue
-                else:
-                    ts_num = ts[0].numerator
-                    ts_den = ts[0].denominator
-                    if ts_den != 4:
-                        continue
-                    else:
-                        if ts_num != 4:
-                            continue
-                        else:
-                            # ignore files with no notes
-                            notes, _ = notes_and_chords(score)
-                            pitches = [n.pitch.midi for n in notes if n.isNote]
-                            if pitches == []:
-                                continue
-                            # ignore files with too few or too high notes
-                            MAX_NOTES = 140
-                            MIN_NOTES = 40
-                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                                continue
-                            # ignore files with 32nd and 64th notes
-                            dur_list = [n.duration for n in notes if n.isNote]
-                            for dur in dur_list:
-                                d = dur.type
-                                if d == '32nd':
-                                    break
-                                elif d == '64th':
-                                    break
-                                elif d == 'complex':
-                                    # TODO: bad hack. fix this !!!
-                                    if len(dur.components) > 2:
-                                        break
-                            # check if expand repeat works
-                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
-                            # ignore files where notes are not on ticks
-                            if not score_on_ticks(score, tick_values):
-                                continue
-                            else:
-                                # add to valid tunes list
-                                self.valid_file_indices.append(tune_index)
-                                file_name = os.path.basename(tune_filepath)
-                                self.valid_tune_filepaths.append(file_name)
-                                count += 1
-            except (music21.abcFormat.ABCHandlerException,
-                    music21.abcFormat.ABCTokenException,
-                    music21.duration.DurationException,
-                    music21.pitch.AccidentalException,
-                    music21.meter.MeterException,
-                    music21.repeat.ExpanderException,
-                    music21.exceptions21.StreamException,
-                    AttributeError,
-                    IndexError,
-                    UnboundLocalError,
-                    ValueError,
-                    ABCHandlerException):
-                #print('Error when parsing ABC file: ', tune_index)
-                #print(e)
-                pass
-
-        f = open(self.valid_files_list, 'w')
-        for tune_filepath in self.valid_tune_filepaths:
-            f.write("%s\n" % tune_filepath)
-        f.close()
-        self.num_valid_files = count
-        self.num_with_chords = num_chords
-        self.num_multivoice = num_multivoice
-
-
-
-class Folk3by4IteratorGenerator(FolkIteratorGenerator):
-    def __init__(self, num_elements=None):
-        super(Folk3by4IteratorGenerator, self).__init__(num_elements=num_elements)
-        self.valid_files_list = os.path.join(
-            self.package_dir,
-            'valid_tune_filepaths_3by4.txt'
-        )
-    
-    def get_valid_tune_filepaths(self):
-        """
-        Stores a list of filepaths for all valid tunes in dataset
-        """
-        if os.path.exists(self.valid_files_list):
-            print('List already exists. Reading it now')
-            f = open(self.valid_files_list, 'r')
-            self.valid_tune_filepaths = [line.rstrip('\n') for line in f]
-            print(f'Number of file: {len(self.valid_tune_filepaths)}')
-            return
-
-        print('Checking dataset for valid files')
-        tune_filepaths = glob(f'{self.raw_dataset_dir}/tune*')
-        count = 0
-        num_chords = 0
-        num_multivoice = 0
-        self.valid_file_indices = []
-        self.valid_tune_filepaths = []
-        for tune_index, tune_filepath in tqdm(enumerate(tune_filepaths)):
-            title = self.get_title(tune_filepath)
-            if title is None:
-                continue
-            if self.tune_contains_chords(tune_filepath):
-                num_chords += 1
-                continue
-            if self.tune_is_multivoice(tune_filepath):
-                num_multivoice += 1
-                continue
-            try:
-                score = self.get_score_from_path(tune_filepath)
-                ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files with non 3/4 time signatures
-                if len(ts) > 1:
-                    continue
-                else:
-                    ts_num = ts[0].numerator
-                    ts_den = ts[0].denominator
-                    if ts_den != 4:
-                        continue
-                    else:
-                        if ts_num != 3:
-                            continue
-                        else:
-                            # ignore files with no notes
-                            notes, _ = notes_and_chords(score)
-                            pitches = [n.pitch.midi for n in notes if n.isNote]
-                            if pitches == []:
-                                continue
-                            # ignore files with too few or too high notes
-                            MAX_NOTES = 100
-                            MIN_NOTES = 20
-                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                                continue
-                            # ignore files with 32nd and 64th notes
-                            dur_list = [n.duration for n in notes if n.isNote]
-                            for dur in dur_list:
-                                d = dur.type
-                                if d == '32nd':
-                                    break
-                                elif d == '64th':
-                                    break
-                                elif d == 'complex':
-                                    # TODO: bad hack. fix this !!!
-                                    if len(dur.components) > 2:
-                                        break
-                            # check if expand repeat works
-                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
-                            # ignore files where notes are not on ticks
-                            if not score_on_ticks(score, tick_values):
-                                continue
-                            else:
-                                # add to valid tunes list
-                                self.valid_file_indices.append(tune_index)
-                                file_name = os.path.basename(tune_filepath)
-                                self.valid_tune_filepaths.append(file_name)
-                                count += 1
-            except (music21.abcFormat.ABCHandlerException,
-                    music21.abcFormat.ABCTokenException,
-                    music21.duration.DurationException,
-                    music21.pitch.AccidentalException,
-                    music21.meter.MeterException,
-                    music21.repeat.ExpanderException,
-                    music21.exceptions21.StreamException,
-                    AttributeError,
-                    IndexError,
-                    UnboundLocalError,
-                    ValueError,
-                    ABCHandlerException) as e:
-                print('Error when parsing ABC file: ', tune_index)
-                print(e)
-
-        f = open(self.valid_files_list, 'w')
-        for tune_filepath in self.valid_tune_filepaths:
-            f.write("%s\n" % tune_filepath)
-        f.close()
-        self.num_valid_files = count
-        self.num_with_chords = num_chords
-        self.num_multivoice = num_multivoice
-
-
-class Folk4by4ChordsIteratorGenerator(FolkIteratorGenerator):
-    def __init__(self, num_elements=None):
-        super(Folk4by4ChordsIteratorGenerator, self).__init__(num_elements=num_elements)
-        self.valid_files_list = os.path.join(
-            self.package_dir,
-            'valid_tune_filepaths_4by4chords.txt'
-        )
-    
-    def get_valid_tune_filepaths(self):
-        """
-        Stores a list of filepaths for all valid tunes in dataset
-        """
-        if os.path.exists(self.valid_files_list):
-            print('List already exists. Reading it now')
-            f = open(self.valid_files_list, 'r')
-            self.valid_tune_filepaths = [line.rstrip('\n') for line in f]
-            print(f'Number of file: {len(self.valid_tune_filepaths)}')
-            return
-
-        print('Checking dataset for valid files')
-        tune_filepaths = glob(f'{self.raw_dataset_dir}/tune*')
-        count = 0
-        num_no_chords = 0
-        num_multivoice = 0
-        self.valid_file_indices = []
-        self.valid_tune_filepaths = []
-        for tune_index, tune_filepath in tqdm(enumerate(tune_filepaths)):
-            title = self.get_title(tune_filepath)
-            if title is None:
-                continue
-            if not self.tune_contains_chords(tune_filepath):
-                num_no_chords += 1
-                continue
-            if self.tune_is_multivoice(tune_filepath):
-                num_multivoice += 1
-                continue
-            try:
-                score = self.get_score_from_path(tune_filepath)
-                ts = score.parts[0].recurse().getElementsByClass(meter.TimeSignature)
-                # ignore files with non 4/4 time signatures
-                if len(ts) > 1:
-                    continue
-                else:
-                    ts_num = ts[0].numerator
-                    ts_den = ts[0].denominator
-                    if ts_den != 4:
-                        continue
-                    else:
-                        if ts_num != 4:
-                            continue
-                        else:
-                            # ignore files with no notes
-                            notes, _ = notes_and_chords(score)
-                            pitches = [n.pitch.midi for n in notes if n.isNote]
-                            if pitches == []:
-                                continue
-                            # ignore files with too few or too high notes
-                            MAX_NOTES = 100
-                            MIN_NOTES = 20
-                            if len(notes) < MIN_NOTES or len(notes) > MAX_NOTES:
-                                continue
-                            # ignore files with 32nd and 64th notes
-                            dur_list = [n.duration for n in notes if n.isNote]
-                            for dur in dur_list:
-                                d = dur.type
-                                if d == '32nd':
-                                    break
-                                elif d == '64th':
-                                    break
-                                elif d == 'complex':
-                                    # TODO: bad hack. fix this !!!
-                                    if len(dur.components) > 2:
-                                        break
-                            # check if expand repeat works
-                            score = self.get_score_from_path(tune_filepath, fix_and_expand=True)
-                            # ignore files where notes are not on ticks
-                            if not score_on_ticks(score, tick_values):
-                                continue
-                            else:
-                                # add to valid tunes list
-                                self.valid_file_indices.append(tune_index)
-                                file_name = os.path.basename(tune_filepath)
-                                self.valid_tune_filepaths.append(file_name)
-                                count += 1
-            except (music21.abcFormat.ABCHandlerException,
-                    music21.abcFormat.ABCTokenException,
-                    music21.duration.DurationException,
-                    music21.pitch.AccidentalException,
-                    music21.meter.MeterException,
-                    music21.repeat.ExpanderException,
-                    music21.exceptions21.StreamException,
-                    AttributeError,
-                    IndexError,
-                    UnboundLocalError,
-                    ValueError,
-                    ABCHandlerException) as e:
-                print('Error when parsing ABC file: ', tune_index)
-                print(e)
-
-        f = open(self.valid_files_list, 'w')
-        for tune_filepath in self.valid_tune_filepaths:
-            f.write("%s\n" % tune_filepath)
-        f.close()
-        self.num_valid_files = count
-        self.num_with_chords = num_chords
-        self.num_multivoice = num_multivoice

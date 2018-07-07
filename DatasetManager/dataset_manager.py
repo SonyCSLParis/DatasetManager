@@ -13,10 +13,7 @@ from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset
 from DatasetManager.the_session.folk_data_helpers \
-             import FolkIteratorGenerator, \
-                    Folk4by4IteratorGenerator, \
-                    Folk3by4IteratorGenerator, \
-                    Folk4by4ChordsIteratorGenerator
+             import FolkIteratorGenerator
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
@@ -57,49 +54,63 @@ all_datasets = {
         {
             'dataset_class_name': FolkDataset,
             'corpus_it_gen':      FolkIteratorGenerator(
-                num_elements=None
+                num_elements=None,
+                has_chords=False,
+                time_sigs=[(3, 4), (4, 4)]
             )
         },
     'folk_test':
         {
             'dataset_class_name': FolkDataset,
             'corpus_it_gen':      FolkIteratorGenerator(
-                num_elements=10
+                num_elements=10,
+                has_chords=False,
+                time_sigs=[(3, 4), (4, 4)]
             )
         },
     'folk_4by4_test':
         {
             'dataset_class_name': FolkDataset,
-            'corpus_it_gen':      Folk4by4IteratorGenerator(
-                num_elements=100
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=100,
+                has_chords=False,
+                time_sigs=[(4, 4)]
             ) 
         },
     'folk_4by4':
         {
             'dataset_class_name': FolkDataset,
-            'corpus_it_gen':      Folk4by4IteratorGenerator(
-                num_elements=None
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=False,
+                time_sigs=[(4, 4)]
             ) 
         },
     'folk_3by4_test':
         {
             'dataset_class_name': FolkDataset,
-            'corpus_it_gen':      Folk3by4IteratorGenerator(
-                num_elements=10
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=100,
+                has_chords=False,
+                time_sigs=[(3, 4)]
             ) 
         },
-    'folk_3by4_test':
+    'folk_3by4':
         {
             'dataset_class_name': FolkDataset,
-            'corpus_it_gen':      Folk3by4IteratorGenerator(
-                num_elements=None
+            'corpus_it_gen':      FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=False,
+                time_sigs=[(3, 4)]
             ) 
         },
     'folk_4by4chords':
         {
             'dataset_class_name': FolkDataset,
-            'corpus_it_gen': Folk4by4ChordsIteratorGenerator(
-                num_elements=None
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=True,
+                time_sigs=[(4, 4)]
             )
         }
 }
@@ -223,7 +234,7 @@ if __name__ == '__main__':
         'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4chords',
+        name ='folk_4by4_test',
         **folk_dataset_kwargs
     )
     (train_dataloader,

@@ -11,7 +11,8 @@ from DatasetManager.metadata import TickMetadata, \
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
-from DatasetManager.the_session.folk_dataset import FolkDataset
+from DatasetManager.the_session.folk_dataset import FolkDataset, \
+                                                    FolkMeasuresDataset
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
@@ -110,6 +111,24 @@ all_datasets = {
             'corpus_it_gen': FolkIteratorGenerator(
                 num_elements=None,
                 has_chords=True,
+                time_sigs=[(4, 4)]
+            )
+        },
+    'folk_4by4measures_test':
+        {
+            'dataset_class_name': FolkMeasuresDataset,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=1000,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        },
+    'folk_4by4measures':
+        {
+            'dataset_class_name': FolkMeasuresDataset,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=False,
                 time_sigs=[(4, 4)]
             )
         }
@@ -234,7 +253,7 @@ if __name__ == '__main__':
         'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4_test',
+        name ='folk_4by4measures_test',
         **folk_dataset_kwargs
     )
     (train_dataloader,

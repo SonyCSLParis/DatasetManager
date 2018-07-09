@@ -564,6 +564,92 @@ class FolkDataset(MusicDataset):
         score.insert(part)
         return score
 
+
+class FolkMeasuresDataset(FolkDataset):
+    def __repr__(self):
+        return f'FolkMeasuresDataset(' \
+               f'{self.name},' \
+               f'{[metadata.name for metadata in self.metadatas]},' \
+               f'{self.subdivision})' \
+               f'{self.num_melodies}'
+
+    def make_tensor_dataset(self):
+        """
+
+        :return: TensorDataset
+        """
+        self.compute_index_dicts()
+        print('Making measure tensor dataset')
+        measure_tensor_dataset = []
+        metadata_tensor_dataset = []
+        for score_id, score in tqdm(enumerate(self.corpus_it_gen())):
+            if not self.is_in_range(score):
+                continue
+            score_tensor = self.get_score_tensor(score)
+            metadata_tensor = self.get_metadata_tensor(score)
+            local_measure_tensor = \
+                self.split_score_tensor_to_measures(score_tensor)
+            local_metadata_tensor = \
+                self.split_metadata_tensor_to_measures(metadata_tensor)
+            measure_tensor_dataset.append(local_measure_tensor.int())
+            metadata_tensor_dataset.append(local_metadata_tensor.int())
+        measure_tensor_dataset = torch.cat(measure_tensor_dataset, 0)
+        metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
+        dataset = TensorDataset(
+            measure_tensor_dataset,
+            metadata_tensor_dataset
+        )
+        print(f'Sizes: {measure_tensor_dataset.size()}')
+        print(f'Sizes: {metadata_tensor_dataset.size()}')
+        return dataset
+
+    def split_score_tensor_to_measures(self, tensor_score):
+        """
+        Splits the score tensor to measures
+
+        :param tensor_score: torch tensor, (1, length)
+        :return: torch tensor, (num_measures, measure_seq_length)
+        """
+        batch_size, seq_length = tensor_score.size()
+        assert(batch_size == 1)
+
+        # TODO: only works for 4by4 time signatures currently
+        measure_seq_length = int(self.subdivision * 4)
+        #assert(seq_length % self.subdivision == 0)
+        num_measures = int(np.floor(seq_length / measure_seq_length))
+
+        # truncate sequence if needed
+        tensor_score = tensor_score[:, :num_measures * measure_seq_length]
+        measure_tensor_score = tensor_score.view(num_measures, measure_seq_length)
+        return measure_tensor_score
+
+    def split_metadata_tensor_to_measures(self, tensor_metadata):
+        """
+        Splits the metadata tensor to measures
+
+        :param tensor_metadata: torch tensor, (num_voices, length, num_metadatas)
+        :return: torch tensor, (num_measures, measures_seq_length, num_metadatas)
+        """
+        num_voices, seq_length, num_metadatas = tensor_metadata.size()
+        assert(num_voices == 1)
+        tensor_metadata = tensor_metadata.view(seq_length, num_metadatas)
+
+        # TODO: only works for 4by4 time signatures currently
+        measure_seq_length = int(self.subdivision * 4)
+        #assert (seq_length % self.subdivision == 0)
+        num_measures = int(np.floor(seq_length / measure_seq_length))
+
+        # truncate sequence if needed
+        tensor_metadata = tensor_metadata[:num_measures * measure_seq_length, :]
+        measure_tensor_metadata = tensor_metadata.view(num_measures,
+                                                       measure_seq_length,
+                                                       num_metadatas)
+        return measure_tensor_metadata
+
+
+
+
+
 if __name__ == '__main__':
 
     from DatasetManager.dataset_manager import DatasetManager

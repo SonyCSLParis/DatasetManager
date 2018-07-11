@@ -14,11 +14,10 @@ from fractions import Fraction
 
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_name, PAD_SYMBOL, standard_note, OUT_OF_RANGE, \
-    BEAT_SYMBOL, DOWNBEAT_SYMBOL
+    standard_name, standard_note, OUT_OF_RANGE
 from DatasetManager.lsdb.lsdb_exceptions import *
-from DatasetManager.the_session.folk_data_helpers import get_notes, \
-    get_notes_in_measure, tick_values, score_on_ticks, notes_and_chords
+from DatasetManager.the_session.folk_data_helpers import score_range, \
+     tick_values, score_on_ticks, notes_and_chords
 
 
 class FolkDataset(MusicDataset):
@@ -182,22 +181,24 @@ class FolkDataset(MusicDataset):
         # all_metadata = torch.cat(md, 2)
         # return all_metadata
 
-    def transposed_score_and_metadata_tensors(self, score, semi_tone):
+    def transposed_score_and_metadata_tensors(self, score, interval):
         """
         Convert chorale to a couple (chorale_tensor, metadata_tensor),
         the original chorale is transposed semi_tone number of semi-tones
 
         :param score: music21 object
-        :param semi_tone:
+        :param interval: music21.interval.Interval object
         :return: couple of tensors
         """
         # TODO: implement this properly. 
-        if semi_tone != 0:
-            raise NotImplementedError
-
-        chorale_tensor = self.get_score_tensor(score)
-        metadata_tensor = self.get_metadata_tensor(score)
-        return chorale_tensor, metadata_tensor
+        try:
+            score_transposed = score.transpose(interval)
+        except ValueError as e:
+            raise LeadsheetParsingException(f'Leadsheet {score.metadata.title} '
+                                            f'not properly formatted')
+        transposed_score_tensor = self.get_score_tensor(score_transposed)
+        transposed_metadata_tensor = self.get_metadata_tensor(score_transposed)
+        return transposed_score_tensor, transposed_metadata_tensor
 
     def make_tensor_dataset(self):
         self.compute_index_dicts()
@@ -647,8 +648,66 @@ class FolkMeasuresDataset(FolkDataset):
         return measure_tensor_metadata
 
 
+class FolkMeasuresDatasetTranspose(FolkMeasuresDataset):
+    def __repr__(self):
+        return f'FolkMeasuresDatasetTranspose(' \
+               f'{self.name},' \
+               f'{[metadata.name for metadata in self.metadatas]},' \
+               f'{self.subdivision})' \
+               f'{self.num_melodies}'
 
+    def make_tensor_dataset(self):
+        """
 
+        :return: TensorDataset
+        """
+        self.compute_index_dicts()
+        print('Making measure tensor dataset')
+        measure_tensor_dataset = []
+        metadata_tensor_dataset = []
+        for score_id, score in tqdm(enumerate(self.corpus_it_gen())):
+            if not self.is_in_range(score):
+                continue
+            possible_transpositions = self.all_transposition_intervals(score)
+            for trans_int in possible_transpositions:
+                score_tensor, metadata_tensor = self.transposed_score_and_metadata_tensors(score, trans_int)
+                local_measure_tensor = \
+                    self.split_score_tensor_to_measures(score_tensor)
+                local_metadata_tensor = \
+                    self.split_metadata_tensor_to_measures(metadata_tensor)
+                measure_tensor_dataset.append(local_measure_tensor.int())
+                metadata_tensor_dataset.append(local_metadata_tensor.int())
+        measure_tensor_dataset = torch.cat(measure_tensor_dataset, 0)
+        metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
+        dataset = TensorDataset(
+            measure_tensor_dataset,
+            metadata_tensor_dataset
+        )
+        print(f'Sizes: {measure_tensor_dataset.size()}')
+        print(f'Sizes: {metadata_tensor_dataset.size()}')
+        return dataset
+
+    def all_transposition_intervals(self, score):
+        """
+        Finds all the possible transposition intervals from the score
+        :param score: music21 score object
+        :return: list of music21 interval objects
+        """
+        min_pitch, max_pitch = score_range(score)
+        min_pitch_corpus, max_pitch_corpus = self.pitch_range
+
+        min_transposition = min_pitch_corpus - min_pitch
+        max_transposition = max_pitch_corpus - max_pitch
+
+        transpositions = []
+        for semi_tone in range(min_transposition, max_transposition + 1):
+            interval_type, interval_nature = music21.interval.convertSemitoneToSpecifierGeneric(
+                semi_tone)
+            transposition_interval = music21.interval.Interval(
+                str(interval_nature) + interval_type)
+            transpositions.append(transposition_interval)
+
+        return transpositions
 
 if __name__ == '__main__':
 

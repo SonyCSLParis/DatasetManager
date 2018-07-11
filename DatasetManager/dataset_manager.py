@@ -12,7 +12,8 @@ from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset, \
-                                                    FolkMeasuresDataset
+                                                    FolkMeasuresDataset, \
+                                                    FolkMeasuresDatasetTranspose
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
@@ -131,7 +132,25 @@ all_datasets = {
                 has_chords=False,
                 time_sigs=[(4, 4)]
             )
-        }
+        },
+    'folk_4by4measurestr_test':
+        {
+            'dataset_class_name': FolkMeasuresDatasetTranspose,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=100,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        },
+    'folk_4by4measurestr':
+        {
+            'dataset_class_name': FolkMeasuresDatasetTranspose,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        },
 }
 
 

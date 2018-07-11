@@ -110,6 +110,18 @@ def get_notes(score):
     return notes
 
 
+def score_range(score):
+    """
+
+    :param score: music21 score object
+    :return: tuple int, min and max midi pitch numbers
+    """
+    notes, _ = notes_and_chords(score)
+    pitches = [n.pitch.midi for n in notes if n.isNote]
+    min_pitch = min(pitches)
+    max_pitch = max(pitches)
+    return min_pitch, max_pitch
+
 class FolkIteratorGenerator:
     """
     Object that returns a iterator over folk dataset (as music21 scores)

@@ -348,8 +348,9 @@ class FolkIteratorGenerator:
         """
         score = music21.converter.parse(tune_filepath, format='abc')
         if fix_and_expand:
-            score = self.fix_pick_up_measure_offset(score)
             score = score.expandRepeats()
+            score = self.fix_pick_up_measure_offset(score)
+            score = self.fix_last_measure(score)
         return score
 
     def scan_dataset(self):
@@ -461,7 +462,7 @@ class FolkIteratorGenerator:
         # add rests in pick-up measures
         if num_measures > 0:
             m0_dur = measures[0].barDurationProportion()
-            m1_dur = measures[0].barDurationProportion()
+            m1_dur = measures[1].barDurationProportion()
             if m0_dur != 1.0:
                 if m0_dur + m1_dur != 1.0:
                     offset = measures[0].paddingLeft
@@ -470,6 +471,23 @@ class FolkIteratorGenerator:
                         # shift the offset of all other measures
                         if i != 0:
                             m.offset += offset
+        return score
+
+    @staticmethod
+    def fix_last_measure(score):
+        """
+        Adds rests to the last measure (if-needed)
+
+        :param score: music21 score object
+        """
+        measures = score.recurse().getElementsByClass(music21.stream.Measure)
+        num_measures = len(measures)
+        # add rests in pick-up measures
+        if num_measures > 0:
+            m0_dur = measures[num_measures-1].barDurationProportion()
+            if m0_dur != 1.0:
+                offset = measures[num_measures-1].paddingRight
+                measures[num_measures - 1].append(music21.note.Rest(quarterLength=offset))
         return score
 
     @staticmethod

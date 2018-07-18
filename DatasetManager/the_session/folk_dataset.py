@@ -565,6 +565,27 @@ class FolkDataset(MusicDataset):
         score.insert(part)
         return score
 
+    def all_transposition_intervals(self, score):
+        """
+        Finds all the possible transposition intervals from the score
+        :param score: music21 score object
+        :return: list of music21 interval objects
+        """
+        min_pitch, max_pitch = score_range(score)
+        min_pitch_corpus, max_pitch_corpus = self.pitch_range
+
+        min_transposition = min_pitch_corpus - min_pitch
+        max_transposition = max_pitch_corpus - max_pitch
+
+        transpositions = []
+        for semi_tone in range(min_transposition, max_transposition + 1):
+            interval_type, interval_nature = music21.interval.convertSemitoneToSpecifierGeneric(
+                semi_tone)
+            transposition_interval = music21.interval.Interval(
+                str(interval_nature) + interval_type)
+            transpositions.append(transposition_interval)
+
+        return transpositions
 
 class FolkMeasuresDataset(FolkDataset):
     def __repr__(self):
@@ -687,27 +708,93 @@ class FolkMeasuresDatasetTranspose(FolkMeasuresDataset):
         print(f'Sizes: {metadata_tensor_dataset.size()}')
         return dataset
 
-    def all_transposition_intervals(self, score):
+
+class FolkDatasetNBars(FolkDataset):
+    """
+    Class to create 8bar sequences of 4by4 music
+    """
+    def __init__(self,
+                 name,
+                 corpus_it_gen=None,  # TODO: NOT BEING USED RIGHT NOW
+                 metadatas=None,
+                 sequences_size=32,
+                 subdivision=4,  # TODO: NOT BEING USED RIGHT NOW
+                 cache_dir=None,
+                 num_bars=8):
+        super(FolkDatasetNBars, self).__init__(name=name,
+                                               corpus_it_gen=corpus_it_gen,
+                                               metadatas=metadatas,
+                                               sequences_size=sequences_size,
+                                               subdivision=subdivision,
+                                               cache_dir=cache_dir)
+        self.n_bars = num_bars
+        self.num_beats_per_bar = 4
+        self.sequences_size = self.num_beats_per_bar * self.n_bars
+
+    def __repr__(self):
+        return f'FolkDatasetNBars(' \
+               f'{[metadata.name for metadata in self.metadatas]},' \
+               f'{self.subdivision})' \
+               f'{self.num_melodies}'
+
+    def make_tensor_dataset(self):
         """
-        Finds all the possible transposition intervals from the score
-        :param score: music21 score object
-        :return: list of music21 interval objects
+
+        :return: Tensor dataset
         """
-        min_pitch, max_pitch = score_range(score)
-        min_pitch_corpus, max_pitch_corpus = self.pitch_range
+        self.compute_index_dicts()
+        print('Making tensor dataset')
+        score_tensor_dataset = []
+        metadata_tensor_dataset = []
+        for score_id, score in tqdm(enumerate(self.corpus_it_gen())):
+            if not self.is_in_range(score):
+                continue
+            # score.show()
+            # self.tensor_to_score(self.get_score_tensor(score)).show()
+            possible_transpositions = self.all_transposition_intervals(score)
+            for trans_int in possible_transpositions:
+                score_tensor, metadata_tensor = self.transposed_score_and_metadata_tensors(score, trans_int)
+                trans_score = self.tensor_to_score(score_tensor)
+                #trans_score.show()
+                for offset_start in range(-self.sequences_size + self.num_beats_per_bar,
+                                         int(score.highestTime), self.num_beats_per_bar):
+                    offset_end = offset_start + self.sequences_size
+                    local_score_tensor = self.extract_score_tensor_with_padding(
+                        tensor=score_tensor,
+                        start_tick=offset_start * self.subdivision,
+                        end_tick=offset_end * self.subdivision
+                    )
+                    split_score = self.tensor_to_score(local_score_tensor)
+                    # split_score.show()
+                    local_metadata_tensor = self.extract_metadata_with_padding(
+                        tensor_metadata=metadata_tensor,
+                        start_tick=offset_start * self.subdivision,
+                        end_tick=offset_end * self.subdivision
+                    )
+                    # append and add batch dimension
+                    # cast to int
+                    score_tensor_dataset.append(
+                        local_score_tensor.int()
+                    )
+                    metadata_tensor_dataset.append(
+                        local_metadata_tensor.int()
+                    )
+        score_tensor_dataset = torch.cat(score_tensor_dataset, 0)
+        num_datapoints = score_tensor_dataset.size()[0]
+        score_tensor_dataset = score_tensor_dataset.view(
+            num_datapoints, 1, -1
+        )
+        metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
+        num_datapoints, length, num_metadata = metadata_tensor_dataset.size()
+        metadata_tensor_dataset = metadata_tensor_dataset.view(
+            num_datapoints, 1, length, num_metadata
+        )
+        dataset = TensorDataset(score_tensor_dataset, metadata_tensor_dataset)
+        print(f'Sizes: {score_tensor_dataset.size()}')
+        print(f'Sizes: {metadata_tensor_dataset.size()}')
+        return dataset
 
-        min_transposition = min_pitch_corpus - min_pitch
-        max_transposition = max_pitch_corpus - max_pitch
 
-        transpositions = []
-        for semi_tone in range(min_transposition, max_transposition + 1):
-            interval_type, interval_nature = music21.interval.convertSemitoneToSpecifierGeneric(
-                semi_tone)
-            transposition_interval = music21.interval.Interval(
-                str(interval_nature) + interval_type)
-            transpositions.append(transposition_interval)
-
-        return transpositions
 
 if __name__ == '__main__':
 
@@ -724,9 +811,18 @@ if __name__ == '__main__':
         'sequences_size': 32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name='folk_4by4chords',
+        name='folk_4by4nbars',
         **folk_dataset_kwargs
     )
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = folk_dataset.data_loaders(
+        batch_size=256,
+        split=(0.7, 0.2)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
 
     #folk_dataset = FolkDataset('folk', cache_dir='../dataset_cache')
     # folk_dataset.download_raw_dataset()

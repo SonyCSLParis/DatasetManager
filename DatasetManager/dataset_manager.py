@@ -13,7 +13,8 @@ from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset, \
                                                     FolkMeasuresDataset, \
-                                                    FolkMeasuresDatasetTranspose
+                                                    FolkMeasuresDatasetTranspose, \
+                                                    FolkDatasetNBars
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
@@ -124,6 +125,15 @@ all_datasets = {
                 time_sigs=[(4, 4)]
             )
         },
+    'folk_4by4measures_test2':
+        {
+            'dataset_class_name': FolkMeasuresDataset,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=1,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        },
     'folk_4by4measures':
         {
             'dataset_class_name': FolkMeasuresDataset,
@@ -137,7 +147,7 @@ all_datasets = {
         {
             'dataset_class_name': FolkMeasuresDatasetTranspose,
             'corpus_it_gen': FolkIteratorGenerator(
-                num_elements=100,
+                num_elements=1000,
                 has_chords=False,
                 time_sigs=[(4, 4)]
             )
@@ -151,6 +161,24 @@ all_datasets = {
                 time_sigs=[(4, 4)]
             )
         },
+    'folk_4by4nbars_test':
+        {
+            'dataset_class_name': FolkDatasetNBars,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=10,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        },
+    'folk_4by4nbars':
+        {
+            'dataset_class_name': FolkDatasetNBars,
+            'corpus_it_gen': FolkIteratorGenerator(
+                num_elements=None,
+                has_chords=False,
+                time_sigs=[(4, 4)]
+            )
+        }
 }
 
 
@@ -272,7 +300,7 @@ if __name__ == '__main__':
         'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4measures_test',
+        name ='folk_4by4measures',
         **folk_dataset_kwargs
     )
     (train_dataloader,

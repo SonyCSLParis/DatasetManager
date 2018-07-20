@@ -62,8 +62,7 @@ class FolkDataset(MusicDataset):
         if not os.path.exists(self.dicts_dir):
             os.mkdir(self.dicts_dir)
         self.dict_path = os.path.join(
-            self.dicts_dir, self.__repr__() +
-                            'dict_path.txt'
+            self.dicts_dir, 'index_dicts.txt'
         )
 
     def __repr__(self):
@@ -119,6 +118,9 @@ class FolkDataset(MusicDataset):
                 note2index.update({note_name: new_index})
                 print('Warning: Entry ' + str(
                     {new_index: note_name}) + ' added to dictionaries')
+
+                #raise ValueError
+                self.update_index_dicts()
 
         # construct sequence
         j = 0
@@ -404,39 +406,6 @@ class FolkDataset(MusicDataset):
         padded_tensor_metadata = torch.cat(padded_tensor_metadata, 1)
         return padded_tensor_metadata
 
-    def compute_index_dicts_for_score(self, score):
-        """
-        Computes the index dcitionaries specific to the symbols in the score
-        For debugging only
-        """
-        # self.compute_beatmarker_dicts
-        print('Computing note index dicts for score')
-        self.index2note_dicts = [
-            {} for _ in range(self.num_voices)
-        ]
-        self.note2index_dicts = [
-            {} for _ in range(self.num_voices)
-        ]
-
-        # create and add additional symbols
-        note_sets = [set() for _ in range(self.num_voices)]
-        for note_set in note_sets:
-            note_set.add(SLUR_SYMBOL)
-            note_set.add(START_SYMBOL)
-            note_set.add(END_SYMBOL)
-            # note_set.add(PAD_SYMBOL)
-        # part is either lead or chords as lists
-        for part_id, part in enumerate(notes_and_chords(score)):
-            for n in part:
-                note_sets[part_id].add(standard_name(n))
-        # create tables
-        for note_set, index2note, note2index in zip(note_sets,
-                                                    self.index2note_dicts,
-                                                    self.note2index_dicts):
-            for note_index, note in enumerate(note_set):
-                index2note.update({note_index: note})
-                note2index.update({note: note_index})
-
     def compute_index_dicts(self):
         if os.path.exists(self.dict_path):
             print('Dictionaries already exists. Reading them now')
@@ -487,6 +456,9 @@ class FolkDataset(MusicDataset):
                 note2index.update({note: note_index})
 
         # write as text file for use later
+        self.update_index_dicts()
+
+    def update_index_dicts(self):
         f = open(self.dict_path, 'w')
         f.write("%s\n" % self.index2note_dicts)
         f.write("%s\n" % self.note2index_dicts)
@@ -757,7 +729,7 @@ class FolkDatasetNBars(FolkDataset):
                 trans_score = self.tensor_to_score(score_tensor)
                 #trans_score.show()
                 for offset_start in range(-self.sequences_size + self.num_beats_per_bar,
-                                         int(score.highestTime), self.num_beats_per_bar):
+                                         int(score.highestTime), int(self.num_beats_per_bar * self.n_bars / 2)):
                     offset_end = offset_start + self.sequences_size
                     local_score_tensor = self.extract_score_tensor_with_padding(
                         tensor=score_tensor,

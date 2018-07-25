@@ -542,7 +542,7 @@ class LsdbDataset(MusicDataset):
         return jazz_chord
 
     def tensor_to_score(self, tensor_score, tensor_chords,
-                        realize_chords=False):
+                        realize_chords=False, add_chord_symbols=False):
         """
         Converts leadsheet given as tensor_lead and tensor_chords
         to a true music21 score
@@ -576,59 +576,62 @@ class LsdbDataset(MusicDataset):
         part.append(f)
 
         # CHORD SYMBOLS
-        # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
-        chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
-        # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
-        # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
-        start_index = chordroot2index[START_SYMBOL]
-        end_index = chordroot2index[END_SYMBOL]
-        slur_index = chordroot2index[SLUR_SYMBOL]
-        pad_index = chordroot2index[PAD_SYMBOL]
-        nc_index = chordroot2index[NC]
+        if add_chord_symbols:
+            # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+            chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
+            # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
+            # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
+            start_index = chordroot2index[START_SYMBOL]
+            end_index = chordroot2index[END_SYMBOL]
+            slur_index = chordroot2index[SLUR_SYMBOL]
+            pad_index = chordroot2index[PAD_SYMBOL]
+            nc_index = chordroot2index[NC]
 
-        chordtype2index = self.symbol2index_dicts[self.CHORD_NAME]
-        # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
-        # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
-        type_start_index = chordtype2index[START_SYMBOL]
-        type_end_index = chordtype2index[END_SYMBOL]
-        type_slur_index = chordtype2index[SLUR_SYMBOL]
-        type_pad_index = chordtype2index[PAD_SYMBOL]
-        type_nc_index = chordtype2index[NC]
+            chordtype2index = self.symbol2index_dicts[self.CHORD_NAME]
+            # index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
+            # chordname2index = self.symbol2index_dicts[self.CHORD_NAME]
+            type_start_index = chordtype2index[START_SYMBOL]
+            type_end_index = chordtype2index[END_SYMBOL]
+            type_slur_index = chordtype2index[SLUR_SYMBOL]
+            type_pad_index = chordtype2index[PAD_SYMBOL]
+            type_nc_index = chordtype2index[NC]
 
-        tensor_chords_root, tensor_chords_name = tensor_chords
-        tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-        tensor_chords_name_np = tensor_chords_name.numpy().flatten()
-        for beat_index, (chord_root_index, chord_type_index) \
-                in enumerate(
-            zip(
-                tensor_chords_root_np,
-                tensor_chords_name_np
-            )
-        ):
-            chord_root_index = chord_root_index.item()
-            chord_type_index = chord_type_index.item()
-            # if it is a played chord
-            # todo check also chord_type_index!
-            if (chord_root_index not in [slur_index,
-                                         start_index,
-                                         end_index,
-                                         pad_index,
-                                         nc_index]
-                    and
-                    chord_type_index not in [type_slur_index,
-                                             type_start_index,
-                                             type_end_index,
-                                             type_pad_index,
-                                             type_nc_index]
-            ):
-                # add chord
-                jazz_chord = self.get_jazzchord_from_index(
-                    chord_root_index,
-                    chord_type_index
+            tensor_chords_root, tensor_chords_name = tensor_chords
+            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
+            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            for beat_index, (chord_root_index, chord_type_index) \
+                    in enumerate(
+                zip(
+                    tensor_chords_root_np,
+                    tensor_chords_name_np
                 )
-                part.insert(beat_index, jazz_chord)
+            ):
+                chord_root_index = chord_root_index.item()
+                chord_type_index = chord_type_index.item()
+                # if it is a played chord
+                # todo check also chord_type_index!
+                if (chord_root_index not in [slur_index,
+                                             start_index,
+                                             end_index,
+                                             pad_index,
+                                             nc_index]
+                        and
+                        chord_type_index not in [type_slur_index,
+                                                 type_start_index,
+                                                 type_end_index,
+                                                 type_pad_index,
+                                                 type_nc_index]
+                ):
+                    # add chord
+                    jazz_chord = self.get_jazzchord_from_index(
+                        chord_root_index,
+                        chord_type_index
+                    )
+                    part.insert(beat_index, jazz_chord)
 
-        score.append(part)
+            score.append(part)
+        else:
+            score.append(part)
 
         if realize_chords:
             # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
@@ -641,6 +644,7 @@ class LsdbDataset(MusicDataset):
             chords_part = music21.stream.Part()
             dur = 0
             c = music21.note.Rest()
+            tensor_chords_root, tensor_chords_name = tensor_chords
             tensor_chords_root_np = tensor_chords_root.numpy().flatten()
             tensor_chords_name_np = tensor_chords_name.numpy().flatten()
             for (beat_index,
@@ -699,7 +703,8 @@ class LsdbDataset(MusicDataset):
         score = self.tensor_to_score(
             tensor_score,
             tensor_chords,
-            realize_chords
+            realize_chords=realize_chords,
+            add_chord_symbols=add_chord_symbols
         )
 
         # CHORDS LIST
@@ -730,7 +735,7 @@ if __name__ == '__main__':
     }
 
     lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb',
+        name='lsdb_test',
         **leadsheet_dataset_kwargs
     )
     dl, _, _ = lsdb_dataset.data_loaders(1)

@@ -158,9 +158,10 @@ class ChoraleDataset(MusicDataset):
             str(interval_nature) + interval_type)
 
         chorale_tranposed = score.transpose(transposition_interval)
-        chorale_tensor = self.get_score_tensor(chorale_tranposed,
-                                                offsetStart=0.,
-                                                offsetEnd=chorale_tranposed.flat.highestTime)
+        chorale_tensor = self.get_score_tensor(
+            chorale_tranposed,
+            offsetStart=0.,
+            offsetEnd=chorale_tranposed.flat.highestTime)
         metadatas_transposed = self.get_metadata_tensor(chorale_tranposed)
         return chorale_tensor, metadatas_transposed
 

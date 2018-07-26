@@ -65,6 +65,7 @@ class LsdbConverter:
                                             ]
                 query_ids['$in'] = leadsheet_ids_in_songset
 
+            # query_ids['$in'] = [ObjectId('5193843f58e3383974000eba')]
             query = {'_id':      query_ids}
             if self.composer:
                 query['composer'] = self.composer

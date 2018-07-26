@@ -735,7 +735,7 @@ class FolkMeasuresDataset(FolkDataset):
         slur_index = self.note2index_dicts[self.NOTES][SLUR_SYMBOL]
         measure_tensor_np[measure_tensor_np != slur_index] = 1
         measure_tensor_np[measure_tensor_np == slur_index] = 0
-        weights = np.array([1, 0.08, 0.08, 0.15, 0.08, 0.08])
+        weights = np.array([1, 0.008, 0.008, 0.15, 0.008, 0.008])
         weights = np.tile(weights, 4)
         prod = weights * measure_tensor_np
         b_str = np.sum(prod, axis=1)
@@ -788,7 +788,7 @@ class FolkMeasuresDatasetTranspose(FolkMeasuresDataset):
 
 class FolkDatasetNBars(FolkMeasuresDataset):
     """
-    Class to create 8bar sequences of 4by4 music
+    Class to create n-bar sequences of 4by4 music
     """
     def __init__(self,
                  name,
@@ -810,6 +810,7 @@ class FolkDatasetNBars(FolkMeasuresDataset):
 
     def __repr__(self):
         return f'FolkDatasetNBars(' \
+               f'{self.n_bars}' \
                f'{[metadata.name for metadata in self.metadatas]},' \
                f'{self.subdivision})' \
                f'{self.num_melodies}'

@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_note, OUT_OF_RANGE
+    standard_note, OUT_OF_RANGE, REST_SYMBOL
 from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
 
@@ -361,8 +361,9 @@ class ChoraleDataset(MusicDataset):
             note_set.add(SLUR_SYMBOL)
             note_set.add(START_SYMBOL)
             note_set.add(END_SYMBOL)
+            note_set.add(REST_SYMBOL)
 
-        # get all notes
+        # get all notes: used for computing pitch ranges
         for chorale in tqdm(self.iterator_gen()):
             for part_id, part in enumerate(chorale.parts[:self.num_voices]):
                 for n in part.flat.notesAndRests:
@@ -415,6 +416,7 @@ class ChoraleDataset(MusicDataset):
         length = tensor_score.size()[1]
 
         padded_chorale = []
+        # todo add PAD_SYMBOL
         if start_tick < 0:
             start_symbols = np.array([note2index[START_SYMBOL]
                                       for note2index in self.note2index_dicts])

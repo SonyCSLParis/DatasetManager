@@ -34,6 +34,11 @@ all_datasets = {
             'dataset_class_name': ChoraleBeatsDataset,
             'corpus_it_gen':      music21.corpus.chorales.Iterator
         },
+    'bach_chorales_beats_test':
+        {
+            'dataset_class_name': ChoraleBeatsDataset,
+            'corpus_it_gen':      ShortChoraleIteratorGen()
+        },
     'bach_chorales_test':
         {
             'dataset_class_name': ChoraleDataset,

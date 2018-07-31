@@ -7,6 +7,7 @@ from music21 import note, harmony, expressions
 SLUR_SYMBOL = '__'
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
+REST_SYMBOL = 'rest'
 OUT_OF_RANGE = 'OOR'
 PAD_SYMBOL = 'XX'
 BEAT_SYMBOL = 'b'
@@ -26,7 +27,7 @@ def standard_name(note_or_rest, voice_range=None):
                 return OUT_OF_RANGE
         return note_or_rest.nameWithOctave
     if isinstance(note_or_rest, note.Rest):
-        return note_or_rest.name
+        return note_or_rest.name # == 'rest' := REST_SYMBOL
     if isinstance(note_or_rest, str):
         return note_or_rest
 

@@ -53,16 +53,17 @@ class LsdbMongo:
     @staticmethod
     def load_credentials():
         if not os.path.exists('passwords.json'):
+            empty_credentials = {
+                "SERVER_ADDRESS": "",
+                "SSH_USER_NAME": "",
+                "SSH_PKEY": "",
+                "LOGIN_READONLY": "",
+                "PASSWORD_READONLY": ""
+            }
             with open('passwords.json', 'w') as f:
-                passwords_form = '''{
-                    "SERVER_ADDRESS":    "",
-                    "SSH_USER_NAME":     "",
-                    "SSH_PKEY":          "",
-                    "LOGIN_READONLY":    "",
-                    "PASSWORD_READONLY": ""
-                }'''
-                f.write(passwords_form)
-                print('An empty passwords.json file has been generated.')
+                json.dump(empty_credentials, f, indent=2)
+                print('An empty passwords.json file has been generated in:')
+                print(os.path.dirname(os.path.abspath(__file__)))
                 print('Please edit this file.')
 
         credentials = json.load(open('passwords.json', 'r'))

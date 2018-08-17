@@ -45,13 +45,13 @@ def standard_note(note_or_rest_string):
           note_or_rest_string == START_SYMBOL
           or
           note_or_rest_string == PAD_SYMBOL):
-        print('Warning: Special symbol is used in standard_note')
+        #print('Warning: Special symbol is used in standard_note')
         return note.Rest()
     elif note_or_rest_string == SLUR_SYMBOL:
-        print('Warning: SLUR_SYMBOL used in standard_note')
+        #print('Warning: SLUR_SYMBOL used in standard_note')
         return note.Rest()
     elif note_or_rest_string == OUT_OF_RANGE:
-        print('Warning: OUT_OF_RANGE used in standard_note')
+        #print('Warning: OUT_OF_RANGE used in standard_note')
         return note.Rest()
     else:
         return note.Note(note_or_rest_string)

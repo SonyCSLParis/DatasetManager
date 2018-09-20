@@ -103,15 +103,14 @@ class ChoraleDataset(MusicDataset):
                         # compute transpositions lazily
                         if semi_tone not in chorale_transpositions:
                             (chorale_tensor,
-                             metadata_tensor) = self.transposed_score_and_metadata_tensors(
-                                chorale,
-                                semi_tone=semi_tone)
+                             metadata_tensor) = (
+                                 self.transposed_score_and_metadata_tensors(
+                                     chorale,
+                                     semi_tone=semi_tone))
                             chorale_transpositions.update(
-                                {semi_tone:
-                                     chorale_tensor})
+                                {semi_tone: chorale_tensor})
                             metadatas_transpositions.update(
-                                {semi_tone:
-                                     metadata_tensor})
+                                {semi_tone: metadata_tensor})
                         else:
                             chorale_tensor = chorale_transpositions[semi_tone]
                             metadata_tensor = metadatas_transpositions[semi_tone]
@@ -378,10 +377,8 @@ class ChoraleDataset(MusicDataset):
 
     def is_valid(self, chorale):
         # We only consider 4-part chorales
-        if not len(chorale.parts) == 4:
-            return False
-        # todo contains chord
-        return True
+        # TODO(gaetan) filter contains chord
+        return (len(chorale.parts) == 4)
 
     def compute_voice_ranges(self):
         assert self.index2note_dicts is not None
@@ -459,10 +456,12 @@ class ChoraleDataset(MusicDataset):
 
         slice_start = start_tick if start_tick > 0 else 0
         slice_end = end_tick if end_tick < length else length
-        padded_tensor_metadata.append(tensor_metadata[:, slice_start: slice_end, :])
+        padded_tensor_metadata.append(
+            tensor_metadata[:, slice_start:slice_end, :])
 
         if end_tick > length:
-            end_symbols = np.zeros((self.num_voices, end_tick - length, num_metadatas))
+            end_symbols = np.zeros(
+                (self.num_voices, end_tick - length, num_metadatas))
             end_symbols = torch.from_numpy(end_symbols).long().clone()
             padded_tensor_metadata.append(end_symbols)
 
@@ -571,15 +570,14 @@ class ChoraleBeatsDataset(ChoraleDataset):
                         # compute transpositions lazily
                         if semi_tone not in chorale_transpositions:
                             (chorale_tensor,
-                             metadata_tensor) = self.transposed_score_and_metadata_tensors(
-                                chorale,
-                                semi_tone=semi_tone)
+                             metadata_tensor) = (
+                                 self.transposed_score_and_metadata_tensors(
+                                     chorale,
+                                     semi_tone=semi_tone))
                             chorale_transpositions.update(
-                                {semi_tone:
-                                     chorale_tensor})
+                                {semi_tone: chorale_tensor})
                             metadatas_transpositions.update(
-                                {semi_tone:
-                                     metadata_tensor})
+                                {semi_tone: metadata_tensor})
                         else:
                             chorale_tensor = chorale_transpositions[semi_tone]
                             metadata_tensor = metadatas_transpositions[semi_tone]

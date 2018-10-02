@@ -125,7 +125,7 @@ all_datasets = {
         {
             'dataset_class_name': FolkMeasuresDataset,
             'corpus_it_gen': FolkIteratorGenerator(
-                num_elements=1000,
+                num_elements=100,
                 has_chords=False,
                 time_sigs=[(4, 4)]
             )
@@ -170,7 +170,7 @@ all_datasets = {
         {
             'dataset_class_name': FolkDatasetNBars,
             'corpus_it_gen': FolkIteratorGenerator(
-                num_elements=10,
+                num_elements=100,
                 has_chords=False,
                 time_sigs=[(4, 4)]
             )
@@ -305,7 +305,7 @@ if __name__ == '__main__':
         'sequences_size':   32
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4measures',
+        name ='folk_4by4nbars',
         **folk_dataset_kwargs
     )
     (train_dataloader,

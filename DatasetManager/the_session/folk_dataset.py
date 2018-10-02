@@ -184,6 +184,20 @@ class FolkDataset(MusicDataset):
         # all_metadata = torch.cat(md, 2)
         # return all_metadata
 
+    @staticmethod
+    def get_transpostion_interval_from_semitone(semi_tone):
+        """
+        Converts semi-tone to music21 interval
+        :param semi_tone: int, -12 to +12
+        :return: music21.Interval object
+        """
+        # compute the most "natural" interval given a number of semi-tones
+        interval_type, interval_nature = interval.convertSemitoneToSpecifierGeneric(
+            semi_tone)
+        transposition_interval = interval.Interval(
+            str(interval_nature) + interval_type)
+        return transposition_interval
+
     def transposed_score_and_metadata_tensors(self, score, interval):
         """
         Convert chorale to a couple (chorale_tensor, metadata_tensor),
@@ -325,11 +339,7 @@ class FolkDataset(MusicDataset):
         """
         # transpose
         # compute the most "natural" interval given a number of semi-tones
-        interval_type, interval_nature = interval.convertSemitoneToSpecifierGeneric(
-            semi_tone)
-        transposition_interval = interval.Interval(
-            str(interval_nature) + interval_type)
-
+        transposition_interval = self.get_transpostion_interval_from_semitone(semi_tone)
         score_tranposed = score.transpose(transposition_interval)
         if not self.is_in_range(score_tranposed):
             return None
@@ -735,7 +745,7 @@ class FolkMeasuresDataset(FolkDataset):
         slur_index = self.note2index_dicts[self.NOTES][SLUR_SYMBOL]
         measure_tensor_np[measure_tensor_np != slur_index] = 1
         measure_tensor_np[measure_tensor_np == slur_index] = 0
-        weights = np.array([1, 0.08, 0.08, 0.15, 0.08, 0.08])
+        weights = np.array([1, 0.008, 0.008, 0.15, 0.008, 0.008])
         weights = np.tile(weights, 4)
         prod = weights * measure_tensor_np
         b_str = np.sum(prod, axis=1)
@@ -788,7 +798,7 @@ class FolkMeasuresDatasetTranspose(FolkMeasuresDataset):
 
 class FolkDatasetNBars(FolkMeasuresDataset):
     """
-    Class to create 8bar sequences of 4by4 music
+    Class to create n-bar sequences of 4by4 music
     """
     def __init__(self,
                  name,
@@ -797,7 +807,7 @@ class FolkDatasetNBars(FolkMeasuresDataset):
                  sequences_size=32,
                  subdivision=4,  # TODO: NOT BEING USED RIGHT NOW
                  cache_dir=None,
-                 num_bars=8):
+                 num_bars=16):
         super(FolkDatasetNBars, self).__init__(name=name,
                                                corpus_it_gen=corpus_it_gen,
                                                metadatas=metadatas,
@@ -810,6 +820,7 @@ class FolkDatasetNBars(FolkMeasuresDataset):
 
     def __repr__(self):
         return f'FolkDatasetNBars(' \
+               f'{self.n_bars}' \
                f'{[metadata.name for metadata in self.metadatas]},' \
                f'{self.subdivision})' \
                f'{self.num_melodies}'

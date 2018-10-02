@@ -185,9 +185,13 @@ class LsdbDataset(MusicDataset):
                            is_articulated]
                 i += 1
                 is_articulated = False
-        seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chordroot2index[SLUR_SYMBOL]
+
+        # TODO no SLUR_SYMBOL for chords?!
+        # seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chordroot2index[SLUR_SYMBOL]
+        seq = t[:, 0]
         chord_root_tensor = torch.from_numpy(seq).long()[None, :]
-        seq = u[:, 0] * u[:, 1] + (1 - u[:, 1]) * chordname2index[SLUR_SYMBOL]
+        seq = u[:, 0]
+        # seq = u[:, 0] * u[:, 1] + (1 - u[:, 1]) * chordname2index[SLUR_SYMBOL]
         chord_name_tensor = torch.from_numpy(seq).long()[None, :]
         return lead_tensor, chord_root_tensor, chord_name_tensor
 

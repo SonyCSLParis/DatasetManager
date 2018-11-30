@@ -75,22 +75,14 @@ class LsdbDataset(MusicDataset):
                                             f'not properly formatted')
         return leadsheet_transposed
 
-    def get_score_tensor(self, leadsheet, update_dicts=False):
-        """
-
-        :param leadsheet:
-        :return: lead_tensor and chord_tensor
-        """
+    def notes_to_lead_tensor(self, notes,
+                             length: int,
+                             update_dicts: bool = False):
         eps = 1e-4
-        notes, chords = notes_and_chords(leadsheet)
-        if not leadsheet_on_ticks(leadsheet, self.tick_values):
-            raise LeadsheetParsingException(
-                f'Leadsheet {leadsheet.metadata.title} has notes not on ticks')
 
         # LEAD
         j = 0
         i = 0
-        length = int(leadsheet.highestTime * self.subdivision)
         t = np.zeros((length, 2))
         is_articulated = True
         num_notes = len(notes)
@@ -126,10 +118,13 @@ class LsdbDataset(MusicDataset):
         lead = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
         lead_tensor = torch.from_numpy(lead).long()[None, :]
 
+        return lead_tensor
+
+    def chords_to_roots_and_types_tensors(self, chords, length,
+                                          update_dicts: bool = False):
         # CHORDS
         j = 0
         i = 0
-        length = int(leadsheet.highestTime)
         t = np.zeros((length, 2))
         u = np.zeros((length, 2))
         is_articulated = True
@@ -189,7 +184,35 @@ class LsdbDataset(MusicDataset):
         chord_root_tensor = torch.from_numpy(seq).long()[None, :]
         seq = u[:, 0] * u[:, 1] + (1 - u[:, 1]) * chordname2index[SLUR_SYMBOL]
         chord_name_tensor = torch.from_numpy(seq).long()[None, :]
-        return lead_tensor, chord_root_tensor, chord_name_tensor
+
+        return chord_root_tensor, chord_name_tensor
+
+    def get_score_tensor(self, leadsheet: music21.stream.Score,
+                         update_dicts: bool = False):
+        """
+
+        :param leadsheet:
+        :return: lead_tensor and chord_tensor
+        """
+        notes, chords = notes_and_chords(leadsheet)
+        if not leadsheet_on_ticks(leadsheet, self.tick_values):
+            raise LeadsheetParsingException(
+                f'Leadsheet {leadsheet.metadata.title} has notes not on ticks')
+
+        length = int(leadsheet.highestTime * self.subdivision)
+        lead_tensor = self.notes_to_lead_tensor(notes, length, update_dicts)
+
+        if len(chords) > 0:
+            length = int(leadsheet.highestTime)
+            chord_root_tensor, chord_types_tensor = (
+                self.chords_to_roots_and_types_tensors(chords, length,
+                                                       update_dicts)
+                )
+        else:
+            chord_root_tensor = torch.Tensor()
+            chord_types_tensor = torch.Tensor()
+
+        return lead_tensor, chord_root_tensor, chord_types_tensor
 
     def get_metadata_tensor(self, score):
         """
@@ -504,9 +527,9 @@ class LsdbDataset(MusicDataset):
 
     def empty_score_tensor(self, score_length):
         """
-        
+
         :param score_length: int, length of the score in ticks
-        :return: torch long tensor, initialized with start indices 
+        :return: torch long tensor, initialized with start indices
         """
         raise NotImplementedError
 
@@ -544,7 +567,7 @@ class LsdbDataset(MusicDataset):
     def tensor_to_score(self, tensor_score, tensor_chords,
                         realize_chords=False, add_chord_symbols=False):
         """
-        Converts leadsheet given as tensor_lead and tensor_chords
+        Converts given leadsheet as tensor_lead and tensor_chords
         to a true music21 score
         :param tensor_lead:
         :param tensor_chords:
@@ -754,7 +777,7 @@ if __name__ == '__main__':
     # lead, chord_root, chord_name = lsdb_dataset.get_score_tensor(leadsheet)
     # chord = (chord_root, chord_name)
     # score = lsdb_dataset.tensor_to_score(
-    #    lead, 
+    #    lead,
     #    chord,
     #    realize_chords=True
     # )

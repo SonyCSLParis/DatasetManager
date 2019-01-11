@@ -1,35 +1,31 @@
-import json
-import os
-from glob import glob
-
 from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
+
+from DatasetManager.lsdb.passwords import LOGIN_READONLY, PASSWORD_READONLY, SERVER_ADDRESS
 
 
 class LsdbMongo:
     def __init__(self):
-        self.credentials = self.load_credentials()
-
+        """
         self.server = SSHTunnelForwarder(
-            self.credentials['SERVER_ADDRESS'],
-            ssh_username=self.credentials['SSH_USER_NAME'],
+            SERVER_ADDRESS,
+            ssh_username='ubuntu',
             remote_bind_address=('127.0.0.1', 27017),
-            ssh_pkey=self.credentials['SSH_PKEY']
+            ssh_pkey="/gaetan/aws_fmst_tokyo.pem"
         )
         self.server.start()
-
-        self.client = MongoClient('localhost',
-                                  self.server.local_bind_port,
-                                  )
+        """
+        #self.client = MongoClient('localhost', self.server.local_bind_port)
+        #self.client = MongoClient('172.17.0.1', 27017)
+        self.client = MongoClient(SERVER_ADDRESS, 27017)
 
     def get_db(self):
-        # Cannot connect directly to lsdb and then performing auth
-        db = self.client.get_database('admin')
-        db.authenticate(self.credentials['LOGIN_READONLY'],
-                        self.credentials['PASSWORD_READONLY'],
+        db = self.client.get_database('lsdb')
+        #import pdb
+        #pdb.set_trace()
+        db.authenticate(LOGIN_READONLY, PASSWORD_READONLY,
                         mechanism='SCRAM-SHA-1')
-        lsdb = self.client.get_database('lsdb')
-        return lsdb
+        return db
 
     def get_songbook_leadsheets_cursor(self, db):
         """Return a cursor all songbook leadsheets, excluding user input ones
@@ -39,7 +35,7 @@ class LsdbMongo:
 
     def close(self):
         self.client.close()
-        self.server.close()
+    #self.server.close()
 
     def __del__(self):
         self.close()
@@ -50,29 +46,10 @@ class LsdbMongo:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    @staticmethod
-    def load_credentials():
-        if not os.path.exists('passwords.json'):
-            empty_credentials = {
-                "SERVER_ADDRESS": "",
-                "SSH_USER_NAME": "",
-                "SSH_PKEY": "",
-                "LOGIN_READONLY": "",
-                "PASSWORD_READONLY": ""
-            }
-            with open('passwords.json', 'w') as f:
-                json.dump(empty_credentials, f, indent=2)
-                print('An empty passwords.json file has been generated in:')
-                print(os.path.dirname(os.path.abspath(__file__)))
-                print('Please edit this file.')
-
-        credentials = json.load(open('passwords.json', 'r'))
-        return credentials
-
 
 if __name__ == '__main__':
     lsdb_client = LsdbMongo()
     db = lsdb_client.get_db()
-    # cursor = lsdb_client.get_songbook_leadsheets_cursor(db)
-    # print(next(cursor))
+    cursor = lsdb_client.get_songbook_leadsheets_cursor(db)
+    print(next(cursor))
     lsdb_client.close()

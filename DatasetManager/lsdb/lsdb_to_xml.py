@@ -77,6 +77,12 @@ class LsdbConverter:
                 # discard leadsheet with no title
                 if 'title' not in leadsheet:
                     continue
+                try:
+                    if leadsheet["title"][-1] == '\x00':
+                        leadsheet["title"]=leadsheet["title"][:-1]
+                except:
+                    print('no title!')
+                    continue
                 if os.path.exists(os.path.join(self.dataset_dir,
                                                f'{leadsheet["title"]}.xml'
                                                )):
@@ -178,8 +184,10 @@ class LsdbConverter:
 
 
 if __name__ == '__main__':
+    # All
+    LsdbConverter().make_score_dataset()
     # Blues
-    LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
+    #LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
 
     # Pop
     # LsdbConverter(songset_id='5660684458e3383e7f7b23c6').make_score_dataset()

@@ -620,13 +620,16 @@ def music21_chord_from_json_chord(json_chord, lsdb_chord_to_notes):
         except (AttributeError, KeyError):
             # if the preceding procedure did not work
             print('Difficult chord')
-            print(current_json_chord_type, all_notes_list)
+            try:
+                print(current_json_chord_type, all_notes_list)
+            except:
+                pass
             num_characters_chord_type -= 1
 
 
 def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     # must convert b to -
-    print(leadsheet)
+    #print(leadsheet)
     if 'keySignature' not in leadsheet or not leadsheet['keySignature']:
         raise LeadsheetKeySignatureException(f'Leadsheet {leadsheet["title"]} '
                                              f'has no keySignature')
@@ -722,7 +725,7 @@ class LeadsheetIteratorGenerator:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # todo hard coded
         leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/4_4_all/*.xml'))
+            os.path.join(dir_path, 'xml/4_4/*.xml'))
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:
@@ -731,3 +734,6 @@ class LeadsheetIteratorGenerator:
                 yield music21.converter.parse(leadsheet_path)
             except ZeroDivisionError:
                 print(f'{leadsheet_path} is not parsable')
+            except:
+                print(f'{leadsheet_path} has error parsing')
+                pass

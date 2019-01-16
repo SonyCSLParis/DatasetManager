@@ -15,6 +15,7 @@ from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
+import random
 
 
 class LsdbDataset(MusicDataset):
@@ -187,11 +188,11 @@ class LsdbDataset(MusicDataset):
                 is_articulated = False
 
         # TODO no SLUR_SYMBOL for chords?!
-        # seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chordroot2index[SLUR_SYMBOL]
-        seq = t[:, 0]
+        seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * chordroot2index[SLUR_SYMBOL]
+        #seq = t[:, 0]
         chord_root_tensor = torch.from_numpy(seq).long()[None, :]
-        seq = u[:, 0]
-        # seq = u[:, 0] * u[:, 1] + (1 - u[:, 1]) * chordname2index[SLUR_SYMBOL]
+        #seq = u[:, 0]
+        seq = u[:, 0] * u[:, 1] + (1 - u[:, 1]) * chordname2index[SLUR_SYMBOL]
         chord_name_tensor = torch.from_numpy(seq).long()[None, :]
         return lead_tensor, chord_root_tensor, chord_name_tensor
 
@@ -238,6 +239,8 @@ class LsdbDataset(MusicDataset):
                     # lead
                     for offsetStart in range(-self.sequences_size + 1,
                                              int(transposed_leadsheet.highestTime)):
+                        if random.randint(0,2)==0:
+                            continue
                         offsetEnd = offsetStart + self.sequences_size
                         local_lead_tensor = self.extract_score_tensor_with_padding(
                             tensor=lead_tensor,
@@ -692,6 +695,74 @@ class LsdbDataset(MusicDataset):
 
         return score
 
+    def tensor_to_chordscore(self, tensor_chords,
+                        realize_chords=False, add_chord_symbols=False):
+        """
+        Converts leadsheet given as tensor_chords
+        to a true music21 score
+        :param tensor_lead:
+        :param tensor_chords:
+        :return:
+        """
+        score = music21.stream.Score()
+        #part = music21.stream.Part()
+
+        if realize_chords:
+            # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+            chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
+            start_index = chordroot2index[START_SYMBOL]
+            end_index = chordroot2index[END_SYMBOL]
+            slur_index = chordroot2index[SLUR_SYMBOL]
+            pad_index = chordroot2index[PAD_SYMBOL]
+            nc_index = chordroot2index[NC]
+            chords_part = music21.stream.Part()
+            dur = 0
+            c = music21.note.Rest()
+            tensor_chords_root, tensor_chords_name = tensor_chords
+            tensor_chords_root_np = tensor_chords_root#.numpy().flatten()
+            tensor_chords_name_np = tensor_chords_name#.numpy().flatten()
+            for (beat_index,
+                 (chord_root_index, chord_type_index)) \
+                    in enumerate(
+                zip(
+                    tensor_chords_root_np,
+                    tensor_chords_name_np
+                )
+            ):
+                chord_root_index = chord_root_index.item()
+                chord_type_index = chord_type_index.item()
+                # if it is a played note
+                if chord_root_index not in [slur_index,
+                                            start_index,
+                                            end_index,
+                                            pad_index,
+                                            nc_index]:
+                    # add previous note
+                    if dur > 0:
+                        c.duration = music21.duration.Duration(dur)
+                        chords_part.append(c)
+                    dur = 1
+                    try:
+                        jazz_chord = self.get_jazzchord_from_index(
+                            chord_root_index,
+                            chord_type_index
+                        )
+                        voicing_pitch_list = jazz_chord.get_pitchlist_from_chord()
+                        c = music21.chord.Chord([
+                            p.transpose(-12) for p in voicing_pitch_list
+                        ])
+                    except:
+                        c = music21.note.Rest()
+                else:
+                    dur += 1
+            # add last note
+            c.duration = music21.duration.Duration(dur)
+            chords_part.append(c)
+            score.append(chords_part)
+
+        return score
+
+
     def tensor_leadsheet_to_score_and_chord_list(self,
                                                  tensor_score,
                                                  tensor_chords,
@@ -729,6 +800,41 @@ class LsdbDataset(MusicDataset):
             chord_list.append(chord_desc)
         return score, chord_list
 
+
+    def tensor_chords_to_score_and_chord_list(self,
+                                                 tensor_chords,
+                                                 add_chord_symbols=False,
+                                                 realize_chords=True):
+        """
+        Converts leadsheet given as tensor_lead to a true music21 score
+        and the chords as a list
+        :param tensor_score:
+        :param tensor_chords: tuple (tensor_chord_roots, tensor_chord_types)
+        :return:
+        """
+        score = self.tensor_to_chordscore(
+            tensor_chords,
+            realize_chords=realize_chords,
+            add_chord_symbols=add_chord_symbols
+        )
+
+        # CHORDS LIST
+        chord_list = []
+        tensor_chords_root, tensor_chords_name = tensor_chords
+        index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+        index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
+        tensor_chords_root_np = tensor_chords_root#.numpy().flatten()
+        tensor_chords_name_np = tensor_chords_name#.numpy().flatten()
+        for chord_root_index, chord_name_index \
+                in zip(tensor_chords_root_np,
+                       tensor_chords_name_np
+                       ):
+            chord_root_index = chord_root_index.item()
+            chord_name_index = chord_name_index.item()
+            chord_desc = index2chordroot[chord_root_index] + \
+                         index2chordname[chord_name_index]
+            chord_list.append(chord_desc)
+        return score, chord_list
 
 if __name__ == '__main__':
     from DatasetManager.dataset_manager import DatasetManager

@@ -23,17 +23,32 @@ class LsdbConverter:
 
     # todo other mongodb queries?
     # todo num_elements ...
-    def __init__(self, time_signature='4/4', composer=None, songset_id=None):
+    def __init__(self,
+                 time_signature='4/4',
+                 composer=None,
+                 songset_ids=None,
+                 alternate_name=None
+                 ):
+        """
+
+        :param time_signature:
+        :param composer:
+        :param songset_ids: List[str]
+        """
         self.time_signature = time_signature
         self.composer = composer
-        self.songset_id = songset_id
+        self.songset_ids = songset_ids
+        self.alternate_name = alternate_name
         self.dataset_dir = os.path.join('xml',
                                         self.__repr__())
 
     def __repr__(self):
-        return f'{self.time_signature.replace("/","_")}' \
-               f'{"_" + self.composer if self.composer else ""}' \
-               f'{"_" + self.songset_id if self.songset_id else ""}'
+        if self.alternate_name is None:
+            return f'{self.time_signature.replace("/", "_")}' \
+                f'{"_" + self.composer if self.composer else ""}' \
+                f'{"_".join(self.songset_ids) if self.songset_ids else ""}'
+        else:
+            return self.alternate_name
 
     def make_score_dataset(self):
         """
@@ -55,18 +70,20 @@ class LsdbConverter:
 
             # restrict on a specific songset
             query_ids = {'$nin': exclude_list_ids, }
-            if self.songset_id:
-                songset = db.songsets.find_one({
-                    '_id': ObjectId(self.songset_id)
-                })
-                leadsheet_ids_in_songset = [ObjectId(leadsheet_id)
-                                            for leadsheet_id in
-                                            songset['elements']
-                                            ]
+            if self.songset_ids:
+                leadsheet_ids_in_songset = []
+                for songset_id in self.songset_ids:
+                    songset = db.songsets.find_one({
+                        '_id': ObjectId(songset_id)
+                    })
+                    leadsheet_ids_in_songset += [ObjectId(leadsheet_id)
+                                                 for leadsheet_id in
+                                                 songset['elements']
+                                                 ]
                 query_ids['$in'] = leadsheet_ids_in_songset
 
             # query_ids['$in'] = [ObjectId('5193843f58e3383974000eba')]
-            query = {'_id':      query_ids}
+            query = {'_id': query_ids}
             if self.composer:
                 query['composer'] = self.composer
 
@@ -177,6 +194,18 @@ class LsdbConverter:
         return name.replace('/', '-')
 
 
+def TOM_HEDGES_SONGSET_IDS():
+    with LsdbMongo() as client:
+        db = client.get_db()
+        songsets = db.songsets.find({'authors': 'Tom Hedges'})
+        songset_ids = []
+        s = 0
+        for songset in songsets:
+            songset_ids.append(str(songset['_id']))
+            s += len(songset['elements'])
+    return songset_ids
+
+
 if __name__ == '__main__':
     # Blues
     LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
@@ -187,11 +216,10 @@ if __name__ == '__main__':
     # American Songwriter
     # LsdbConverter(songset_id='545a6c8a3004f53efa0382fe').make_score_dataset()
 
-    # Real book
-    # LsdbConverter(songset_id='545a6c893004f53efa0382e4').make_score_dataset()
-
-    # Real book Vol3 2nd Edition
-    # LsdbConverter(songset_id='545a6c893004f53efa0382e3').make_score_dataset()
+    # Real book & Real book Vol3 2nd Edition
+    # LsdbConverter(songset_ids=['545a6c893004f53efa0382e4',
+    #                            '545a6c893004f53efa0382e3']
+    #               ).make_score_dataset()
 
     # LsdbConverter(composer='Bill Evans').make_score_dataset()
     # LsdbConverter(composer='Miles Davis').make_score_dataset()

@@ -1,17 +1,12 @@
 import os
 import re
 
-import music21
-import sys
 from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import exclude_list_ids, leadsheet_to_music21, \
     assert_no_time_signature_changes
 from DatasetManager.lsdb.lsdb_exceptions import LeadsheetParsingException, \
     LeadsheetTimeSignatureException, LeadsheetKeySignatureException
 
-import numpy as np
-
-# todo as method
 from bson import ObjectId
 from music21.pitch import PitchException
 
@@ -207,8 +202,12 @@ def TOM_HEDGES_SONGSET_IDS():
 
 
 if __name__ == '__main__':
+    # All
+    LsdbConverter(songset_ids=TOM_HEDGES_SONGSET_IDS(),
+                  alternate_name='Tom').make_score_dataset()
+
     # Blues
-    LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
+    # LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
 
     # Pop
     # LsdbConverter(songset_id='5660684458e3383e7f7b23c6').make_score_dataset()

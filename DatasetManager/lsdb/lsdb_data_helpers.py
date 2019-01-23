@@ -721,8 +721,11 @@ class LeadsheetIteratorGenerator:
     def leadsheet_generator(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # todo hard coded
-        leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/4_4_all/*.xml'))
+        leadsheet_paths = (glob.glob(
+            os.path.join(dir_path, 'xml/4_4_all/*.xml')) +
+                           glob.glob(
+                               os.path.join(dir_path, 'xml/4_4_all/*.mxl'))
+                           )
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:

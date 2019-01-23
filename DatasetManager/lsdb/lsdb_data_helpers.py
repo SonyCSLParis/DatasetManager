@@ -732,10 +732,11 @@ class LeadsheetIteratorGenerator:
             try:
                 print(leadsheet_path)
                 yield music21.converter.parse(leadsheet_path)
-            except (ZeroDivisionError,
-                    KeyError,
-                    UnboundLocalError,
-                    AttributeError,
-                    TypeError) as e:
+            # except (ZeroDivisionError,
+            #         KeyError,
+            #         UnboundLocalError,
+            #         AttributeError,
+            #         TypeError) as e:
+            except Exception as e:
                 print(f'{leadsheet_path} is not parsable')
                 print(e)

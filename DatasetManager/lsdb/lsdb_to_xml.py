@@ -54,7 +54,7 @@ class LsdbConverter:
         """
 
         if not os.path.exists(self.dataset_dir):
-            os.mkdir(self.dataset_dir)
+            os.makedirs(self.dataset_dir)
 
         (lsdb_chord_to_notes,
          notes_to_chord_lsdb) = self.compute_lsdb_chord_dicts()

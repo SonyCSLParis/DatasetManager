@@ -1,18 +1,7 @@
-import music21
-import torch
-import numpy as np
-
-from music21 import interval, stream
-from torch.utils.data import TensorDataset
-from tqdm import tqdm
-
-from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_note, OUT_OF_RANGE, REST_SYMBOL
-from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
+import tqdm
 
-
-class ChoraleDataset(MusicDataset):
+class ArrangementFrameDataset(MusicDataset):
     """
     Class for all chorale-like datasets
     """
@@ -20,7 +9,6 @@ class ChoraleDataset(MusicDataset):
     def __init__(self,
                  corpus_it_gen,
                  name,
-                 voice_ids,
                  metadatas=None,
                  sequences_size=8,
                  subdivision=4,
@@ -29,16 +17,12 @@ class ChoraleDataset(MusicDataset):
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
         :param name:
-        :param voice_ids: list of voice_indexes to be used
         :param metadatas: list[Metadata], the list of used metadatas
         :param sequences_size: in beats
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ChoraleDataset, self).__init__(cache_dir=cache_dir)
-        self.voice_ids = voice_ids
-        # TODO WARNING voice_ids is never used!
-        self.num_voices = len(voice_ids)
+        super(ArrangementFrameDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.sequences_size = sequences_size
         self.index2note_dicts = None
@@ -49,8 +33,7 @@ class ChoraleDataset(MusicDataset):
         self.subdivision = subdivision
 
     def __repr__(self):
-        return f'ChoraleDataset(' \
-               f'{self.voice_ids},' \
+        return f'ArrangementFrameDataset(' \
                f'{self.name},' \
                f'{[metadata.name for metadata in self.metadatas]},' \
                f'{self.sequences_size},' \

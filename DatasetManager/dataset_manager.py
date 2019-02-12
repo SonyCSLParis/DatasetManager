@@ -18,12 +18,30 @@ from DatasetManager.the_session.folk_dataset import FolkDataset, \
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
+from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
+
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
 
 all_datasets = {
+    'arrangement_frame_test':
+        {
+            'dataset_class_name': ArrangementFrameDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                # arrangement_path='/home/leo/databases/Orchestration/LOP_database_06_09_17',
+                arrangement_path='/home/leo/databases/Orchestration/LOP_database_mxml_clean',
+                subsets=[
+                    # 'bouliane',
+                    # 'imslp',
+                    # 'liszt_classical_archives',
+                    # 'hand_picked_Spotify',
+                    'debug'],
+                num_elements=10
+            )
+        },
     'bach_chorales':
         {
             'dataset_class_name': ChoraleDataset,
@@ -253,27 +271,49 @@ class DatasetManager:
 # Usage example
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
+
+    # Arrangement
+    subdivision = 1
+    metadatas = [
+    ]
+
+    arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
+        name='arrangement_frame_test',
+        metadatas=metadatas,
+        subdivision=subdivision
+    )
+
+    # (train_dataloader,
+    #  val_dataloader,
+    #  test_dataloader) = bach_chorales_dataset.data_loaders(
+    #     batch_size=128,
+    #     split=(0.85, 0.10)
+    # )
+    # print('Num Train Batches: ', len(train_dataloader))
+    # print('Num Valid Batches: ', len(val_dataloader))
+    # print('Num Test Batches: ', len(test_dataloader))
+
     # BACH
     '''
     subdivision = 4
     metadatas = [
-     	TickMetadata(subdivision=subdivision),
-     	FermataMetadata(),
-     	KeyMetadata()
+        TickMetadata(subdivision=subdivision),
+        FermataMetadata(),
+        KeyMetadata()
     ]
     
     bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
-     	name='bach_chorales_test',
-     	voice_ids=[0, 1, 2, 3],
-     	metadatas=metadatas,
-     	sequences_size=8,
-     	subdivision=subdivision
+        name='bach_chorales_test',
+        voice_ids=[0, 1, 2, 3],
+        metadatas=metadatas,
+        sequences_size=8,
+        subdivision=subdivision
     )
     (train_dataloader,
-      val_dataloader,
-      test_dataloader) = bach_chorales_dataset.data_loaders(
-     	batch_size=128,
-     	split=(0.85, 0.10)
+     val_dataloader,
+     test_dataloader) = bach_chorales_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
     )
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
@@ -282,7 +322,7 @@ if __name__ == '__main__':
     # LSDB
     '''
     lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb',
+        name='lsdb_test',
         sequences_size=64,
     )
     (train_dataloader,
@@ -295,7 +335,9 @@ if __name__ == '__main__':
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
     '''
-    # Folk Dataset  
+
+    # Folk Dataset
+    '''
     metadatas = [
         BeatMarkerMetadata(subdivision=6),
         TickMetadata(subdivision=6)
@@ -316,4 +358,4 @@ if __name__ == '__main__':
     )
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))'''

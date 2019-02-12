@@ -81,6 +81,7 @@ class IsPlayingMetadata(Metadata):
     def generate(self, length):
         return np.ones(shape=(length,))
 
+
 class TickMetadata(Metadata):
     """
     Metadata class that tracks on which subdivision of the beat we are on

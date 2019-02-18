@@ -107,7 +107,7 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             j -= 1
             skip_j.append(1)
             skip_i.append(1)
-            pairs.append((i, j))
+            pairs.append((j, i))
         elif p == LEFT:
             # Loose the element
             # align_j += seqj[j - 1]
@@ -124,7 +124,3 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
 
     # return (align_j[::-1], align_i[::-1]), (skip_j[::-1], skip_i[::-1])
     return pairs[::-1]
-
-
-if __name__ == "__main__":
-    print(nwalign('COELANCANTH', 'PELICAN'))

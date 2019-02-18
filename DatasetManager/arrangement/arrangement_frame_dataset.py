@@ -1,6 +1,13 @@
+import csv
 import json
+import math
+import os
+
+import torch
 from abc import ABC
 
+from arrangement.instrumentation import get_instrumentation
+from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
 import numpy as np
@@ -8,18 +15,24 @@ import numpy as np
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
+from arrangement.arrangement_helper import note_to_number, score_to_pianoroll, pianoroll_to_orchestral_tensor, \
+    number_to_octave_pc
 
-class ArrangementFrameDataset(MusicDataset, ABC):
+
+class ArrangementFrameDataset(MusicDataset):
     """
     Class for all arrangement dataset
+    It is highly recommended to run arrangement_statistics before building the database
     """
 
     def __init__(self,
                  corpus_it_gen,
                  name,
-                 metadatas=None,
+                 metadatas=[],
                  subdivision=4,
-                 tessitura_path='reference_tessitura.json',
+                 reference_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/reference_tessitura.json',
+                 observed_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/statistics/statistics.csv',
+                 simplify_instrumentation_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/simplify_instrumentation.json',
                  cache_dir=None):
         """
         :param corpus_it_gen: calling this function returns an iterator
@@ -35,10 +48,43 @@ class ArrangementFrameDataset(MusicDataset, ABC):
         self.metadatas = metadatas
         self.subdivision = subdivision  # We use only on beats notes so far
 
-        with open(tessitura_path, 'r') as ff:
+        # Reference tessitura for each instrument
+        with open(reference_tessitura_path, 'r') as ff:
             tessitura = json.load(ff)
-        self.tessitura = {k: (music21.note.Note(v[0]), music21.note.Note(v[1])) for k, v in tessitura.items()}
+        self.reference_tessitura = {k: (music21.note.Note(v[0]), music21.note.Note(v[1])) for k, v in tessitura.items()}
 
+        # Observed tessitura
+        with open(observed_tessitura_path, 'r') as ff:
+            dict_reader = csv.DictReader(ff, delimiter=';')
+            for row in dict_reader:
+                if row['instrument_name'] == 'Piano':
+                    self.observed_piano_tessitura = {'lowest': int(row['lowest_pitch']),
+                                                     'highest': int(row['highest_pitch'])}
+                    break
+
+        # Maps parts name found in mxml files to standard names
+        with open(simplify_instrumentation_path, 'r') as ff:
+            self.simplify_instrumentation = json.load(ff)
+
+        #  Instrumentation used for learning
+        self.instrumentation = get_instrumentation()
+
+        #  Do we use written or sounding pitch
+        self.transpose_to_sounding_pitch = True
+
+        # Mapping between instruments and indices
+        self.index2instrument = {}
+        self.instrument2index = {}
+        self.indices2midi_pitch = {}
+        self.midi_pitch2indices = {}
+        self.one_hot_structure = {}
+
+        # Compute some dimensions for the returned tensors
+        self.number_parts = 0
+        for k, v in self.instrumentation.items():
+            self.number_parts += v
+        self.number_pitch_class = 12
+        self.number_octave = None
         return
 
     def __repr__(self):
@@ -51,161 +97,163 @@ class ArrangementFrameDataset(MusicDataset, ABC):
         return (self.sort_arrangement_pairs(arrangement_pair)
                 for arrangement_pair in self.corpus_it_gen())
 
+    @staticmethod
+    def pair2index(one_hot_0, one_hot_1):
+        return one_hot_0 * 12 + one_hot_1
+
+    def compute_index_dicts(self):
+        # Mapping instruments <-> indices
+        index_counter = 0
+        for instrument_name, number_instruments in self.instrumentation.items():
+            self.instrument2index[instrument_name] = list(range(index_counter, index_counter + number_instruments))
+            for ind in range(index_counter, index_counter + number_instruments):
+                self.index2instrument[ind] = instrument_name
+            index_counter += number_instruments
+
+        #  Mapping midi_pitch to one-hot octave,pc,silence indices
+        self.midi_pitch2indices = {}
+        self.indices2midi_pitch = {}
+        # Get lowest and highest octaves
+        # USE REFERENCE OR OBSERVED ?
+        lowest_pitch = math.inf
+        highest_pitch = 0
+        for instrument_name, this_tessitura in self.reference_tessitura.items():
+            lowest_pitch = min(lowest_pitch, note_to_number(this_tessitura[0]))
+            highest_pitch = max(highest_pitch, note_to_number(this_tessitura[1]))
+        # Take the closest multiple of 12
+        lowest_pitch = lowest_pitch - (lowest_pitch % 12)
+        highest_pitch = highest_pitch + (12 - highest_pitch) % 12
+        lowest_octave, _ = number_to_octave_pc(lowest_pitch)
+        highest_octave, _ = number_to_octave_pc(highest_pitch)
+        self.number_octave = highest_octave - lowest_octave + 1
+        for midi_pitch in range(lowest_pitch, highest_pitch):
+            octave, pc = number_to_octave_pc(midi_pitch)
+            relative_octave = octave - lowest_octave
+            self.midi_pitch2indices[midi_pitch] = (relative_octave, self.number_octave + pc)
+            if relative_octave not in self.indices2midi_pitch.keys():
+                self.indices2midi_pitch[relative_octave] = {}
+            self.indices2midi_pitch[relative_octave][pc] = midi_pitch
+
+        # Save structure, for easier reconstruction and manipulation
+        start_ind = 0
+        end_ind = self.number_octave
+        self.one_hot_structure = {'octave': (start_ind, end_ind)}
+        start_ind = end_ind
+        end_ind = start_ind + self.number_pitch_class
+        self.one_hot_structure['pitch_class'] = (start_ind, end_ind)
+        start_ind = end_ind
+        end_ind = start_ind
+        self.one_hot_structure['silence'] = (start_ind, end_ind)
+        self.one_hot_structure['encoding_size'] = end_ind + 1
+        return
+
     def make_tensor_dataset(self):
         """
         Implementation of the make_tensor_dataset abstract base class
         """
         print('Making tensor dataset')
 
+        self.compute_index_dicts()
+
         # one_tick = 1 / self.subdivision
-        # chorale_tensor_dataset = []
+        piano_tensor_dataset = []
+        orchestra_tensor_dataset = []
         # metadata_tensor_dataset = []
+
+        total_frames_counter = 0
+        missed_frames_counter = 0
 
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
             # Alignement
             corresponding_offsets = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
 
+            # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
+
+            pianoroll_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
+                                                 self.transpose_to_sounding_pitch)
+            pianoroll_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+                                                     self.simplify_instrumentation, self.transpose_to_sounding_pitch)
+
             # main loop
             for (offset_piano, offset_orchestra) in corresponding_offsets:
+                #################################################
+                # NO TRANSPOSITIONS ALLOWED FOR NOW
                 # Only consider orchestra to compute the possible transpositions
-                transp_minus, transp_plus = self.possible_transposition(arr_pair['Orchestra'], offset=offset_orchestra)
+                # BUT IF WE ALLOW THEM, WE SHOULD
+                # 1/ COMPUTE ALL TRANSPOSISITONS IN -3 +3 RANGE
+                #  2/ SELECT FRAMES WHERE IT'S POSSIBLE
+                # transp_minus, transp_plus = self.possible_transposition(arr_pair['Orchestra'], offset=offset_orchestra)
+                # for semi_tone in range(transp_minus, transp_plus + 1):
+                #################################################
 
-        #         for semi_tone in range(transp_minus, transp_plus + 1):
-        #             try:
-        #                 # get transposed tensor
-        #                 (piano_tensor,
-        #                  orchestra_tensor,
-        #                  metadata_tensor) = (
-        #                      self.transposed_score_and_metadata_tensors(
-        #                          arr_pair,
-        #                          semi_tone=semi_tone))
-        #
-        #                     piano_tensor = piano_transpositions[semi_tone]
-        #                     orchestra_tensor = orchestra_transpositions[semi_tone]
-        #                     metadata_tensor = metadatas_transpositions[semi_tone]
-        #
-        #                 local_piano_tensor = self.extract_piano_tensor(
-        #                     piano_tensor,
-        #                     frame_tick_piano)
-        #                 local_orchestra_tensor = self.extract_orchestra_tensor(
-        #                     orchestra_tensor,
-        #                     frame_tick_orchestra)
-        #
-        #                 local_metadata_tensor = self.extract_metadata_with_padding(
-        #                     metadata_tensor,
-        #                     frame_tick)
-        #
-        #                 # append and add batch dimension
-        #                 # cast to int
-        #                 chorale_tensor_dataset.append(
-        #                     local_chorale_tensor[None, :, :].int())
-        #                 metadata_tensor_dataset.append(
-        #                     local_metadata_tensor[None, :, :, :].int())
-        #
-        #             except KeyError:
-        #                 # some problems may occur with the key analyzer
-        #                 print(f'KeyError with chorale {chorale_id}')
-        #
-        # chorale_tensor_dataset = torch.cat(chorale_tensor_dataset, 0)
+                total_frames_counter += 1
+
+                #  Piano
+                assert (pianoroll_piano.keys() != 'Piano'), 'More than one instrument in the piano score'
+                piano_np = pianoroll_piano['Piano'][int(offset_piano * self.subdivision)]
+                # Squeeze to observed tessitura
+                piano_np_reduced = piano_np[
+                                   self.observed_piano_tessitura['lowest']:self.observed_piano_tessitura['highest'] + 1]
+                local_piano_tensor = torch.from_numpy(piano_np_reduced)
+
+                # Orchestra
+                orchestral_vector_shape = (self.number_parts, self.one_hot_structure["encoding_size"])
+                local_orchestra_tensor = pianoroll_to_orchestral_tensor(pianoroll_orchestra,
+                                                                        int(offset_orchestra * self.subdivision),
+                                                                        self.instrument2index,
+                                                                        self.midi_pitch2indices,
+                                                                        self.one_hot_structure,
+                                                                        orchestral_vector_shape)
+
+                if local_orchestra_tensor is None:
+                    missed_frames_counter += 1
+                    continue
+
+                # append and add batch dimension
+                # cast to int
+                piano_tensor_dataset.append(
+                    local_piano_tensor[None, :].int())
+                orchestra_tensor_dataset.append(
+                    local_orchestra_tensor[None, :, :].int())
+                # metadata_tensor_dataset.append(
+                #     local_metadata_tensor[None, :, :, :].int())
+
+        piano_tensor_dataset = torch.cat(piano_tensor_dataset, 0)
+        orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
         # metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
-        #
-        # dataset = TensorDataset(chorale_tensor_dataset,
-        #                         metadata_tensor_dataset)
-        #
-        # print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
-        # return dataset
+
+        #######################
+        # Check all vectors respect data format
+        num_batch, instru_dim, notes_dim = orchestra_tensor_dataset.shape
+        integrity_mask = torch.from_numpy(
+            np.asarray([1, ] * self.number_octave + [2, ] * self.number_pitch_class + [4, ])).int()
+        orchestra_tensor_dataset_reshaped = orchestra_tensor_dataset.view(num_batch * instru_dim, notes_dim)
+        checked_sum = (torch.mv(orchestra_tensor_dataset_reshaped, integrity_mask)).numpy()
+        #  Correct values are either
+        # 3: note played
+        # 7: silence
+        assert np.all((checked_sum == 3) + (checked_sum == 7)).astype(bool), print()
+        #######################
+
+        dataset = TensorDataset(piano_tensor_dataset,
+                                orchestra_tensor_dataset)
+        #                       metadata_tensor_dataset)
+
+        print(
+            # f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n {orchestra_tensor_dataset.size()}\n {metadata_tensor_dataset.size()}\n')
+            f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n {orchestra_tensor_dataset.size()}\n')
+        print(f'Missed frames ratio: {missed_frames_counter / total_frames_counter}')
+        return dataset
+
+    def get_score_tensor(self, scores, offsets):
+        return
 
     def transposed_score_and_metadata_tensors(self, score, semi_tone):
-        return None
+        return
 
     def get_metadata_tensor(self, score):
         return None
-
-    def get_score_tensor(self, score, offset, offsetEnd):
-        return None
-
-    # def part_to_tensor(self, part, part_id, offsetStart, offsetEnd):
-    #     """
-    #     :param part:
-    #     :param part_id:
-    #     :param offsetStart:
-    #     :param offsetEnd:
-    #     :return: torch IntTensor (1, length)
-    #     """
-    #     # TOUT REECRIRE EN UTILISANT PART_TO_LIST
-    #
-    #     list_notes_and_rests = list(part.flat.getElementsByOffset(
-    #         offsetStart=offsetStart,
-    #         offsetEnd=offsetEnd,
-    #         classList=[music21.note.Note,
-    #                    music21.note.Rest]))
-    #     list_note_strings_and_pitches = [(n.nameWithOctave, n.pitch.midi)
-    #                                      for n in list_notes_and_rests
-    #                                      if n.isNote]
-    #     length = int((offsetEnd - offsetStart) * self.subdivision)  # in ticks
-    #
-    #     # add entries to dictionaries if not present
-    #     # should only be called by make_dataset when transposing
-    #     note2index = self.note2index_dicts[part_id]
-    #     index2note = self.index2note_dicts[part_id]
-    #     voice_range = self.voice_ranges[part_id]
-    #     min_pitch, max_pitch = voice_range
-    #     for note_name, pitch in list_note_strings_and_pitches:
-    #         # if out of range
-    #         if pitch < min_pitch or pitch > max_pitch:
-    #             note_name = OUT_OF_RANGE
-    #
-    #         if note_name not in note2index:
-    #             new_index = len(note2index)
-    #             index2note.update({new_index: note_name})
-    #             note2index.update({note_name: new_index})
-    #             print('Warning: Entry ' + str(
-    #                 {new_index: note_name}) + ' added to dictionaries')
-    #
-    #     # construct sequence
-    #     j = 0
-    #     i = 0
-    #     t = np.zeros((length, 2))
-    #     is_articulated = True
-    #     num_notes = len(list_notes_and_rests)
-    #     while i < length:
-    #         if j < num_notes - 1:
-    #             if (list_notes_and_rests[j + 1].offset > i
-    #                     / self.subdivision + offsetStart):
-    #                 t[i, :] = [note2index[standard_name(list_notes_and_rests[j],
-    #                                                     voice_range=voice_range)],
-    #                            is_articulated]
-    #                 i += 1
-    #                 is_articulated = False
-    #             else:
-    #                 j += 1
-    #                 is_articulated = True
-    #         else:
-    #             t[i, :] = [note2index[standard_name(list_notes_and_rests[j],
-    #                                                 voice_range=voice_range)],
-    #                        is_articulated]
-    #             i += 1
-    #             is_articulated = False
-    #     seq = t[:, 0] * t[:, 1] + (1 - t[:, 1]) * note2index[SLUR_SYMBOL]
-    #     # todo padding
-    #     tensor = torch.from_numpy(seq).long()[None, :]
-    #     return tensor
-    #
-    # def get_score_dictList(score):
-    #     dictList = {}
-    #     for part_id, part in enumerate(score.parts):
-    #         instru_name = part.getInstrument().instrumentName
-    #         if instru_name in dictList.keys():
-    #             raise Exception('Instrument present two times in the mxml file')
-    #
-    #         orchestra_notes = part.getElementsByOffset(
-    #             offsetStart=part.lowestOffset,
-    #             offsetEnd=part.highestOffset,
-    #             classList=[music21.note.Note,
-    #                        music21.chord.Chord])
-    #
-    #         score_tensor[instru_name] = part_tensor
 
     def score_to_list_pc(self, score):
         # Need only the flatten orchestra for aligning
@@ -272,9 +320,9 @@ class ArrangementFrameDataset(MusicDataset, ABC):
             voice_lowest, voice_highest = voice_pitches
             # Get lowest/highest allowed transpositions
             down_interval = music21.interval.notesToChromatic(voice_lowest,
-                                                              self.tessitura[this_part_instrument_name][0])
+                                                              self.reference_tessitura[this_part_instrument_name][0])
             up_interval = music21.interval.notesToChromatic(voice_highest,
-                                                              self.tessitura[this_part_instrument_name][1])
+                                                            self.reference_tessitura[this_part_instrument_name][1])
             transp_minus = max(transp_minus, down_interval.semitones)
             transp_plus = min(transp_plus, up_interval.semitones)
 
@@ -292,8 +340,8 @@ class ArrangementFrameDataset(MusicDataset, ABC):
 
         """
         notes_and_chords = part.flat.getElementsByOffset(offset, mustBeginInSpan=False,
-                                                classList=[music21.note.Note,
-                                                           music21.chord.Chord])
+                                                         classList=[music21.note.Note,
+                                                                    music21.chord.Chord])
         # Get list of notes
         notes_list = [
             n.pitch if n.isNote else n.pitches
@@ -327,10 +375,102 @@ class ArrangementFrameDataset(MusicDataset, ABC):
         return None
 
     def empty_score_tensor(self, score_length):
+
         return None
 
     def random_score_tensor(self, score_length):
         return None
 
     def tensor_to_score(self, tensor_score):
-        return None
+
+        # First store everything in a dict, then each instrument will be a part in the final stream
+        score_dict = {}
+
+        for instrument_index in range(self.number_parts):
+
+            # Get instrument name
+            instrument_name = self.index2instrument[instrument_index]
+
+            # One hot vectors stacked
+            octave_indices = self.one_hot_structure["octave"]
+            pitch_class_indices = self.one_hot_structure["pitch_class"]
+            silence_indices = self.one_hot_structure["silence"]
+
+            #  Convert to
+            relative_octave = tensor_score[octave_indices[0]:octave_indices[1]]
+            pitch_class = tensor_score[pitch_class_indices[0]:pitch_class_indices[1]]
+            is_silence = tensor_score[silence_indices[0]]
+
+            if is_silence == 0:
+                # Sanity check before argmax
+                assert (relative_octave.max() == 1) and (relative_octave.sum() == 1)
+                assert (pitch_class.max() == 1) and (pitch_class.sum() == 1)
+                relative_octave = np.argmax(relative_octave)
+                pitch_class = np.argmax(pitch_class)
+                # A bit heavy but super safe
+                real_octave, _ = number_to_octave_pc(self.indices2midi_pitch[relative_octave][pitch_class])
+                if instrument_name not in score_dict.keys():
+                    score_dict[instrument_name] = []
+                score_dict[instrument_name].append((real_octave, pitch_class))
+
+        stream = music21.stream.Stream()
+        for (instrument_name, notes) in score_dict.items():
+            this_part = music21.stream.Part(id=instrument_name)
+            this_part.insert(music21.instrument.fromString(instrument_name))
+
+            list_notes = []
+            for real_octave, pitch_class in notes:
+                # Single note
+                this_note = music21.note.Note()
+                this_pitch = music21.pitch.Pitch()
+                this_pitch.octave = real_octave
+                this_pitch.pitchClass = pitch_class
+                this_note.pitch = this_pitch
+                list_notes.append(this_note)
+            this_chord = music21.chord.Chord(list_notes)
+            this_part.append(this_chord)
+            stream.append(this_part)
+
+        return stream
+
+
+if __name__ == '__main__':
+    # Read
+    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
+    corpus_it_gen = ArrangementIteratorGenerator(
+        arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+        subsets=[
+            # 'bouliane',
+            # 'imslp',
+            # 'liszt_classical_archives',
+            # 'hand_picked_Spotify',
+            'debug'
+        ],
+        num_elements=10
+    )
+
+    kwargs = {}
+    kwargs.update(
+        {'name': "arrangement_frame_test",
+         'corpus_it_gen': corpus_it_gen,
+         'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache'
+         })
+
+    dataset = ArrangementFrameDataset(**kwargs)
+    if os.path.exists(dataset.filepath):
+        print(f'Loading {dataset.__repr__()} from {dataset.filepath}')
+        dataset = torch.load(dataset.filepath)
+        print(f'(the corresponding TensorDataset is not loaded)')
+    else:
+        print(f'Creating {dataset.__repr__()}, '
+              f'both tensor dataset and parameters')
+        # initialize and force the computation of the tensor_dataset
+        # first remove the cached data if it exists
+        if os.path.exists(dataset.tensor_dataset_filepath):
+            os.remove(dataset.tensor_dataset_filepath)
+        # recompute dataset parameters and tensor_dataset
+        # this saves the tensor_dataset in dataset.tensor_dataset_filepath
+        tensor_dataset = dataset.tensor_dataset
+    
+    # Reconstruct
+    print("yo")

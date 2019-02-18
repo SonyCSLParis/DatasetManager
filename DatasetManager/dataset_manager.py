@@ -31,14 +31,14 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementFrameDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                # arrangement_path='/home/leo/databases/Orchestration/LOP_database_06_09_17',
-                arrangement_path='/home/leo/databases/Orchestration/LOP_database_mxml_clean',
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
                 subsets=[
                     # 'bouliane',
                     # 'imslp',
                     # 'liszt_classical_archives',
                     # 'hand_picked_Spotify',
-                    'debug'],
+                    'debug'
+                ],
                 num_elements=10
             )
         },
@@ -245,6 +245,7 @@ class DatasetManager:
              'cache_dir': self.cache_dir
              })
         dataset = dataset_class_name(**kwargs)
+        aaa = dataset.filepath
         if os.path.exists(dataset.filepath):
             print(f'Loading {dataset.__repr__()} from {dataset.filepath}')
             dataset = torch.load(dataset.filepath)
@@ -272,17 +273,17 @@ class DatasetManager:
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
-    # Arrangement
-    subdivision = 1
-    metadatas = [
-    ]
-
-    arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
-        name='arrangement_frame_test',
-        metadatas=metadatas,
-        subdivision=subdivision
-    )
-
+    # # Arrangement
+    # subdivision = 4
+    # metadatas = [
+    # ]
+    #
+    # arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
+    #     name='arrangement_frame_test',
+    #     metadatas=metadatas,
+    #     subdivision=subdivision
+    # )
+    #
     # (train_dataloader,
     #  val_dataloader,
     #  test_dataloader) = bach_chorales_dataset.data_loaders(
@@ -294,7 +295,6 @@ if __name__ == '__main__':
     # print('Num Test Batches: ', len(test_dataloader))
 
     # BACH
-    '''
     subdivision = 4
     metadatas = [
         TickMetadata(subdivision=subdivision),
@@ -318,23 +318,21 @@ if __name__ == '__main__':
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
-    '''
+
     # LSDB
-    '''
-    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb_test',
-        sequences_size=64,
-    )
-    (train_dataloader,
-     val_dataloader,
-     test_dataloader) = lsdb_dataset.data_loaders(
-        batch_size=128,
-        split=(0.85, 0.10)
-    )
-    print('Num Train Batches: ', len(train_dataloader))
-    print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
-    '''
+    # lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
+    #     name='lsdb_test',
+    #     sequences_size=64,
+    # )
+    # (train_dataloader,
+    #  val_dataloader,
+    #  test_dataloader) = lsdb_dataset.data_loaders(
+    #     batch_size=128,
+    #     split=(0.85, 0.10)
+    # )
+    # print('Num Train Batches: ', len(train_dataloader))
+    # print('Num Valid Batches: ', len(val_dataloader))
+    # print('Num Test Batches: ', len(test_dataloader))
 
     # Folk Dataset
     '''

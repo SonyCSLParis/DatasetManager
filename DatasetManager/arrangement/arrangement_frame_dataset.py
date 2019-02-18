@@ -472,5 +472,13 @@ if __name__ == '__main__':
         # this saves the tensor_dataset in dataset.tensor_dataset_filepath
         tensor_dataset = dataset.tensor_dataset
     
-    # Reconstruct
-    print("yo")
+    # Data loaders
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10),
+        DEBUG_BOOL_SHUFFLE=False
+    )
+
+    # Visualise a few examples

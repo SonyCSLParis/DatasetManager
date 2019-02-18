@@ -295,44 +295,44 @@ if __name__ == '__main__':
     # print('Num Test Batches: ', len(test_dataloader))
 
     # BACH
-    subdivision = 4
-    metadatas = [
-        TickMetadata(subdivision=subdivision),
-        FermataMetadata(),
-        KeyMetadata()
-    ]
-    
-    bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
-        name='bach_chorales_test',
-        voice_ids=[0, 1, 2, 3],
-        metadatas=metadatas,
-        sequences_size=8,
-        subdivision=subdivision
-    )
-    (train_dataloader,
-     val_dataloader,
-     test_dataloader) = bach_chorales_dataset.data_loaders(
-        batch_size=128,
-        split=(0.85, 0.10)
-    )
-    print('Num Train Batches: ', len(train_dataloader))
-    print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
-
-    # LSDB
-    # lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-    #     name='lsdb_test',
-    #     sequences_size=64,
+    # subdivision = 4
+    # metadatas = [
+    #     TickMetadata(subdivision=subdivision),
+    #     FermataMetadata(),
+    #     KeyMetadata()
+    # ]
+    #
+    # bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
+    #     name='bach_chorales_test',
+    #     voice_ids=[0, 1, 2, 3],
+    #     metadatas=metadatas,
+    #     sequences_size=8,
+    #     subdivision=subdivision
     # )
     # (train_dataloader,
     #  val_dataloader,
-    #  test_dataloader) = lsdb_dataset.data_loaders(
+    #  test_dataloader) = bach_chorales_dataset.data_loaders(
     #     batch_size=128,
     #     split=(0.85, 0.10)
     # )
     # print('Num Train Batches: ', len(train_dataloader))
     # print('Num Valid Batches: ', len(val_dataloader))
     # print('Num Test Batches: ', len(test_dataloader))
+
+    # LSDB
+    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
+        name='lsdb_test',
+        sequences_size=64,
+    )
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = lsdb_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
 
     # Folk Dataset
     '''

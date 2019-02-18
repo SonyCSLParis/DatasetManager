@@ -18,7 +18,7 @@ from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
 from arrangement.arrangement_helper import note_to_midiPitch, score_to_pianoroll, pianoroll_to_orchestral_tensor, \
-    midiPitch_to_octave_pc, midiPitch_to_note, octave_pc_to_midiPitch
+    midiPitch_to_octave_pc
 
 
 class ArrangementFrameDataset(MusicDataset):
@@ -491,19 +491,10 @@ if __name__ == '__main__':
          })
 
     dataset = ArrangementFrameDataset(**kwargs)
-    # if os.path.exists(dataset.filepath):
-    #     print(f'Loading {dataset.__repr__()} from {dataset.filepath}')
-    #     dataset = torch.load(dataset.filepath)
-    #     print(f'(the corresponding TensorDataset is not loaded)')
-    # else:
     print(f'Creating {dataset.__repr__()}, '
           f'both tensor dataset and parameters')
-    # initialize and force the computation of the tensor_dataset
-    # first remove the cached data if it exists
     if os.path.exists(dataset.tensor_dataset_filepath):
         os.remove(dataset.tensor_dataset_filepath)
-    # recompute dataset parameters and tensor_dataset
-    # this saves the tensor_dataset in dataset.tensor_dataset_filepath
     tensor_dataset = dataset.tensor_dataset
 
     # Data loaders

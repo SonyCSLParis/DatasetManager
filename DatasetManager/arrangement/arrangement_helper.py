@@ -18,12 +18,6 @@ def note_to_midiPitch(note):
     return octave * 12 + pc
 
 
-def midiPitch_to_note(number):
-    # Single note
-    note = music21.note.Note(number-12)
-    return note
-
-
 def midiPitch_to_octave_pc(number):
     """
     number to pc octave decomposition
@@ -33,10 +27,6 @@ def midiPitch_to_octave_pc(number):
     octave = number // 12
     pitch_class = number % 12
     return octave, pitch_class
-
-
-def octave_pc_to_midiPitch(octave, pc):
-    return octave*12 + pc
 
 
 def pianoroll_to_orchestral_tensor(pianoroll, offset, instrument2index, midi_pitch2indices, one_hot_structure, tensor_shape):

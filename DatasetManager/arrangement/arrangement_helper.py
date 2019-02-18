@@ -6,7 +6,7 @@ import re
 import music21
 
 
-def note_to_number(note):
+def note_to_midiPitch(note):
     """
     music21 note to number
     :param note:
@@ -18,7 +18,13 @@ def note_to_number(note):
     return octave * 12 + pc
 
 
-def number_to_octave_pc(number):
+def midiPitch_to_note(number):
+    # Single note
+    note = music21.note.Note(number-12)
+    return note
+
+
+def midiPitch_to_octave_pc(number):
     """
     number to pc octave decomposition
     :param note:
@@ -27,6 +33,10 @@ def number_to_octave_pc(number):
     octave = number // 12
     pitch_class = number % 12
     return octave, pitch_class
+
+
+def octave_pc_to_midiPitch(octave, pc):
+    return octave*12 + pc
 
 
 def pianoroll_to_orchestral_tensor(pianoroll, offset, instrument2index, midi_pitch2indices, one_hot_structure, tensor_shape):
@@ -95,7 +105,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
             note_velocity = note.volume.velocity
             if note_velocity is None:
                 note_velocity = 128
-            note_pitch = note_to_number(note)
+            note_pitch = note_to_midiPitch(note)
             pr[note_start:note_end, note_pitch] = note_velocity
 
         for element in elements_iterator:

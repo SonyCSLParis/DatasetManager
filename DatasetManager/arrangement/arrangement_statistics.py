@@ -1,6 +1,6 @@
 import copy
 import csv
-from arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_number, separate_instruments_names
+from arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, separate_instruments_names
 import music21
 import numpy as np
 import json
@@ -39,7 +39,7 @@ class ComputeStatistics:
         # Get reference tessitura for comparing when plotting
         with open('reference_tessitura.json') as ff:
             reference_tessitura = json.load(ff)
-        reference_tessitura = {k: (note_to_number(music21.note.Note(v[0])), note_to_number(music21.note.Note(v[1]))) for
+        reference_tessitura = {k: (note_to_midiPitch(music21.note.Note(v[0])), note_to_midiPitch(music21.note.Note(v[1]))) for
                                k, v in reference_tessitura.items()}
 
         stats = []

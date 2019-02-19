@@ -29,42 +29,6 @@ def midiPitch_to_octave_pc(number):
     return octave, pitch_class
 
 
-def pianoroll_to_orchestral_tensor(pianoroll, offset, instrument2index, midi_pitch2indices, one_hot_structure, tensor_shape):
-    orchestra_np = np.zeros(tensor_shape)
-    for instrument_name, indices_instruments in instrument2index.items():
-        number_of_parts = len(indices_instruments)
-        if instrument_name not in pianoroll:
-            notes_played = []
-        else:
-            notes_played = list(np.where(pianoroll[instrument_name][offset])[0])
-        if len(notes_played) > number_of_parts:
-            return None
-        # Pad with -1
-        notes_played.extend([-1] * (number_of_parts - len(notes_played)))
-        for this_note, this_instrument_index in zip(notes_played, indices_instruments):
-            if this_note != -1:
-                one_hot_ind_0, one_hot_ind_1 = midi_pitch2indices[this_note]
-                orchestra_np[this_instrument_index, one_hot_ind_0] = 1
-                orchestra_np[this_instrument_index, one_hot_ind_1] = 1
-            else:
-                # Convention: silence is represented as octave=0 pc=0 and silence=1
-                orchestra_np[this_instrument_index, one_hot_structure['octave'][0]] = 1
-                orchestra_np[this_instrument_index, one_hot_structure['pitch_class'][0]] = 1
-                # This is the real information
-                orchestra_np[this_instrument_index, one_hot_structure['silence'][0]] = 1
-
-            integrity_mask = np.zeros((one_hot_structure['encoding_size']))
-            integrity_mask[one_hot_structure["octave"][0]:one_hot_structure["octave"][1]] = 1
-            integrity_mask[one_hot_structure["pitch_class"][0]:one_hot_structure["pitch_class"][1]] = 2
-            integrity_mask[one_hot_structure["silence"][0]:one_hot_structure["silence"][1]] = 4
-            check = np.dot(orchestra_np[this_instrument_index], integrity_mask)
-            if not (check == 3 or check == 7):
-                return None
-
-    orchestra_tensor = torch.from_numpy(orchestra_np)
-    return orchestra_tensor
-
-
 def orchestral_tensor_to_pianoroll(tensor):
     #  A ECRIRE
     # Dict containing pianoroll frame for each instrument

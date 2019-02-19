@@ -6,9 +6,8 @@ import re
 import shutil
 
 import torch
-from abc import ABC
-
-from arrangement.instrumentation import get_instrumentation
+import matplotlib.pyplot as plt
+from DatasetManager.arrangement.instrumentation import get_instrumentation
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
@@ -17,7 +16,7 @@ import numpy as np
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
-from arrangement.arrangement_helper import note_to_midiPitch, score_to_pianoroll, pianoroll_to_orchestral_tensor, \
+from DatasetManager.arrangement.arrangement_helper import note_to_midiPitch, score_to_pianoroll, pianoroll_to_orchestral_tensor, \
     midiPitch_to_octave_pc
 
 
@@ -30,7 +29,6 @@ class ArrangementFrameDataset(MusicDataset):
     def __init__(self,
                  corpus_it_gen,
                  name,
-                 metadatas=[],
                  subdivision=4,
                  transpose_to_sounding_pitch=True,
                  reference_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/reference_tessitura.json',
@@ -48,7 +46,6 @@ class ArrangementFrameDataset(MusicDataset):
         super(ArrangementFrameDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
-        self.metadatas = metadatas
         self.subdivision = subdivision  # We use only on beats notes so far
 
         # Reference tessitura for each instrument
@@ -94,7 +91,6 @@ class ArrangementFrameDataset(MusicDataset):
     def __repr__(self):
         return f'ArrangementFrameDataset(' \
             f'{self.name},' \
-            f'{[metadata.name for metadata in self.metadatas]},' \
             f'{self.subdivision})'
 
     def iterator_gen(self):
@@ -169,10 +165,13 @@ class ArrangementFrameDataset(MusicDataset):
         total_frames_counter = 0
         missed_frames_counter = 0
 
+        scores = []
+
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
             # Alignement
-            corresponding_offsets = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+            corresponding_offsets, this_scores = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+            scores.extend(this_scores)
 
             # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
             pianoroll_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
@@ -228,6 +227,29 @@ class ArrangementFrameDataset(MusicDataset):
         orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
         # metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
 
+        # Store NW statistics
+        mean_score = np.mean(scores)
+        variance_score = np.var(scores)
+        max_score = np.max(scores)
+        min_score = np.min(scores)
+        nw_statistics_folder = f"{os.getcwd()}/statistics/nw"
+        if os.path.isdir(nw_statistics_folder):
+            shutil.rmtree(nw_statistics_folder)
+        os.makedirs(nw_statistics_folder)
+        with open(f"{nw_statistics_folder}/scores.txt", "w") as ff:
+            ff.write(f"Mean score: {mean_score}\n")
+            ff.write(f"Variance score: {variance_score}\n")
+            ff.write(f"Max score: {max_score}\n")
+            ff.write(f"Min score: {min_score}\n")
+            for elem in scores:
+                ff.write(f"{elem}\n")
+        # Histogram
+        n, bins, patches = plt.hist(scores, 50)
+        plt.xlabel('Score')
+        plt.ylabel('Frequency')
+        plt.title('Histogram NW scores')
+        plt.savefig(f'{nw_statistics_folder}/histogram_score.pdf')
+
         #######################
         # Check all vectors respect data format
         num_batch, instru_dim, notes_dim = orchestra_tensor_dataset.shape
@@ -248,7 +270,7 @@ class ArrangementFrameDataset(MusicDataset):
         print(
             # f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n {orchestra_tensor_dataset.size()}\n {metadata_tensor_dataset.size()}\n')
             f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n {orchestra_tensor_dataset.size()}\n')
-        print(f'Missed frames ratio: {missed_frames_counter / total_frames_counter}')
+        print(f'Missed frames:\n {missed_frames_counter} \n {missed_frames_counter / total_frames_counter}')
         return dataset
 
     def get_score_tensor(self, scores, offsets):
@@ -262,29 +284,32 @@ class ArrangementFrameDataset(MusicDataset):
 
     def score_to_list_pc(self, score):
         # Need only the flatten orchestra for aligning
-        score_flat = score.flat
-        # Useful for avoiding zeros at the start/end of file?
-        start_offset = score_flat.lowestOffset
-        end_offset = score_flat.highestOffset
-        # Take only notes on beat
-        frames = [(off, [pc.pitch.pitchClass if pc.isNote else pc.pitchClasses
-                         for pc in score_flat.getElementsByOffset(off, mustBeginInSpan=False,
-                                                                  classList=[music21.note.Note,
-                                                                             music21.chord.Chord]).notes])
-                  for off in np.arange(start_offset, end_offset + 1, 1 / self.subdivision)
-                  ]
-        # Flatten and remove silence frames
-        list_pc = []
-        for (off, elem) in frames:
-            elem_flat = []
-            for e in elem:
-                if type(e) == list:
-                    elem_flat.extend(e)
-                else:
-                    elem_flat.append(e)
-            if len(elem_flat) > 0:
-                list_pc.append((off, set(elem_flat)))
+        sounding_pitch_score = score.toSoundingPitch()
+        score_flat = sounding_pitch_score.flat
+        notes_and_chords = score_flat.notes
 
+        list_pc = []
+        current_offset = 0
+        current_set_pc = set()
+
+        for elem in notes_and_chords:
+            offset = elem.offset
+            assert (offset >= current_offset), "Elements are not sorted by increasing time ?"
+            # Don't consider elements which are not on a subdivision of the beat
+            if abs((offset * self.subdivision) - int(offset * self.subdivision)) > 0.01:
+                continue
+
+            if offset > current_offset:
+                # Write in list_pc and move to next
+                if len(current_set_pc) > 0:  # Check on length is only for the first iteration
+                    list_pc.append((current_offset, current_set_pc))
+                current_set_pc = set()
+                current_offset = offset
+
+            if elem.isNote:
+                current_set_pc.add(elem.pitch.pitchClass)
+            else:
+                current_set_pc = current_set_pc.union(set(elem.pitchClasses))
         return list_pc
 
     def align_score(self, piano_score, orchestra_score):
@@ -294,14 +319,50 @@ class ArrangementFrameDataset(MusicDataset):
         only_pc_piano = [e[1] for e in list_pc_piano]
         only_pc_orchestra = [e[1] for e in list_pc_orchestra]
 
-        print("aligning...")
-        corresponding_indices = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3, gapExtend=-1)
-        print("aligned")
+        corresponding_indices, score_matrix = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3, gapExtend=-1)
 
         corresponding_offsets = [(list_pc_piano[ind_piano][0], list_pc_orchestra[ind_orchestra][0])
                                  for ind_piano, ind_orchestra in corresponding_indices]
 
-        return corresponding_offsets
+        return corresponding_offsets, score_matrix
+
+
+    # def align_score_by_patch(self, piano_score, orchestra_score, patch_size_QL):
+    #     # Compute tracks dimensions
+    #     start_offset_piano = piano_score.flat.lowestOffset
+    #     end_offset_piano = piano_score.flat.highestOffset
+    #     start_offset_orchestra= orchestra_score.flat.lowestOffset
+    #     end_offset_orchestra = orchestra_score.flat.highestOffset
+    #
+    #     subpatch_piano_start = start_offset_piano
+    #     subpatch_orchestra_start = start_offset_orchestra
+    #
+    #     alignement_terminated = False
+    #     while(not alignement_terminated):
+    #         # Extract subpatch
+    #         subpatch_piano_end = start_offset_piano + patch_size_QL
+    #         subpatch_orchestra_end = start_offset_orchestra + patch_size_QL
+    #
+    #         subpatch_piano =
+    #
+    #
+    #         list_pc_piano = self.score_to_list_pc(piano_score)
+    #         list_pc_orchestra = self.score_to_list_pc(orchestra_score)
+    #
+    #         only_pc_piano = [e[1] for e in list_pc_piano]
+    #         only_pc_orchestra = [e[1] for e in list_pc_orchestra]
+    #
+    #         corresponding_indices, score_matrix = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3, gapExtend=-1)
+    #
+    #         corresponding_offsets = [(list_pc_piano[ind_piano][0]+subpatch_piano_start, list_pc_orchestra[ind_orchestra][0]+subpatch_orchestra_start)
+    #                                  for ind_piano, ind_orchestra in corresponding_indices]
+    #
+    #         # Get last corresponding offsets to define next subpatch
+    #         subpatch_piano_start = corresponding_offsets[-1][0]
+    #         subpatch_orchestra_start = corresponding_offsets[-1][1]
+    #
+    #     return corresponding_offsets, score_matrix
+
 
     def possible_transposition(self, arr_orch, offset):
         """
@@ -390,15 +451,20 @@ class ArrangementFrameDataset(MusicDataset):
         piano_vector = tensor_score.numpy()
         piano_notes = np.where(piano_vector > 0)
         note_list = []
+
+        this_part = music21.stream.Part(id='Piano')
+        music21_instrument = music21.instrument.fromString('Piano')
+        this_part.insert(music21_instrument)
+
         for piano_note in piano_notes[0]:
             pitch = self.piano_tessitura['lowest_pitch'] + piano_note
             velocity = piano_vector[piano_note]
-            duration = 1.0
             f = music21.note.Note(pitch)
             f.volume.velocity = velocity
             note_list.append(f)
         chord = music21.chord.Chord(note_list)
-        return chord
+        this_part.append(chord)
+        return this_part
 
     def orchestra_tensor_to_score(self, tensor_score):
 
@@ -487,7 +553,9 @@ if __name__ == '__main__':
     kwargs.update(
         {'name': "arrangement_frame_test",
          'corpus_it_gen': corpus_it_gen,
-         'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache'
+         'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
+         'subdivision': 1,
+         'transpose_to_sounding_pitch': True
          })
 
     dataset = ArrangementFrameDataset(**kwargs)
@@ -503,7 +571,7 @@ if __name__ == '__main__':
      test_dataloader) = dataset.data_loaders(
         batch_size=16,
         split=(0.85, 0.10),
-        DEBUG_BOOL_SHUFFLE=False
+        DEBUG_BOOL_SHUFFLE=True
     )
 
     # Visualise a few examples

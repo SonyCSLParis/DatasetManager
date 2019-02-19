@@ -26,6 +26,8 @@ from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGen
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
 
+
+
 all_datasets = {
     'arrangement_frame_test':
         {
@@ -33,13 +35,20 @@ all_datasets = {
             'corpus_it_gen':      ArrangementIteratorGenerator(
                 arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
                 subsets=[
-                    # 'bouliane',
-                    # 'imslp',
-                    # 'liszt_classical_archives',
-                    # 'hand_picked_Spotify',
                     'debug'
                 ],
-                num_elements=10
+                num_elements=None,
+            )
+        },
+    'arrangement_frame':
+        {
+            'dataset_class_name': ArrangementFrameDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                subsets=[
+                    'liszt_classical_archives',
+                ],
+                num_elements=None,
             )
         },
     'bach_chorales':
@@ -203,8 +212,6 @@ all_datasets = {
             )
         }
 }
-
-
 class DatasetManager:
     def __init__(self):
         self.package_dir = os.path.dirname(os.path.realpath(__file__))
@@ -273,26 +280,25 @@ class DatasetManager:
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
-    # # Arrangement
-    # subdivision = 4
-    # metadatas = [
-    # ]
-    #
-    # arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
-    #     name='arrangement_frame_test',
-    #     metadatas=metadatas,
-    #     subdivision=subdivision
-    # )
-    #
-    # (train_dataloader,
-    #  val_dataloader,
-    #  test_dataloader) = bach_chorales_dataset.data_loaders(
-    #     batch_size=128,
-    #     split=(0.85, 0.10)
-    # )
-    # print('Num Train Batches: ', len(train_dataloader))
-    # print('Num Valid Batches: ', len(val_dataloader))
-    # print('Num Test Batches: ', len(test_dataloader))
+    # Arrangement
+    subdivision = 2
+    metadatas = []
+
+    arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
+        name='arrangement_frame',
+        transpose_to_sounding_pitch=True,
+        subdivision=subdivision
+    )
+
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = arrangement_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
 
     # BACH
     # subdivision = 4
@@ -320,19 +326,19 @@ if __name__ == '__main__':
     # print('Num Test Batches: ', len(test_dataloader))
 
     # LSDB
-    lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb_test',
-        sequences_size=64,
-    )
-    (train_dataloader,
-     val_dataloader,
-     test_dataloader) = lsdb_dataset.data_loaders(
-        batch_size=128,
-        split=(0.85, 0.10)
-    )
-    print('Num Train Batches: ', len(train_dataloader))
-    print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
+    # lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
+    #     name='lsdb_test',
+    #     sequences_size=64,
+    # )
+    # (train_dataloader,
+    #  val_dataloader,
+    #  test_dataloader) = lsdb_dataset.data_loaders(
+    #     batch_size=128,
+    #     split=(0.85, 0.10)
+    # )
+    # print('Num Train Batches: ', len(train_dataloader))
+    # print('Num Valid Batches: ', len(val_dataloader))
+    # print('Num Test Batches: ', len(test_dataloader))
 
     # Folk Dataset
     '''

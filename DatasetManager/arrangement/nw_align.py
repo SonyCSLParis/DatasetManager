@@ -17,7 +17,7 @@ def score_function(A, B):
     posTerm = len(AandB)
     negTerm = len(AorB - AandB)
     score = (posTerm - negTerm) / denominator
-    return score
+    return 3*score
 
 
 def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
@@ -52,6 +52,8 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
     score[0, 1:] = gapExtend * np.arange(max_j)
     score[1:, 0] = gapExtend * np.arange(max_i)
 
+    termScores = []
+
     for i in range(1, max_i + 1):
         ci = seqi[i - 1]
 
@@ -63,6 +65,7 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             cj = seqj[j - 1]
 
             termScore = score_function(ci, cj)
+            termScores.append(termScore)
             diag_score = score[i - 1, j - 1] + termScore
 
             if pointer[i - 1, j] == UP:
@@ -123,4 +126,4 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             raise Exception('wtf!')
 
     # return (align_j[::-1], align_i[::-1]), (skip_j[::-1], skip_i[::-1])
-    return pairs[::-1]
+    return pairs[::-1], termScores

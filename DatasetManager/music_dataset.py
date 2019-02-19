@@ -170,7 +170,7 @@ class MusicDataset(ABC):
             self.__repr__()
         )
 
-    def data_loaders(self, batch_size, split=(0.85, 0.10)):
+    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -191,7 +191,7 @@ class MusicDataset(ABC):
         train_dl = DataLoader(
             train_dataset,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=DEBUG_BOOL_SHUFFLE,
             num_workers=4,
             pin_memory=True,
             drop_last=True,

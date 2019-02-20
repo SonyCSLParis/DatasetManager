@@ -1,3 +1,5 @@
+import shutil
+
 import torch
 import numpy as np
 import os
@@ -70,6 +72,12 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
                     add_note_to_pianoroll(note, note_start, note_end, this_pr)
             else:
                 add_note_to_pianoroll(element, note_start, note_end, this_pr)
+
+        # Sometimes, typically for truncated files or when thick subdivisions are used
+        # We might end up with instrument pr only files with zeros.
+        # We ignore them
+        if this_pr.sum() == 0:
+            continue
 
         # Instrument name
         instrument_names = separate_instruments_names(simplify_instrumentation[part.partName])

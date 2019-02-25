@@ -49,13 +49,13 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
     end_offset = 1 + int(score.flat.highestOffset)
     # Output
     pianoroll = dict()
-
+    number_frames = (end_offset - start_offset) * subdivision
     for part in score_soundingPitch.parts:
         # Parse file
         elements_iterator = part.flat.getElementsByOffset(start_offset, end_offset,
                                                           classList=[music21.note.Note,
                                                                      music21.chord.Chord])
-        this_pr = np.zeros(((end_offset - start_offset) * subdivision, 128))
+        this_pr = np.zeros((number_frames, 128))
 
         def add_note_to_pianoroll(note, note_start, note_end, pr):
             note_velocity = note.volume.velocity
@@ -87,7 +87,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
             else:
                 pianoroll[instrument_name] = this_pr
 
-    return pianoroll
+    return pianoroll, number_frames
 
 
 def pianoroll_to_score(pianoroll):

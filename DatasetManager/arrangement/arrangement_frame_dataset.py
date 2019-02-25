@@ -6,12 +6,15 @@ import re
 import shutil
 
 import torch
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
 import numpy as np
+from DatasetManager.helpers import START_SYMBOL, END_SYMBOL
 
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
@@ -29,8 +32,8 @@ class ArrangementFrameDataset(MusicDataset):
     def __init__(self,
                  corpus_it_gen,
                  name,
-                 subdivision=4,
-                 transpose_to_sounding_pitch=False,
+                 subdivision=2,
+                 transpose_to_sounding_pitch=True,
                  reference_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/reference_tessitura.json',
                  simplify_instrumentation_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/simplify_instrumentation.json',
                  cache_dir=None):
@@ -68,7 +71,6 @@ class ArrangementFrameDataset(MusicDataset):
         self.instrument2index = {}
         self.index2midi_pitch = {}
         self.midi_pitch2index = {}
-
         return
 
     def __repr__(self):
@@ -90,12 +92,12 @@ class ArrangementFrameDataset(MusicDataset):
         # First pass over the database to create the mapping pitch <-> index for each instrument
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
             # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-            pianoroll_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
+            pianoroll_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
                                                  self.transpose_to_sounding_pitch)
             pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
             set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(pitch_set_this_track)
 
-            pianoroll_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+            pianoroll_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                      self.simplify_instrumentation, self.transpose_to_sounding_pitch)
             for instrument_name in pianoroll_orchestra:
                 if instrument_name not in set_midiPitch_per_instrument.keys():
@@ -124,7 +126,11 @@ class ArrangementFrameDataset(MusicDataset):
         self.piano_tessitura['highest_pitch'] = max(list(set_midiPitch_per_instrument['Piano']))
 
         # Mapping instruments <-> indices
-        index_counter = 0
+        self.instrument2index[START_SYMBOL] = [0]
+        self.index2instrument[0] = START_SYMBOL
+
+        index_counter = 1
+
         for instrument_name, number_instruments in self.instrumentation.items():
             # Check if instrument appears in the dataset
             if instrument_name not in midi_pitch2index_per_instrument.keys():
@@ -133,14 +139,25 @@ class ArrangementFrameDataset(MusicDataset):
             for ind in range(index_counter, index_counter + number_instruments):
                 self.index2instrument[ind] = instrument_name
             index_counter += number_instruments
+        self.instrument2index[END_SYMBOL] = [index_counter]
+        self.index2instrument[index_counter] = END_SYMBOL
+        index_counter += 1
 
         # Mapping pitch <-> index per voice (that's the one we'll use, easier to manipulate when training)
         for instrument_name, instrument_indices in self.instrument2index.items():
             for instrument_index in instrument_indices:
-                self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
-                self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
+                if instrument_name in [START_SYMBOL, END_SYMBOL]:
+                    # No padding useful here, we know our sequence length beforehand
+                    # START and END symbols make it easier to fit standard transofrmers frameworks
+                    self.midi_pitch2index[instrument_index] = {0: 0}
+                    self.index2midi_pitch[instrument_index] = {0: 0}
+                else:
+                    self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
+                    self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
 
         self.number_parts = len(self.midi_pitch2index)
+        self.number_pitch_piano = self.piano_tessitura['highest_pitch'] - self.piano_tessitura['lowest_pitch'] + 1
+
         return
 
     def make_tensor_dataset(self):
@@ -163,15 +180,19 @@ class ArrangementFrameDataset(MusicDataset):
 
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
+            # Get pianorolls
+            pianoroll_piano, num_frames_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
+                                                 self.transpose_to_sounding_pitch)
+            pianoroll_orchestra, num_frames_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+                                                     self.simplify_instrumentation, self.transpose_to_sounding_pitch)
+
+            # Align
+            corresponding_offsets, this_scores = self.align_score(pianoroll_piano, num_frames_piano, pianoroll_orchestra, num_frames_orchestra)
             # Alignement
-            corresponding_offsets, this_scores = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+            # corresponding_offsets, this_scores = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
             scores.extend(this_scores)
 
-            # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-            pianoroll_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
-                                                 self.transpose_to_sounding_pitch)
-            pianoroll_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
-                                                     self.simplify_instrumentation, self.transpose_to_sounding_pitch)
+
 
             # main loop
             for (offset_piano, offset_orchestra) in corresponding_offsets:
@@ -260,39 +281,53 @@ class ArrangementFrameDataset(MusicDataset):
     def get_metadata_tensor(self, score):
         return None
 
-    def score_to_list_pc(self, score):
-        # Need only the flatten orchestra for aligning
-        sounding_pitch_score = score.toSoundingPitch()
-        score_flat = sounding_pitch_score.flat
-        notes_and_chords = score_flat.notes
+    # def score_to_list_pc(self, score):
+    #     # Need only the flatten orchestra for aligning
+    #     sounding_pitch_score = score.toSoundingPitch()
+    #     score_flat = sounding_pitch_score.flat
+    #     notes_and_chords = score_flat.notes
+    #
+    #     list_pc = []
+    #     current_offset = 0
+    #     current_set_pc = set()
+    #
+    #     for elem in notes_and_chords:
+    #         offset = elem.offset
+    #         assert (offset >= current_offset), "Elements are not sorted by increasing time ?"
+    #         # Don't consider elements which are not on a subdivision of the beat
+    #         if abs((offset * self.subdivision) - int(offset * self.subdivision)) > 0.01:
+    #             continue
+    #
+    #         if offset > current_offset:
+    #             # Write in list_pc and move to next
+    #             if len(current_set_pc) > 0:  # Check on length is only for the first iteration
+    #                 list_pc.append((current_offset, current_set_pc))
+    #             current_set_pc = set()
+    #             current_offset = offset
+    #
+    #         if elem.isNote:
+    #             current_set_pc.add(elem.pitch.pitchClass)
+    #         else:
+    #             current_set_pc = current_set_pc.union(set(elem.pitchClasses))
+    #     return list_pc
 
-        list_pc = []
-        current_offset = 0
-        current_set_pc = set()
+    # def align_score(self, piano_score, orchestra_score):
+    #     list_pc_piano = self.score_to_list_pc(piano_score)
+    #     list_pc_orchestra = self.score_to_list_pc(orchestra_score)
+    #
+    #     only_pc_piano = [e[1] for e in list_pc_piano]
+    #     only_pc_orchestra = [e[1] for e in list_pc_orchestra]
+    #
+    #     corresponding_indices, score_matrix = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3, gapExtend=-1)
+    #
+    #     corresponding_offsets = [(list_pc_piano[ind_piano][0], list_pc_orchestra[ind_orchestra][0])
+    #                              for ind_piano, ind_orchestra in corresponding_indices]
+    #
+    #     return corresponding_offsets, score_matrix
 
-        for elem in notes_and_chords:
-            offset = elem.offset
-            assert (offset >= current_offset), "Elements are not sorted by increasing time ?"
-            # Don't consider elements which are not on a subdivision of the beat
-            if abs((offset * self.subdivision) - int(offset * self.subdivision)) > 0.01:
-                continue
-
-            if offset > current_offset:
-                # Write in list_pc and move to next
-                if len(current_set_pc) > 0:  # Check on length is only for the first iteration
-                    list_pc.append((current_offset, current_set_pc))
-                current_set_pc = set()
-                current_offset = offset
-
-            if elem.isNote:
-                current_set_pc.add(elem.pitch.pitchClass)
-            else:
-                current_set_pc = current_set_pc.union(set(elem.pitchClasses))
-        return list_pc
-
-    def align_score(self, piano_score, orchestra_score):
-        list_pc_piano = self.score_to_list_pc(piano_score)
-        list_pc_orchestra = self.score_to_list_pc(orchestra_score)
+    def align_score(self, piano_pianoroll, num_frames_piano, orchestra_pianoroll, num_frames_orchestra):
+        list_pc_piano = self.pr_to_list_pc(piano_pianoroll, num_frames_piano)
+        list_pc_orchestra = self.pr_to_list_pc(orchestra_pianoroll, num_frames_orchestra)
 
         only_pc_piano = [e[1] for e in list_pc_piano]
         only_pc_orchestra = [e[1] for e in list_pc_orchestra]
@@ -303,6 +338,21 @@ class ArrangementFrameDataset(MusicDataset):
                                  for ind_piano, ind_orchestra in corresponding_indices]
 
         return corresponding_offsets, score_matrix
+
+    def pr_to_list_pc(self, pianoroll, num_frames):
+        pc_list = []
+        for frame_ind in range(num_frames):
+            pc_set_frame = set()
+            for instrument_name, pr in pianoroll.items():
+                notes = np.where(pr[frame_ind] > 0)[0]
+                for note in notes:
+                    pc = midiPitch_to_octave_pc(note)[1]
+                    pc_set_frame.add(pc)
+
+            if len(pc_set_frame) > 0:
+                offset = (frame_ind / self.subdivision)
+                pc_list.append((offset, pc_set_frame))
+        return pc_list
 
     def possible_transposition(self, arr_orch, offset):
         """
@@ -381,6 +431,10 @@ class ArrangementFrameDataset(MusicDataset):
         orchestra_np = np.zeros((n_instruments))
         frame_index = int(offset * self.subdivision)
         for instrument_name, indices_instruments in self.instrument2index.items():
+            if instrument_name in [START_SYMBOL, END_SYMBOL]:
+                # Empty markers for Start and End
+                orchestra_np[indices_instruments[0]] = 0
+                continue
             number_of_parts = len(indices_instruments)
             if instrument_name not in pianoroll:
                 notes_played = []
@@ -445,6 +499,8 @@ class ArrangementFrameDataset(MusicDataset):
         for instrument_index in range(self.number_parts):
             # Get instrument name
             instrument_name = self.index2instrument[instrument_index]
+            if instrument_name in [START_SYMBOL, END_SYMBOL]:
+                continue
             if instrument_name not in score_dict:
                 score_dict[instrument_name] = {}
             for time in range(len(orchestra_matrix)):
@@ -494,11 +550,15 @@ class ArrangementFrameDataset(MusicDataset):
         if writing_dir is None:
             writing_dir = f"{os.getcwd()}/dump"
 
-        piano_stream = self.piano_tensor_to_score(piano_batch)
+        piano_part = self.piano_tensor_to_score(piano_batch)
         orchestra_stream = self.orchestra_tensor_to_score(orchestra_batch)
 
-        piano_stream.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
+
+        piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')
+        # Both in the same score
+        orchestra_stream.append(piano_part)
+        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.xml", fmt='musicxml')
 
 if __name__ == '__main__':
     #  Read
@@ -509,9 +569,9 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            'liszt_classical_archives',
+            # 'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            # 'debug'
+            'debug'
         ],
         num_elements=None
     )
@@ -536,9 +596,9 @@ if __name__ == '__main__':
     (train_dataloader,
      val_dataloader,
      test_dataloader) = dataset.data_loaders(
-        batch_size=64,
+        batch_size=16,
         split=(0.85, 0.10),
-        DEBUG_BOOL_SHUFFLE=True
+        DEBUG_BOOL_SHUFFLE=False
     )
 
     # Visualise a few examples

@@ -4,6 +4,8 @@ from arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to
 import music21
 import numpy as np
 import json
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 

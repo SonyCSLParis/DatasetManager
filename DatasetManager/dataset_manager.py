@@ -281,7 +281,7 @@ if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
     # Arrangement
-    subdivision = 2
+    subdivision = 4
     metadatas = []
 
     arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     (train_dataloader,
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
-        batch_size=128,
+        batch_size=256,
         split=(0.85, 0.10)
     )
     print('Num Train Batches: ', len(train_dataloader))

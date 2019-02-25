@@ -9,6 +9,8 @@ import re
 import shutil
 
 import torch
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from torch.utils.data import TensorDataset
@@ -177,9 +179,9 @@ class ArrangementFrameDataset(MusicDataset):
             scores.extend(this_scores)
 
             # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-            pianoroll_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
+            pianoroll_piano, _0 = score_to_pianoroll(arr_pair['Piano'], self.subdivision, self.simplify_instrumentation,
                                                  self.transpose_to_sounding_pitch)
-            pianoroll_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+            pianoroll_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                      self.simplify_instrumentation, self.transpose_to_sounding_pitch)
 
             # main loop

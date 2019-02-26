@@ -108,12 +108,14 @@ class ArrangementFrameDataset(MusicDataset):
                     set_midiPitch_per_instrument[instrument_name] = set()
                 pitch_set_this_track = set(np.where(np.sum(pianoroll_orchestra[instrument_name], axis=0) > 0)[0])
                 set_midiPitch_per_instrument[instrument_name] = set_midiPitch_per_instrument[instrument_name].union(pitch_set_this_track)
+
         # Save this in a file
-        with open("statistics/pc_frequency_per_instrument", "w") as ff:
-            for instrument_name, set_pitch_class in set_midiPitch_per_instrument.items():
-                ff.write(f"# {instrument_name}: \n")
-                for pc in set_pitch_class:
-                    ff.write(f"   {pc}\n")
+        if self.compute_statistics_flag:
+            with open(f"{self.compute_statistics_flag}/pc_frequency_per_instrument", "w") as ff:
+                for instrument_name, set_pitch_class in set_midiPitch_per_instrument.items():
+                    ff.write(f"# {instrument_name}: \n")
+                    for pc in set_pitch_class:
+                        ff.write(f"   {pc}\n")
 
         # Local dicts used temporarily
         midi_pitch2index_per_instrument = {}

@@ -281,13 +281,14 @@ if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
     # Arrangement
-    subdivision = 4
+    subdivision = 2
     metadatas = []
 
     arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
         name='arrangement_frame',
         transpose_to_sounding_pitch=True,
-        subdivision=subdivision
+        subdivision=subdivision,
+        compute_statistics_flag=False
     )
 
     (train_dataloader,

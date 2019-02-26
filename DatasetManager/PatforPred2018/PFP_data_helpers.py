@@ -725,9 +725,7 @@ class LeadsheetIteratorGenerator:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # todo hard coded
         leadsheet_paths = glob.glob(
-            os.path.join(dir_path, 'xml/4_4/*.xml'))
-        #leadsheet_paths = glob.glob(
-        #    os.path.join(dir_path, 'xml/4_4_5641fc497cea1f63710ac907/*.xml'))
+            os.path.join(dir_path, 'data/PPDD-Jul2018_sym_mono_small/cont_true_midi/*.midi'))
         if self.num_elements is not None:
             leadsheet_paths = leadsheet_paths[:self.num_elements]
         for leadsheet_path in leadsheet_paths:

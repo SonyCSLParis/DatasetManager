@@ -18,7 +18,7 @@ from tqdm import tqdm
 import random
 
 
-class LsdbDataset(MusicDataset):
+class PFPDataset(MusicDataset):
     def __init__(self, corpus_it_gen,
                  name,
                  sequences_size,
@@ -28,14 +28,8 @@ class LsdbDataset(MusicDataset):
         :param corpus_it_gn:
         :param sequences_size: in beats
         """
-        super(LsdbDataset, self).__init__(cache_dir=cache_dir)
+        super(PFPDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
-        self.tick_values = [0,
-                            Fraction(1, 4),
-                            Fraction(1, 3),
-                            Fraction(1, 2),
-                            Fraction(2, 3),
-                            Fraction(3, 4)]
         self.tick_durations = self.compute_tick_durations()
         self.number_of_beats = 4
         self.num_voices = 3
@@ -50,7 +44,7 @@ class LsdbDataset(MusicDataset):
 
     def __repr__(self):
         # TODO
-        return f'LsdbDataset(' \
+        return f'PFPDataset(' \
                f'{self.name},' \
                f'{self.sequences_size})'
 

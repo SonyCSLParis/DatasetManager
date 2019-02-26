@@ -563,7 +563,7 @@ class LsdbDataset(MusicDataset):
         # LEAD
         dur = 0
         f = music21.note.Rest()
-        tensor_score_np = tensor_score.numpy().flatten()
+        tensor_score_np = tensor_score.flatten()
         slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
         for tick_index, note_index in enumerate(tensor_score_np):
             note_index = note_index.item()
@@ -604,8 +604,8 @@ class LsdbDataset(MusicDataset):
             type_nc_index = chordtype2index[NC]
 
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            tensor_chords_root_np = tensor_chords_root#.numpy().flatten()
+            tensor_chords_name_np = tensor_chords_name#.numpy().flatten()
             for beat_index, (chord_root_index, chord_type_index) \
                     in enumerate(
                 zip(
@@ -652,8 +652,8 @@ class LsdbDataset(MusicDataset):
             dur = 0
             c = music21.note.Rest()
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            tensor_chords_root_np = tensor_chords_root.flatten()
+            tensor_chords_name_np = tensor_chords_name.flatten()
             for (beat_index,
                  (chord_root_index, chord_type_index)) \
                     in enumerate(
@@ -692,6 +692,43 @@ class LsdbDataset(MusicDataset):
             c.duration = music21.duration.Duration(dur)
             chords_part.append(c)
             score.append(chords_part)
+
+        return score
+
+    def tensor_to_leadscore(self, tensor_score):
+        """
+        Converts leadsheet given as tensor_lead and tensor_chords
+        to a true music21 score
+        :param tensor_lead:
+        :param tensor_chords:
+        :return:
+        """
+        score = music21.stream.Score()
+        part = music21.stream.Part()
+
+        # LEAD
+        dur = 0
+        f = music21.note.Rest()
+        tensor_score_np = tensor_score.flatten()
+        slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
+        for tick_index, note_index in enumerate(tensor_score_np):
+            note_index = note_index.item()
+            # if it is a played note
+            if not note_index == slur_index:
+                # add previous note
+                if dur > 0:
+                    f.duration = music21.duration.Duration(dur)
+                    part.append(f)
+                # TODO two types of tick_durations
+                dur = self.tick_durations[tick_index % self.subdivision]
+                f = standard_note(self.index2symbol_dicts[self.NOTES][note_index])
+            else:
+                dur += self.tick_durations[tick_index % self.subdivision]
+        # add last note
+        f.duration = music21.duration.Duration(dur)
+        part.append(f)
+
+        score.append(part)
 
         return score
 
@@ -767,7 +804,7 @@ class LsdbDataset(MusicDataset):
                                                  tensor_score,
                                                  tensor_chords,
                                                  add_chord_symbols=True,
-                                                 realize_chords=False):
+                                                 realize_chords=True):
         """
         Converts leadsheet given as tensor_lead to a true music21 score
         and the chords as a list
@@ -787,8 +824,8 @@ class LsdbDataset(MusicDataset):
         tensor_chords_root, tensor_chords_name = tensor_chords
         index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
         index2chordname = self.index2symbol_dicts[self.CHORD_NAME]
-        tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-        tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+        tensor_chords_root_np = tensor_chords_root#.numpy().flatten()
+        tensor_chords_name_np = tensor_chords_name#.numpy().flatten()
         for chord_root_index, chord_name_index \
                 in zip(tensor_chords_root_np,
                        tensor_chords_name_np

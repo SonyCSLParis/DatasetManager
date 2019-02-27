@@ -501,14 +501,26 @@ class ArrangementFrameDataset(MusicDataset):
     def random_score_tensor(self, score_length):
         return None
 
-    def piano_tensor_to_score(self, tensor_score):
+    def get_offset_duration_from_frames_onsets(self, rhythm):
+        rhythm = np.asarray(rhythm)
+        next_rhythm = list(rhythm[1:])
+        next_rhythm.append(rhythm[-1] + 1)
+        durations = next_rhythm - rhythm
+        offsets = [float(e / self.subdivision) for e in rhythm]
+        durations = [float(e / self.subdivision) for e  in durations]
+        return offsets, durations
+
+    def piano_tensor_to_score(self, tensor_score, rhythm):
+
+        assert len(tensor_score) == len(rhythm), "Score and rhythm must have the same length"
         piano_matrix= tensor_score.numpy()
 
         this_part = music21.stream.Part(id='Piano')
         music21_instrument = music21.instrument.fromString('Piano')
         this_part.insert(music21_instrument)
-        for time in range(len(piano_matrix)):
-            piano_vector = piano_matrix[time]
+        offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
+        for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
+            piano_vector = piano_matrix[frame_index]
             piano_notes = np.where(piano_vector > 0)
             note_list = []
             for piano_note in piano_notes[0]:
@@ -516,21 +528,24 @@ class ArrangementFrameDataset(MusicDataset):
                 velocity = piano_vector[piano_note]
                 f = music21.note.Note(pitch)
                 f.volume.velocity = velocity
+                f.quarterLength = duration
                 note_list.append(f)
 
             if len(note_list) == 0:
-                this_part.append(music21.note.Rest())
+                this_part.insert(offset, music21.note.Rest())
             else:
                 chord = music21.chord.Chord(note_list)
-                this_part.append(chord)
+                this_part.insert(offset, chord)
         return this_part
 
-    def orchestra_tensor_to_score(self, tensor_score):
+    def orchestra_tensor_to_score(self, tensor_score, rhythm):
         # (batch, num_parts, notes_encoding)
         orchestra_matrix = tensor_score.numpy()
 
         # Batch is used as time in the score
         stream = music21.stream.Stream()
+
+        offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
 
         # First store every in a dict {instrus : [time [notes]]}
         score_dict = {}
@@ -541,11 +556,13 @@ class ArrangementFrameDataset(MusicDataset):
                 continue
             if instrument_name not in score_dict:
                 score_dict[instrument_name] = {}
-            for time in range(len(orchestra_matrix)):
-                midi_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[time, instrument_index]]
-                if time not in score_dict[instrument_name]:
-                    score_dict[instrument_name][time] = set()
-                score_dict[instrument_name][time].add(midi_pitch)
+            for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
+                midi_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+                if midi_pitch == -1:
+                    continue
+                if offset not in score_dict[instrument_name]:
+                    score_dict[instrument_name][offset] = (duration, set())
+                score_dict[instrument_name][offset][1].add(midi_pitch)
 
         for instrument_name, list_notes in score_dict.items():
             this_part = music21.stream.Part(id=instrument_name)
@@ -556,19 +573,17 @@ class ArrangementFrameDataset(MusicDataset):
                 music21_instrument = music21.instrument.fromString(re.sub('_', ' ', instrument_name))
             this_part.insert(music21_instrument)
 
-            for offset, note_set in list_notes.items():
+            for offset, note_informations in list_notes.items():
+                note_duration, note_set = note_informations
                 chord_list = []
-                if note_set == {-1}:
-                    this_part.append(music21.note.Rest())
-                else:
-                    # Remove possible silence
-                    for midi_pitch in note_set:
-                        if midi_pitch == -1:
-                            continue
-                        this_note = music21.note.Note(midi_pitch)
-                        chord_list.append(this_note)
-                    this_chord = music21.chord.Chord(chord_list)
-                    this_part.append(this_chord)
+                # Remove possible silence
+                for midi_pitch in note_set:
+                    this_note = music21.note.Note(midi_pitch)
+                    this_note.quarterLength = note_duration
+                    this_note.volume.velocity = 90
+                    chord_list.append(this_note)
+                this_elem = music21.chord.Chord(chord_list)
+                this_part.insert(offset, this_elem)
             this_part.atSoundingPitch = self.transpose_to_sounding_pitch
             stream.append(this_part)
 
@@ -582,14 +597,14 @@ class ArrangementFrameDataset(MusicDataset):
         else:
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
-    def visualise_batch(self, piano_batch, orchestra_batch, writing_dir=None, filepath=None):
+    def visualise_batch(self, piano_infos, orchestra_infos, writing_dir=None, filepath=None):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
             writing_dir = f"{os.getcwd()}/dump"
 
-        piano_part = self.piano_tensor_to_score(piano_batch)
-        orchestra_stream = self.orchestra_tensor_to_score(orchestra_batch)
+        piano_part = self.piano_tensor_to_score(piano_infos[0], piano_infos[1])
+        orchestra_stream = self.orchestra_tensor_to_score(orchestra_infos[0], orchestra_infos[1])
 
 
         piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')

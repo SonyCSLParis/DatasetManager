@@ -7,6 +7,8 @@ import shutil
 
 import torch
 import matplotlib as mpl
+from helpers import PAD_SYMBOL, REST_SYMBOL
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from DatasetManager.arrangement.instrumentation import get_instrumentation
@@ -133,8 +135,13 @@ class ArrangementDataset(MusicDataset):
                 midi_pitch2index_per_instrument[instrument_name][midi_pitch] = index
                 index2midi_pitch_per_instrument[instrument_name][index] = midi_pitch
             # Silence
-            midi_pitch2index_per_instrument[instrument_name][-1] = index + 1
-            index2midi_pitch_per_instrument[instrument_name][index + 1] = -1
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][REST_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = REST_SYMBOL
+            # Pad
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
 
         # Mapping piano notes <-> indices
         self.piano_tessitura['lowest_pitch'] = min(list(set_midiPitch_per_instrument['Piano']))
@@ -159,7 +166,6 @@ class ArrangementDataset(MusicDataset):
 
         self.number_parts = len(self.midi_pitch2index)
         self.number_pitch_piano = self.piano_tessitura['highest_pitch'] - self.piano_tessitura['lowest_pitch'] + 1
-
         return
 
     def make_tensor_dataset(self):
@@ -186,6 +192,10 @@ class ArrangementDataset(MusicDataset):
             open(f"{self.compute_statistics_flag}/different_set_pc.txt", 'w').close()
 
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
+            # Need those two for padding sequences
+            orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
+            orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
+            piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
 
             # Get pianorolls
             pianoroll_piano, num_frames_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
@@ -212,10 +222,15 @@ class ArrangementDataset(MusicDataset):
             # Get chunks
             chunks_piano_indices = []
             chunks_orchestra_indices = []
-            for index_frame in range(self.sequence_size, len(corresponding_frames)):
-                this_piano_chunk = [e[0][0] for e in corresponding_frames[index_frame - self.sequence_size:index_frame]]
+            for index_frame in range(1, len(corresponding_frames)+1):
+                start_index = max(0, index_frame - self.sequence_size)
+                # Use future for piano ?
+                # end_index_piano = min(len(corresponding_frames), index_frame + (self.sequence_size+1))
+                end_index_piano = index_frame
+                end_index_orchestra = index_frame
+                this_piano_chunk = [e[0][0] for e in corresponding_frames[start_index:end_index_piano]]
                 this_orchestra_chunk = [e[1][0] for e in
-                                        corresponding_frames[index_frame - self.sequence_size:index_frame]]
+                                        corresponding_frames[start_index:end_index_orchestra]]
                 chunks_piano_indices.append(this_piano_chunk)
                 chunks_orchestra_indices.append(this_orchestra_chunk)
 
@@ -233,13 +248,22 @@ class ArrangementDataset(MusicDataset):
 
                 total_chunk_counter += 1
 
-                # Orchestra
-                orchestra_chunk = []
-                piano_chunk = []
+                # If the chunk is too short (end or beginning of a track, pad with zeros
+                # This is important, so that the model learns to start orchestration from empty slots
+                chunk_len = len(this_chunk_piano_indices)
+                length_to_pad = self.sequence_size - chunk_len
+                if length_to_pad > 0:
+                    # Orchestra
+                    orchestra_chunk = [orchestra_padding_vector] * length_to_pad
+                    piano_chunk = [piano_padding_vector] * length_to_pad
+                else:
+                    # Orchestra
+                    orchestra_chunk = []
+                    piano_chunk = []
                 avoid_this_chunk = False
                 for (frame_piano, frame_orchestra) in zip(this_chunk_piano_indices, this_chunk_orchestra_indices):
                     # Piano
-                    piano_chunk.append(torch.from_numpy(piano_np[frame_piano]))
+                    piano_chunk.append(torch.from_numpy(piano_np[frame_piano]).long())
 
                     # Orchestra
                     frame_orchestra_tensor = self.pianoroll_to_orchestral_tensor(pianoroll_orchestra,
@@ -253,6 +277,9 @@ class ArrangementDataset(MusicDataset):
                 if avoid_this_chunk:
                     missed_chunk_counter += 1
                     continue
+
+                assert len(piano_chunk) == self.sequence_size
+                assert len(orchestra_chunk) == self.sequence_size
 
                 local_piano_tensor = torch.stack(piano_chunk)
                 local_orchestra_tensor = torch.stack(orchestra_chunk)
@@ -498,12 +525,12 @@ class ArrangementDataset(MusicDataset):
                 notes_played = list(np.where(pianoroll[instrument_name][frame_index])[0])
             if len(notes_played) > number_of_parts:
                 return None
-            # Pad with -1 which means silence
-            notes_played.extend([-1] * (number_of_parts - len(notes_played)))
+            # Pad with silences
+            notes_played.extend([REST_SYMBOL] * (number_of_parts - len(notes_played)))
             for this_note, this_instrument_index in zip(notes_played, indices_instruments):
                 orchestra_np[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
 
-        orchestra_tensor = torch.from_numpy(orchestra_np)
+        orchestra_tensor = torch.from_numpy(orchestra_np).long()
         return orchestra_tensor
 
     def extract_score_tensor_with_padding(self, tensor_score):
@@ -589,7 +616,7 @@ class ArrangementDataset(MusicDataset):
                 score_dict[instrument_name] = {}
             for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
                 midi_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
-                if midi_pitch == -1:
+                if midi_pitch in [REST_SYMBOL, PAD_SYMBOL]:
                     continue
                 if offset not in score_dict[instrument_name]:
                     score_dict[instrument_name][offset] = (duration, set())
@@ -653,9 +680,9 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            'liszt_classical_archives',
+            # 'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            # 'debug'
+            'debug'
         ],
         num_elements=None
     )

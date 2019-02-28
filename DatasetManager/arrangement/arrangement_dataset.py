@@ -1,3 +1,4 @@
+#TODO Use future piano information ?
 import csv
 import json
 import math
@@ -74,7 +75,7 @@ class ArrangementDataset(MusicDataset):
         self.instrument2index = {}
         self.index2midi_pitch = {}
         self.midi_pitch2index = {}
-        self.number_parts = None
+        self.number_instruments = None
         self.number_pitch_piano = None
 
         # Compute statistics slows down the construction of the dataset
@@ -164,7 +165,7 @@ class ArrangementDataset(MusicDataset):
                 self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
                 self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
 
-        self.number_parts = len(self.midi_pitch2index)
+        self.number_instruments = len(self.midi_pitch2index)
         self.number_pitch_piano = self.piano_tessitura['highest_pitch'] - self.piano_tessitura['lowest_pitch'] + 1
         return
 

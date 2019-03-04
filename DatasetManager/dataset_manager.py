@@ -19,6 +19,7 @@ from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
 from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
+from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
 # Basically, all you have to do to use an existing dataset is to
@@ -29,6 +30,17 @@ from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGen
 
 
 all_datasets = {
+    'arrangement':
+        {
+            'dataset_class_name': ArrangementDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                subsets=[
+                    'liszt_classical_archives',
+                ],
+                num_elements=None,
+            )
+        },
     'arrangement_frame_test':
         {
             'dataset_class_name': ArrangementFrameDataset,

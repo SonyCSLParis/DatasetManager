@@ -8,16 +8,15 @@ import shutil
 
 import torch
 import matplotlib as mpl
-from helpers import PAD_SYMBOL, REST_SYMBOL
-
 mpl.use('Agg')
 import matplotlib.pyplot as plt
-from DatasetManager.arrangement.instrumentation import get_instrumentation
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
 import numpy as np
 
+from DatasetManager.arrangement.instrumentation import get_instrumentation
+from DatasetManager.helpers import PAD_SYMBOL, REST_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 

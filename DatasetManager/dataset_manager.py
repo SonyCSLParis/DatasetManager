@@ -41,6 +41,17 @@ all_datasets = {
                 num_elements=None,
             )
         },
+    'arrangement_test':
+        {
+            'dataset_class_name': ArrangementDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                subsets=[
+                    'debug',
+                ],
+                num_elements=5,
+            )
+        },
     'arrangement_frame_test':
         {
             'dataset_class_name': ArrangementFrameDataset,
@@ -292,14 +303,35 @@ class DatasetManager:
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
+    # # Arrangement
+    # subdivision = 2
+    # metadatas = []
+    #
+    # arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
+    #     name='arrangement_frame',
+    #     transpose_to_sounding_pitch=True,
+    #     subdivision=subdivision,
+    #     compute_statistics_flag=False
+    # )
+    #
+    # (train_dataloader,
+    #  val_dataloader,
+    #  test_dataloader) = arrangement_dataset.data_loaders(
+    #     batch_size=256,
+    #     split=(0.85, 0.10)
+    # )
+    # print('Num Train Batches: ', len(train_dataloader))
+    # print('Num Valid Batches: ', len(val_dataloader))
+    # print('Num Test Batches: ', len(test_dataloader))
+
     # Arrangement
     subdivision = 2
-    metadatas = []
-
-    arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
-        name='arrangement_frame',
+    sequence_size = 4
+    arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
+        name='arrangement_test',
         transpose_to_sounding_pitch=True,
         subdivision=subdivision,
+        sequence_size=sequence_size,
         compute_statistics_flag=False
     )
 

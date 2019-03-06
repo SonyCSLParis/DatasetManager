@@ -191,11 +191,13 @@ class ArrangementDataset(MusicDataset):
             total_frames_counter = 0
             open(f"{self.compute_statistics_flag}/different_set_pc.txt", 'w').close()
 
+        # Need those two for padding sequences
+        orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
+        orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
+        piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
+
+        # Iterate over files
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
-            # Need those two for padding sequences
-            orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
-            orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
-            piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
 
             # Get pianorolls
             pianoroll_piano, num_frames_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
@@ -268,7 +270,7 @@ class ArrangementDataset(MusicDataset):
                     # Orchestra
                     frame_orchestra_tensor = self.pianoroll_to_orchestral_tensor(pianoroll_orchestra,
                                                                                  frame_orchestra,
-                                                                                 self.number_parts)
+                                                                                 self.number_instruments)
                     if frame_orchestra_tensor is None:
                         avoid_this_chunk = True
                         break
@@ -609,7 +611,7 @@ class ArrangementDataset(MusicDataset):
 
         # First store every in a dict {instrus : [time [notes]]}
         score_dict = {}
-        for instrument_index in range(self.number_parts):
+        for instrument_index in range(self.number_instruments):
             # Get instrument name
             instrument_name = self.index2instrument[instrument_index]
             if instrument_name not in score_dict:

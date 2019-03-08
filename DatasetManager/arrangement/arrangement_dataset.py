@@ -1,13 +1,12 @@
-#TODO Use future piano information ?
-import csv
+# TODO Use future piano information ?
 import json
-import math
 import os
 import re
 import shutil
 
 import torch
 import matplotlib as mpl
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset
@@ -16,11 +15,12 @@ import music21
 import numpy as np
 
 from DatasetManager.arrangement.instrumentation import get_instrumentation
-from DatasetManager.helpers import PAD_SYMBOL, REST_SYMBOL
+from DatasetManager.helpers import PAD_SYMBOL, REST_SYMBOL, SLUR_SYMBOL, DURATION_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
-from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element
+from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
+    quantize_velocity_pianoroll_frame, unquantize_velocity
 
 
 class ArrangementDataset(MusicDataset):
@@ -34,6 +34,8 @@ class ArrangementDataset(MusicDataset):
                  name,
                  subdivision=2,
                  sequence_size=2,
+                 velocity_quantization=8,
+                 max_transposition=3,
                  transpose_to_sounding_pitch=True,
                  reference_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/reference_tessitura.json',
                  simplify_instrumentation_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/simplify_instrumentation.json',
@@ -52,11 +54,15 @@ class ArrangementDataset(MusicDataset):
         self.corpus_it_gen = corpus_it_gen
         self.subdivision = subdivision  # We use only on beats notes so far
         self.sequence_size = sequence_size
+        self.velocity_quantization = velocity_quantization
+        self.max_transposition = max_transposition
+        self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
 
         # Reference tessitura for each instrument
         with open(reference_tessitura_path, 'r') as ff:
             tessitura = json.load(ff)
         self.reference_tessitura = {k: (music21.note.Note(v[0]), music21.note.Note(v[1])) for k, v in tessitura.items()}
+        self.observed_tessitura = {}
 
         # Maps parts name found in mxml files to standard names
         with open(simplify_instrumentation_path, 'r') as ff:
@@ -65,17 +71,22 @@ class ArrangementDataset(MusicDataset):
         #  Instrumentation used for learning
         self.instrumentation = get_instrumentation()
 
-        #  Do we use written or sounding pitch
-        self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
-
         # Mapping between instruments and indices
-        self.piano_tessitura = {}
         self.index2instrument = {}
         self.instrument2index = {}
         self.index2midi_pitch = {}
         self.midi_pitch2index = {}
+        #  Piano
+        self.midi_pitch2index_piano = {}
+        self.index2midi_pitch_piano = {}
+        self.value2oneHot_perPianoToken = {}
+        self.oneHot2value_perPianoToken = {}
+        # Dimensions
         self.number_instruments = None
         self.number_pitch_piano = None
+        # Padding vectors (built in compute_index_dicts)
+        self.piano_padding_vector = None
+        self.orchestra_padding_vector = None
 
         # Compute statistics slows down the construction of the dataset
         self.compute_statistics_flag = compute_statistics_flag
@@ -95,6 +106,11 @@ class ArrangementDataset(MusicDataset):
         return one_hot_0 * 12 + one_hot_1
 
     def compute_index_dicts(self):
+
+        # todo compute on data
+        # In quarter length
+        self.max_duration = 20
+
         #  Mapping midi_pitch to token for each instrument
         set_midiPitch_per_instrument = {'Piano': set()}
         # First pass over the database to create the mapping pitch <-> index for each instrument
@@ -126,9 +142,17 @@ class ArrangementDataset(MusicDataset):
         midi_pitch2index_per_instrument = {}
         index2midi_pitch_per_instrument = {}
         for instrument_name, set_midiPitch in set_midiPitch_per_instrument.items():
+            min_pitch = min(set_midiPitch)
+            max_pitch = max(set_midiPitch)
+            self.observed_tessitura[instrument_name] = {
+                "min": min_pitch,
+                "max": max_pitch
+            }
             if instrument_name == "Piano":
                 continue
-            list_midiPitch = sorted(list(set_midiPitch))
+            # Use range to avoid gaps in instruments tessitura (needed since we use
+            # pitch transpositions as data augmentations
+            list_midiPitch = sorted(list(range(min_pitch, max_pitch + 1)))
             midi_pitch2index_per_instrument[instrument_name] = {}
             index2midi_pitch_per_instrument[instrument_name] = {}
             for index, midi_pitch in enumerate(list_midiPitch):
@@ -138,14 +162,14 @@ class ArrangementDataset(MusicDataset):
             index += 1
             midi_pitch2index_per_instrument[instrument_name][REST_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = REST_SYMBOL
+            #  Slur
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][SLUR_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = SLUR_SYMBOL
             # Pad
             index += 1
             midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
-
-        # Mapping piano notes <-> indices
-        self.piano_tessitura['lowest_pitch'] = min(list(set_midiPitch_per_instrument['Piano']))
-        self.piano_tessitura['highest_pitch'] = max(list(set_midiPitch_per_instrument['Piano']))
 
         # Mapping instruments <-> indices
         index_counter = 0
@@ -164,11 +188,48 @@ class ArrangementDataset(MusicDataset):
                 self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
                 self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
 
+        # Piano
+        min_pitch_piano = min(set_midiPitch_per_instrument["Piano"])
+        max_pitch_piano = max(set_midiPitch_per_instrument["Piano"])
+        #  Use range to avoid "gaps" in the piano tessitura
+        list_midiPitch = sorted(list(range(min_pitch_piano, max_pitch_piano + 1)))
+        for index, midi_pitch in enumerate(list_midiPitch):
+            self.midi_pitch2index_piano[midi_pitch] = index
+            self.index2midi_pitch_piano[index] = midi_pitch
+        index += 1
+        self.midi_pitch2index_piano[DURATION_SYMBOL] = index
+        self.index2midi_pitch_piano[index] = DURATION_SYMBOL
+
+        # Piano velocities (need this because it's slightly different for the DURATION_SYMBOL token)
+        index = 0
+        dict_for_standard_note_value2oneHot = {}
+        dict_for_standard_note_oneHot2value = {}
+        for velocity in range(self.velocity_quantization):
+            dict_for_standard_note_value2oneHot[velocity] = index
+            dict_for_standard_note_oneHot2value[index] = velocity
+            index += 1
+        #  Slur
+        index += 1
+        dict_for_standard_note_value2oneHot[SLUR_SYMBOL] = index
+        dict_for_standard_note_oneHot2value[index] = SLUR_SYMBOL
+        for token_index, symbol_pitch_or_duration in self.index2midi_pitch_piano.items():
+            if symbol_pitch_or_duration == DURATION_SYMBOL:
+                self.value2oneHot_perPianoToken[token_index] = {i+1: i for i in range(self.max_duration)}
+                self.oneHot2value_perPianoToken[token_index] = {i: i+1 for i in range(self.max_duration)}
+            else:
+                self.value2oneHot_perPianoToken[token_index] = dict.copy(dict_for_standard_note_value2oneHot)
+                self.oneHot2value_perPianoToken[token_index] = dict.copy(dict_for_standard_note_oneHot2value)
+
         self.number_instruments = len(self.midi_pitch2index)
-        self.number_pitch_piano = self.piano_tessitura['highest_pitch'] - self.piano_tessitura['lowest_pitch'] + 1
+        self.number_pitch_piano = len(self.midi_pitch2index_piano)
+
+        # Need those two for padding sequences
+        orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
+        self.piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
+        self.orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
         return
 
-    def make_tensor_dataset(self):
+    def make_tensor_dataset(self, frame_orchestra=None):
         """
         Implementation of the make_tensor_dataset abstract base class
         """
@@ -183,6 +244,8 @@ class ArrangementDataset(MusicDataset):
 
         total_chunk_counter = 0
         missed_chunk_counter = 0
+        total_chunk_counter_augmented = 0
+        missed_chunk_counter_augmented = 0
 
         # Variables for statistics
         if self.compute_statistics_flag:
@@ -191,107 +254,125 @@ class ArrangementDataset(MusicDataset):
             total_frames_counter = 0
             open(f"{self.compute_statistics_flag}/different_set_pc.txt", 'w').close()
 
-        # Need those two for padding sequences
-        orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
-        orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
-        piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
-
         # Iterate over files
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
-            # Get pianorolls
-            pianoroll_piano, num_frames_piano = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                                   self.simplify_instrumentation,
-                                                                   self.transpose_to_sounding_pitch)
-            assert (pianoroll_piano.keys() != 'Piano'), 'More than one instrument in the piano score'
-            piano_np = pianoroll_piano['Piano'][:,
-                       self.piano_tessitura['lowest_pitch']: self.piano_tessitura['highest_pitch'] + 1]
+            # Get pianorolls for original and transposed
+            pianoroll_piano_transposed = {}
+            pianoroll_orchestra_transposed = {}
+            for transposition_semi_tone in range(-self.max_transposition, self.max_transposition+1):
+                # Transpose score
+                arr_pair_transposed = {k: v.transpose(transposition_semi_tone) for k, v in arr_pair.items()}
 
-            pianoroll_orchestra, num_frames_orchestra = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
-                                                                           self.simplify_instrumentation,
-                                                                           self.transpose_to_sounding_pitch)
+                this_pianoroll_piano, _ = score_to_pianoroll(arr_pair_transposed['Piano'],
+                                                             self.subdivision,
+                                                             self.simplify_instrumentation,
+                                                             self.transpose_to_sounding_pitch)
+                assert (this_pianoroll_piano.keys() != 'Piano'), 'More than one instrument in the piano score'
+                # Quantize piano
+                this_quantized_piano_pianoroll = quantize_velocity_pianoroll_frame(this_pianoroll_piano["Piano"],
+                                                                                   self.velocity_quantization)
 
-            #  Align
-            # corresponding_offsets, this_scores = self.align_score(pianoroll_piano, num_frames_piano, pianoroll_orchestra, num_frames_orchestra)
+                this_pianoroll_orchestra, _ = score_to_pianoroll(arr_pair_transposed['Orchestra'],
+                                                                 self.subdivision,
+                                                                 self.simplify_instrumentation,
+                                                                 self.transpose_to_sounding_pitch)
+
+                pianoroll_piano_transposed[transposition_semi_tone] = this_quantized_piano_pianoroll
+                pianoroll_orchestra_transposed[transposition_semi_tone] = this_pianoroll_orchestra
+
+            #  Align (we can use non transposed scores, changes nothing to the alignement
             corresponding_frames, this_scores = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
             if self.compute_statistics_flag:
                 scores.extend(this_scores)
 
-            # Get corresponding pitch_classes
+            # Get corresponding pitch_classes (for statistics)
             pc_piano_list = [e[0][1] for e in corresponding_frames]
             pc_orchestra_list = [e[1][1] for e in corresponding_frames]
 
-            # Get chunks
-            chunks_piano_indices = []
-            chunks_orchestra_indices = []
-            for index_frame in range(1, len(corresponding_frames)+1):
-                start_index = max(0, index_frame - self.sequence_size)
-                # Use future for piano ?
-                # end_index_piano = min(len(corresponding_frames), index_frame + (self.sequence_size+1))
-                end_index_piano = index_frame
-                end_index_orchestra = index_frame
-                this_piano_chunk = [e[0][0] for e in corresponding_frames[start_index:end_index_piano]]
-                this_orchestra_chunk = [e[1][0] for e in
-                                        corresponding_frames[start_index:end_index_orchestra]]
-                chunks_piano_indices.append(this_piano_chunk)
-                chunks_orchestra_indices.append(this_orchestra_chunk)
+            # Prepare chunks of indices
+            chunks_piano_indices, chunks_orchestra_indices = self.prepare_chunk_from_corresponding_frames(
+                corresponding_frames)
 
-            for this_chunk_piano_indices, this_chunk_orchestra_indices in zip(chunks_piano_indices, chunks_orchestra_indices):
-                # main loop
-                #################################################
-                # NO TRANSPOSITIONS ALLOWED FOR NOW
-                # Only consider orchestra to compute the possible transpositions
-                # BUT IF WE ALLOW THEM, WE SHOULD
-                # 1/ COMPUTE ALL TRANSPOSISITONS IN -3 +3 RANGE
-                #  2/ SELECT FRAMES WHERE IT'S POSSIBLE
-                # transp_minus, transp_plus = self.possible_transposition(arr_pair['Orchestra'], offset=offset_orchestra)
-                # for semi_tone in range(transp_minus, transp_plus + 1):
-                #################################################
+            for (this_chunk_piano_indices, this_chunk_orchestra_indices) \
+                    in zip(chunks_piano_indices, chunks_orchestra_indices):
 
                 total_chunk_counter += 1
 
-                # If the chunk is too short (end or beginning of a track, pad with zeros
-                # This is important, so that the model learns to start orchestration from empty slots
-                chunk_len = len(this_chunk_piano_indices)
-                length_to_pad = self.sequence_size - chunk_len
-                if length_to_pad > 0:
-                    # Orchestra
-                    orchestra_chunk = [orchestra_padding_vector] * length_to_pad
-                    piano_chunk = [piano_padding_vector] * length_to_pad
-                else:
-                    # Orchestra
-                    orchestra_chunk = []
-                    piano_chunk = []
-                avoid_this_chunk = False
-                for (frame_piano, frame_orchestra) in zip(this_chunk_piano_indices, this_chunk_orchestra_indices):
-                    # Piano
-                    piano_chunk.append(torch.from_numpy(piano_np[frame_piano]).long())
+                # Observe tessitura for each instrument for this chunk. Use non transposed pr of course
+                this_min_transposition, this_max_transposition = \
+                    self.get_allowed_transpositions_from_pr(pianoroll_piano_transposed[0],
+                                                            this_chunk_piano_indices,
+                                                            "Piano")
+                min_transposition = max(this_min_transposition, -self.max_transposition)
+                max_transposition = min(this_max_transposition, self.max_transposition)
 
-                    # Orchestra
-                    frame_orchestra_tensor = self.pianoroll_to_orchestral_tensor(pianoroll_orchestra,
-                                                                                 frame_orchestra,
-                                                                                 self.number_instruments)
-                    if frame_orchestra_tensor is None:
-                        avoid_this_chunk = True
-                        break
-                    orchestra_chunk.append(frame_orchestra_tensor)
+                # Use reference tessitura or compute tessitura directly on the files ?
+                for instrument_name, pr in pianoroll_orchestra_transposed[0].items():
+                    this_min_transposition, this_max_transposition = \
+                        self.get_allowed_transpositions_from_pr(pr,
+                                                                this_chunk_orchestra_indices,
+                                                                instrument_name)
+                    min_transposition = max(this_min_transposition, min_transposition)
+                    max_transposition = min(this_max_transposition, max_transposition)
 
-                if avoid_this_chunk:
-                    missed_chunk_counter += 1
-                    continue
+                for transposition_semi_tone in range(min_transposition, max_transposition + 1):
 
-                assert len(piano_chunk) == self.sequence_size
-                assert len(orchestra_chunk) == self.sequence_size
+                    total_chunk_counter_augmented += 1
 
-                local_piano_tensor = torch.stack(piano_chunk)
-                local_orchestra_tensor = torch.stack(orchestra_chunk)
+                    avoid_this_chunk = False
+                    local_piano_tensor = []
+                    local_orchestra_tensor = []
 
-                # append and add batch dimension
-                # cast to int
-                piano_tensor_dataset.append(
-                    local_piano_tensor[None, :, :].int())
-                orchestra_tensor_dataset.append(
-                    local_orchestra_tensor[None, :, :].int())
+                    # Avoid first and last indices which is simply here for getting the previous and next frame informations
+                    for frame_index in range(1, self.sequence_size + 1):
+                        frames_piano = {}
+                        frames_orchestra = {}
+                        #  Piano frames
+                        frames_piano["t"] = this_chunk_piano_indices[frame_index]
+                        frames_piano["tm1"] = this_chunk_piano_indices[frame_index - 1]
+                        frames_piano["tp1"] = this_chunk_piano_indices[frame_index + 1]
+                        #  Orchestra frames
+                        frames_orchestra["t"] = this_chunk_orchestra_indices[frame_index]
+                        frames_orchestra["tm1"] = this_chunk_orchestra_indices[frame_index - 1]
+                        frames_orchestra["tp1"] = this_chunk_orchestra_indices[frame_index + 1]
+
+                        # Piano encoded vector
+                        if (frames_piano["t"] is None) and (frames_orchestra["t"] is None):
+                            # Padding frames
+                            piano_t_encoded = self.piano_padding_vector.clone().detach()
+                            orchestra_t_encoded = self.orchestra_padding_vector.clone().detach()
+                        else:
+                            piano_t_encoded = self.pianoroll_to_piano_tensor(
+                                pianoroll_piano_transposed[transposition_semi_tone],
+                                frames_piano)
+                            orchestra_t_encoded = self.pianoroll_to_orchestral_tensor(
+                                pianoroll_orchestra_transposed[transposition_semi_tone],
+                                frames_orchestra)
+
+                        if orchestra_t_encoded is None:
+                            avoid_this_chunk = True
+                            break
+
+                        local_piano_tensor.append(piano_t_encoded)
+                        local_orchestra_tensor.append(orchestra_t_encoded)
+
+                    if avoid_this_chunk:
+                        missed_chunk_counter += 1
+                        continue
+
+                    assert len(local_piano_tensor) == self.sequence_size
+                    assert len(local_orchestra_tensor) == self.sequence_size
+
+                    local_piano_tensor = torch.stack(local_piano_tensor)
+                    local_orchestra_tensor = torch.stack(local_orchestra_tensor)
+
+                    # append and add batch dimension
+                    # cast to int
+                    piano_tensor_dataset.append(
+                        local_piano_tensor[None, :, :].int())
+                    orchestra_tensor_dataset.append(
+                        local_orchestra_tensor[None, :, :].int())
 
             if self.compute_statistics_flag:
                 for pc_piano, pc_orchestra in zip(pc_piano_list, pc_orchestra_list):
@@ -358,7 +439,8 @@ class ArrangementDataset(MusicDataset):
 
         print(
             f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n Orchestra: {orchestra_tensor_dataset.size()}\n')
-        print(f'Missed chunks:\n {missed_chunk_counter} \n {missed_chunk_counter / total_chunk_counter}')
+        print(f'Chunks: {total_chunk_counter} with augmentations: {total_chunk_counter_augmented}')
+        print(f'Missed chunks: {missed_chunk_counter}  Ratio: {missed_chunk_counter / total_chunk_counter}')
         return dataset
 
     def get_score_tensor(self, scores, offsets):
@@ -389,7 +471,7 @@ class ArrangementDataset(MusicDataset):
             if note_start > current_frame_index:
                 # Write in list_pc and move to next
                 if len(current_set_pc) > 0:  # Check on length is only for the first iteration
-                    list_pc.append((note_start, current_set_pc))
+                    list_pc.append((current_frame_index, current_set_pc))
                 current_set_pc = set()
                 current_frame_index = note_start
 
@@ -414,90 +496,6 @@ class ArrangementDataset(MusicDataset):
 
         return corresponding_frames, score_matrix
 
-    # def align_score(self, piano_pianoroll, num_frames_piano, orchestra_pianoroll, num_frames_orchestra):
-    #     list_pc_piano = self.pr_to_list_pc(piano_pianoroll, num_frames_piano)
-    #     list_pc_orchestra = self.pr_to_list_pc(orchestra_pianoroll, num_frames_orchestra)
-    #
-    #     only_pc_piano = [e[1] for e in list_pc_piano]
-    #     only_pc_orchestra = [e[1] for e in list_pc_orchestra]
-    #
-    #     corresponding_indices, score_matrix = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3, gapExtend=-1)
-    #
-    #     corresponding_offsets = [(list_pc_piano[ind_piano][0], list_pc_orchestra[ind_orchestra][0])
-    #                              for ind_piano, ind_orchestra in corresponding_indices]
-    #
-    #     return corresponding_offsets, score_matrix
-    #
-    # def pr_to_list_pc(self, pianoroll, num_frames):
-    #     pc_list = []
-    #     for frame_ind in range(num_frames):
-    #         pc_set_frame = set()
-    #         for instrument_name, pr in pianoroll.items():
-    #             notes = np.where(pr[frame_ind] > 0)[0]
-    #             for note in notes:
-    #                 pc = midiPitch_to_octave_pc(note)[1]
-    #                 pc_set_frame.add(pc)
-    #
-    #         if len(pc_set_frame) > 0:
-    #             offset = (frame_ind / self.subdivision)
-    #             pc_list.append((offset, pc_set_frame))
-    #     return pc_list
-
-    def possible_transposition(self, arr_orch, offset):
-        """
-        returns None if no note present in one of the voices -> no transposition
-        :param arr_orch:
-        :param offset:
-        :return:
-        """
-        transp_minus = -self.transposition_max_allowed
-        transp_plus = self.transposition_max_allowed
-        print(f"## {offset}")
-        for part in arr_orch.parts:
-            this_part_instrument_name = part.getInstrument().instrumentName
-
-            voice_pitches = self.voice_range_in_part(part, offset=offset)
-
-            print(f"{part}: {voice_pitches}")
-
-            if voice_pitches is None:
-                continue
-            voice_lowest, voice_highest = voice_pitches
-            # Get lowest/highest allowed transpositions
-            down_interval = music21.interval.notesToChromatic(voice_lowest,
-                                                              self.reference_tessitura[this_part_instrument_name][0])
-            up_interval = music21.interval.notesToChromatic(voice_highest,
-                                                            self.reference_tessitura[this_part_instrument_name][1])
-            transp_minus = max(transp_minus, down_interval.semitones)
-            transp_plus = min(transp_plus, up_interval.semitones)
-
-        transp_minus = music21.interval.ChromaticInterval(min(transp_minus, 0))
-        transp_plus = music21.interval.ChromaticInterval(max(transp_plus, 0))
-
-        return transp_minus, transp_plus
-
-    def voice_range_in_part(self, part, offset):
-        """
-        return the min and max pitches of an frame
-        :param part: music21 part
-        :param offset: offset at which ambitus is measured
-        :return: pair of music21 notes
-
-        """
-        notes_and_chords = part.flat.getElementsByOffset(offset, mustBeginInSpan=False,
-                                                         classList=[music21.note.Note,
-                                                                    music21.chord.Chord])
-        # Get list of notes
-        notes_list = [
-            n.pitch if n.isNote else n.pitches
-            for n in notes_and_chords
-        ]
-        # Return lowest and highest
-        if len(notes_list) > 0:
-            return min(notes_list), max(notes_list)
-        else:
-            return None
-
     ###################################
     # Small helpers for quickly determining which score is orchestra and which one is piano
     def sort_arrangement_pairs(self, arrangement_pair):
@@ -517,22 +515,96 @@ class ArrangementDataset(MusicDataset):
 
     ###################################
 
-    def pianoroll_to_orchestral_tensor(self, pianoroll, frame_index, n_instruments):
-        orchestra_np = np.zeros((n_instruments))
+    def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
+        #  Get min and max pitches
+        pr_frames = np.asarray([pr[frame] for frame in frames if frame is not None])
+        flat_pr = pr_frames.sum(axis=0)
+        non_zeros_pitches = list(np.where(flat_pr > 0)[0])
+        min_pitch = min(non_zeros_pitches)
+        max_pitch = max(non_zeros_pitches)
+
+        # Compare with reference tessitura, and ensure min <= 0 and max >= 0
+        allowed_transposition_down = min(0, self.observed_tessitura[instrument_name]["min"] - min_pitch)
+        allowed_transposition_up = max(0, self.observed_tessitura[instrument_name]["max"] - max_pitch)
+
+        return allowed_transposition_down, allowed_transposition_up
+
+    def prepare_chunk_from_corresponding_frames(self, corresponding_frames):
+        chunks_piano_indices = []
+        chunks_orchestra_indices = []
+        number_corresponding_frames = len(corresponding_frames)
+        for index_frame in range(1, number_corresponding_frames + 1):
+            start_index = index_frame - self.sequence_size
+            start_index_truncated = max(0, start_index)
+            # Always add at least one None frame at the beginning (instead of a the real previous frame)
+            # Hence, we avoid the model observe slurs from unseen previous frame
+            padding_beginning = start_index_truncated - start_index + 1
+            end_index = index_frame + 1
+            end_index_truncated = min(number_corresponding_frames, end_index)
+            padding_end = end_index - end_index_truncated
+
+            # Always include a None frame as first frame instead of the real previous frame.
+            # This is because we don't want to have slurs from frames that the model cannot observe
+            this_piano_chunk = [e[0][0] for e in corresponding_frames[start_index_truncated:end_index_truncated]]
+            this_orchestra_chunk = [None] + [e[1][0] for e in
+                                    corresponding_frames[start_index_truncated:end_index_truncated]]
+
+            # Padding
+            this_piano_chunk = [None] * padding_beginning + this_piano_chunk + [None] * padding_end
+            this_orchestra_chunk = [None] * (padding_beginning-1) + this_orchestra_chunk + [None] * padding_end
+            chunks_piano_indices.append(this_piano_chunk)
+            chunks_orchestra_indices.append(this_orchestra_chunk)
+        return chunks_piano_indices, chunks_orchestra_indices
+
+    def pianoroll_to_piano_tensor(self, pr, frames_index):
+        piano_encoded = np.zeros((self.number_pitch_piano))
+        # Previous frame (for slurs)
+        if frames_index["tm1"] is None:
+            previous_frame = np.zeros_like(pr[frames_index["t"]])
+        else:
+            previous_frame = pr[frames_index["tm1"]]
+        # Duration
+        if frames_index["tp1"] is None:
+            duration = 1
+        else:
+            duration = frames_index["tp1"] - frames_index["t"]
+        #  Write one-hot
+        for midi_pitch, index in self.midi_pitch2index_piano.items():
+            if midi_pitch == DURATION_SYMBOL:
+                piano_encoded[index] = self.value2oneHot_perPianoToken[index][duration]
+            else:
+                this_velocity = pr[frames_index["t"], midi_pitch]
+                if (this_velocity != 0) and (this_velocity == previous_frame[midi_pitch]):
+                    piano_encoded[index] = self.value2oneHot_perPianoToken[index][SLUR_SYMBOL]
+                else:
+                    piano_encoded[index] = self.value2oneHot_perPianoToken[index][this_velocity]
+        piano_tensor = torch.from_numpy(piano_encoded).long()
+        return piano_tensor
+
+    def pianoroll_to_orchestral_tensor(self, pianoroll, frames_index):
+        orchestra_encoded = np.zeros((self.number_instruments))
         for instrument_name, indices_instruments in self.instrument2index.items():
             number_of_parts = len(indices_instruments)
             if instrument_name not in pianoroll:
                 notes_played = []
+                previous_notes_played = []
             else:
-                notes_played = list(np.where(pianoroll[instrument_name][frame_index])[0])
+                notes_played = list(np.where(pianoroll[instrument_name][frames_index["t"]])[0])
+                if frames_index["tm1"] is None:
+                    previous_notes_played = []
+                else:
+                    previous_notes_played = list(np.where(pianoroll[instrument_name][frames_index["tm1"]])[0])
             if len(notes_played) > number_of_parts:
                 return None
             # Pad with silences
             notes_played.extend([REST_SYMBOL] * (number_of_parts - len(notes_played)))
             for this_note, this_instrument_index in zip(notes_played, indices_instruments):
-                orchestra_np[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
+                if this_note in previous_notes_played:
+                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
+                else:
+                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
 
-        orchestra_tensor = torch.from_numpy(orchestra_np).long()
+        orchestra_tensor = torch.from_numpy(orchestra_encoded).long()
         return orchestra_tensor
 
     def extract_score_tensor_with_padding(self, tensor_score):
@@ -565,28 +637,63 @@ class ArrangementDataset(MusicDataset):
         else:
             assert len(tensor_score) == len(rhythm), "Score and rhythm must have the same length"
         piano_matrix = tensor_score.numpy()
+        length = len(piano_matrix)
 
         this_part = music21.stream.Part(id='Piano')
         music21_instrument = music21.instrument.fromString('Piano')
         this_part.insert(music21_instrument)
-        offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
-        for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
-            piano_vector = piano_matrix[frame_index]
-            piano_notes = np.where(piano_vector > 0)
-            note_list = []
-            for piano_note in piano_notes[0]:
-                pitch = self.piano_tessitura['lowest_pitch'] + piano_note
-                velocity = piano_vector[piano_note]
-                f = music21.note.Note(pitch)
-                f.volume.velocity = velocity
-                f.quarterLength = duration
-                note_list.append(f)
 
-            if len(note_list) == 0:
-                this_part.insert(offset, music21.note.Rest())
-            else:
-                chord = music21.chord.Chord(note_list)
-                this_part.insert(offset, chord)
+        # offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
+
+        # Browse pitch dimension first, to deal with sustained notes
+        duration_ind = self.midi_pitch2index_piano[DURATION_SYMBOL]
+        duration_mapping = self.oneHot2value_perPianoToken[duration_ind]
+        for piano_index, pitch in self.index2midi_pitch_piano.items():
+            if pitch == DURATION_SYMBOL:
+                continue
+            offset = 0
+            duration = 0
+            velocity = 0
+            f = None
+            for frame_index in range(length):
+                current_velocity = self.oneHot2value_perPianoToken[piano_index][piano_matrix[frame_index, piano_index]]
+                current_duration = duration_mapping[piano_matrix[frame_index, duration_ind]]
+                if current_velocity != SLUR_SYMBOL:
+                    # Write previous frame
+                    if f is not None:
+                        f = music21.note.Note(pitch)
+                        f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
+                        f.quarterLength = duration / self.subdivision
+                        this_part.insert(offset, f)
+                    # Reinitialise
+                    duration = 0
+                    velocity = 0
+                if current_velocity == 0:
+                    f = None
+                else:
+                    duration += current_duration
+                    if current_velocity != SLUR_SYMBOL:
+                        velocity = current_velocity
+
+                offset += current_duration
+
+        # for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
+        #     piano_vector = piano_matrix[frame_index]
+        #     piano_indices = np.where(piano_vector > 0)
+        #     note_list = []
+        #     for piano_index in piano_indices[0]:
+        #         pitch = self.index2midi_pitch_piano[piano_index]
+        #         velocity = piano_vector[piano_index]
+        #         f = music21.note.Note(pitch)
+        #         f.volume.velocity = velocity
+        #         f.quarterLength = duration
+        #         note_list.append(f)
+        #
+        #     if len(note_list) == 0:
+        #         this_part.insert(offset, music21.note.Rest())
+        #     else:
+        #         chord = music21.chord.Chord(note_list)
+        #         this_part.insert(offset, chord)
         return this_part
 
     def orchestra_tensor_to_score(self, tensor_score, rhythm):
@@ -695,7 +802,9 @@ if __name__ == '__main__':
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
          'subdivision': 2,
-         'sequence_size': 4,
+         'sequence_size': 2,
+         'velocity_quantization': 4,  # Better if it is divided by 128
+         'max_transposition': 12,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': "/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/statistics"
          })
@@ -727,8 +836,8 @@ if __name__ == '__main__':
         # Flatten matrices
         piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
         piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
-        orchestra_flat = orchestra_batch.view(-1, dataset.number_parts)
-        orchestra_flat_t = orchestra_flat[dataset.sequence_size-1::dataset.sequence_size]
+        orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
+        orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
         if i_batch > number_dump:
             break
         dataset.visualise_batch((piano_flat, None), (orchestra_flat, None), writing_dir, filepath=f"{i_batch}_seq")

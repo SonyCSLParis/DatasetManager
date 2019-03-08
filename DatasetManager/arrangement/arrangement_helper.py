@@ -7,6 +7,7 @@ import os
 import glob
 import re
 import music21
+from helpers import MAX_VELOCITY
 
 
 def note_to_midiPitch(note):
@@ -44,12 +45,25 @@ def quantize_and_filter_music21_element(element, subdivision):
     if abs((element.offset * subdivision) - frame_start) > 0.1:
         # Avoid elements not on fixed subdivision of quarter notes
         return None, None
-    frame_end = int(round((element.offset + element.duration.quarterLength)*subdivision))
+    frame_end = int(round((element.offset + element.duration.quarterLength) * subdivision))
     if frame_start == frame_end:
-        #TODO What do we do with very short events ?
+        # TODO What do we do with very short events ?
         # Perhaps keep them...
-        return frame_start, frame_end+1
+        return frame_start, frame_end + 1
     return frame_start, frame_end
+
+
+def quantize_velocity_pianoroll_frame(frame, velocity_quantization):
+    # This formula maps 0 -> 0
+    # Then everything above 0 is mapped in [1, q-1] "uniformly"
+    # resulting in q bins
+    quantized_piano_frame = np.ceil((frame / MAX_VELOCITY) * (velocity_quantization - 1))
+    return quantized_piano_frame
+
+
+def unquantize_velocity(q_vel, velocity_quantization):
+    u_vel = q_vel * ((MAX_VELOCITY-1) / velocity_quantization)
+    return quantized_piano_frame
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):

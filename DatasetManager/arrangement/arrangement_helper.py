@@ -34,8 +34,7 @@ def midiPitch_to_octave_pc(number):
 
 
 def orchestral_tensor_to_pianoroll(tensor):
-    #  A ECRIRE
-    # Dict containing pianoroll frame for each instrument
+    # Not used...
     pianoroll_frame = {}
     return pianoroll_frame
 
@@ -62,8 +61,8 @@ def quantize_velocity_pianoroll_frame(frame, velocity_quantization):
 
 
 def unquantize_velocity(q_vel, velocity_quantization):
-    u_vel = q_vel * ((MAX_VELOCITY-1) / velocity_quantization)
-    return quantized_piano_frame
+    u_vel = (q_vel / (velocity_quantization-1)) * (MAX_VELOCITY - 1)
+    return int(u_vel)
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):

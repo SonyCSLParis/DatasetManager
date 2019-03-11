@@ -201,21 +201,22 @@ class ArrangementDataset(MusicDataset):
         self.index2midi_pitch_piano[index] = DURATION_SYMBOL
 
         # Piano velocities (need this because it's slightly different for the DURATION_SYMBOL token)
-        index = 0
         dict_for_standard_note_value2oneHot = {}
         dict_for_standard_note_oneHot2value = {}
-        for velocity in range(self.velocity_quantization):
+        for index, velocity in enumerate(range(self.velocity_quantization)):
             dict_for_standard_note_value2oneHot[velocity] = index
             dict_for_standard_note_oneHot2value[index] = velocity
-            index += 1
         #  Slur
         index += 1
         dict_for_standard_note_value2oneHot[SLUR_SYMBOL] = index
         dict_for_standard_note_oneHot2value[index] = SLUR_SYMBOL
         for token_index, symbol_pitch_or_duration in self.index2midi_pitch_piano.items():
             if symbol_pitch_or_duration == DURATION_SYMBOL:
-                self.value2oneHot_perPianoToken[token_index] = {i+1: i for i in range(self.max_duration)}
-                self.oneHot2value_perPianoToken[token_index] = {i: i+1 for i in range(self.max_duration)}
+                self.value2oneHot_perPianoToken[token_index] = {i: i for i in range(1, self.max_duration)}
+                self.oneHot2value_perPianoToken[token_index] = {i: i for i in range(1, self.max_duration)}
+                # Padding is stored as 0 duration
+                self.value2oneHot_perPianoToken[token_index][PAD_SYMBOL] = 0
+                self.oneHot2value_perPianoToken[token_index][0] = PAD_SYMBOL
             else:
                 self.value2oneHot_perPianoToken[token_index] = dict.copy(dict_for_standard_note_value2oneHot)
                 self.oneHot2value_perPianoToken[token_index] = dict.copy(dict_for_standard_note_oneHot2value)
@@ -224,8 +225,8 @@ class ArrangementDataset(MusicDataset):
         self.number_pitch_piano = len(self.midi_pitch2index_piano)
 
         # Need those two for padding sequences
-        orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
         self.piano_padding_vector = torch.from_numpy(np.asarray([0] * self.number_pitch_piano)).long()
+        orchestra_padding_vector = [mapping[PAD_SYMBOL] for instru_ind, mapping in self.midi_pitch2index.items()]
         self.orchestra_padding_vector = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
         return
 
@@ -479,6 +480,8 @@ class ArrangementDataset(MusicDataset):
                 current_set_pc.add(elem.pitch.pitchClass)
             else:
                 current_set_pc = current_set_pc.union(set(elem.pitchClasses))
+        # Don't forget last event !
+        list_pc.append((current_frame_index, current_set_pc))
         return list_pc
 
     def align_score(self, piano_score, orchestra_score):
@@ -629,13 +632,11 @@ class ArrangementDataset(MusicDataset):
         durations = [float(e / self.subdivision) for e in durations]
         return offsets, durations
 
-    def piano_tensor_to_score(self, tensor_score, rhythm):
+    def get_offsets_from_durations(self, durations):
+        return offsets
 
-        if rhythm is None:
-            # If no rhythmic information is provided, everything will be a quarter note
-            rhythm = np.arange(len(tensor_score)) * self.subdivision
-        else:
-            assert len(tensor_score) == len(rhythm), "Score and rhythm must have the same length"
+    def piano_tensor_to_score(self, tensor_score):
+
         piano_matrix = tensor_score.numpy()
         length = len(piano_matrix)
 
@@ -643,60 +644,60 @@ class ArrangementDataset(MusicDataset):
         music21_instrument = music21.instrument.fromString('Piano')
         this_part.insert(music21_instrument)
 
-        # offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
-
         # Browse pitch dimension first, to deal with sustained notes
         duration_ind = self.midi_pitch2index_piano[DURATION_SYMBOL]
         duration_mapping = self.oneHot2value_perPianoToken[duration_ind]
         for piano_index, pitch in self.index2midi_pitch_piano.items():
             if pitch == DURATION_SYMBOL:
                 continue
+            current_offset = 0
             offset = 0
             duration = 0
             velocity = 0
-            f = None
+            # f = None
             for frame_index in range(length):
                 current_velocity = self.oneHot2value_perPianoToken[piano_index][piano_matrix[frame_index, piano_index]]
                 current_duration = duration_mapping[piano_matrix[frame_index, duration_ind]]
+
+                # Need to decide what to do with padding frames here...
+                # We decide to write them as a quarter note length silence
+                if current_duration == PAD_SYMBOL:
+                    current_duration = self.subdivision
+
+                # Write note if current note is not slured
                 if current_velocity != SLUR_SYMBOL:
-                    # Write previous frame
-                    if f is not None:
+                    # Write previous frame if it was not a silence
+                    if velocity != 0:
                         f = music21.note.Note(pitch)
                         f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                         f.quarterLength = duration / self.subdivision
-                        this_part.insert(offset, f)
-                    # Reinitialise
-                    duration = 0
-                    velocity = 0
-                if current_velocity == 0:
-                    f = None
-                else:
+                        this_part.insert((offset / self.subdivision), f)
+                        print(f"{pitch} - {offset/self.subdivision} - {duration/self.subdivision} - {unquantize_velocity(velocity, self.velocity_quantization)}")
+                    # Reinitialise (note that we don't need to write silences, they are handled by the offset)
+                    duration = current_duration
+                    offset = current_offset
+                    velocity = current_velocity
+                elif current_velocity == SLUR_SYMBOL:
                     duration += current_duration
-                    if current_velocity != SLUR_SYMBOL:
-                        velocity = current_velocity
 
-                offset += current_duration
+                current_offset += current_duration
 
-        # for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
-        #     piano_vector = piano_matrix[frame_index]
-        #     piano_indices = np.where(piano_vector > 0)
-        #     note_list = []
-        #     for piano_index in piano_indices[0]:
-        #         pitch = self.index2midi_pitch_piano[piano_index]
-        #         velocity = piano_vector[piano_index]
-        #         f = music21.note.Note(pitch)
-        #         f.volume.velocity = velocity
-        #         f.quarterLength = duration
-        #         note_list.append(f)
-        #
-        #     if len(note_list) == 0:
-        #         this_part.insert(offset, music21.note.Rest())
-        #     else:
-        #         chord = music21.chord.Chord(note_list)
-        #         this_part.insert(offset, chord)
-        return this_part
+            # Don't forget the last note
+            if velocity != 0:
+                f = music21.note.Note(pitch)
+                f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
+                f.quarterLength = duration / self.subdivision
+                this_part.insert((offset / self.subdivision), f)
 
-    def orchestra_tensor_to_score(self, tensor_score, rhythm):
+        # Very important, if not spread the note of the chord
+        this_part_chordified = this_part.chordify()
+
+        # Need the sequence of duration to reconstruct the corresponding orchestration
+        list_durations = piano_matrix[:, duration_ind]
+        list_durations = [duration_mapping[e] for e in list_durations]
+        return this_part_chordified, list_durations
+
+    def orchestra_tensor_to_score(self, tensor_score, durations):
         """
 
         :param tensor_score: one-hot encoding with dimensions (time, instrument)
@@ -706,15 +707,15 @@ class ArrangementDataset(MusicDataset):
         # (batch, num_parts, notes_encoding)
         orchestra_matrix = tensor_score.numpy()
 
-        if rhythm is None:
-            rhythm = np.arange(len(tensor_score)) * self.subdivision
+        if durations is None:
+            durations = np.arange(len(tensor_score)) * self.subdivision
         else:
-            assert len(tensor_score) == len(rhythm), "Rhythm vector must be the same length as tensor[0]"
+            assert len(tensor_score) == len(durations), "Rhythm vector must be the same length as tensor[0]"
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()
 
-        offsets, durations = self.get_offset_duration_from_frames_onsets(rhythm)
+        offsets = self.get_offsets_from_durations(durations)
 
         # First store every in a dict {instrus : [time [notes]]}
         score_dict = {}
@@ -723,13 +724,36 @@ class ArrangementDataset(MusicDataset):
             instrument_name = self.index2instrument[instrument_index]
             if instrument_name not in score_dict:
                 score_dict[instrument_name] = {}
-            for frame_index, (offset, duration) in enumerate(zip(offsets, durations)):
-                midi_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
-                if midi_pitch in [REST_SYMBOL, PAD_SYMBOL]:
-                    continue
-                if offset not in score_dict[instrument_name]:
-                    score_dict[instrument_name][offset] = (duration, set())
-                score_dict[instrument_name][offset][1].add(midi_pitch)
+
+            duration = 0
+            offset = 0
+            pitch = PAD_SYMBOL
+            for frame_index, (this_offset, this_duration) in enumerate(zip(offsets, durations)):
+                this_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+
+                # if midi_pitch in [REST_SYMBOL, PAD_SYMBOL]:
+                #     duration = self.subdivision
+
+                if this_pitch == SLUR_SYMBOL:
+                    duration += this_duration
+                else:
+                    # Write previous pitch
+                    if pitch not in [PAD_SYMBOL, REST_SYMBOL]:
+                        #  Write previous event
+                        if offset not in score_dict[instrument_name]:
+                            score_dict[instrument_name][this_offset] = (duration, set())
+                        score_dict[instrument_name][this_offset][1].add(previous_pitch)
+                    # Reset values
+                    duration = this_duration
+                    pitch = midi_pitch
+
+
+                    duration = this_duration
+
+                previous_pitch = midi_pitch
+                offset += this_duration
+
+
 
         for instrument_name, list_notes in score_dict.items():
             this_part = music21.stream.Part(id=instrument_name)
@@ -764,20 +788,20 @@ class ArrangementDataset(MusicDataset):
         else:
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
-    def visualise_batch(self, piano_infos, orchestra_infos, writing_dir=None, filepath=None):
+    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, writing_dir=None, filepath=None):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
             writing_dir = f"{os.getcwd()}/dump"
 
-        piano_part = self.piano_tensor_to_score(piano_infos[0], piano_infos[1])
-        orchestra_stream = self.orchestra_tensor_to_score(orchestra_infos[0], orchestra_infos[1])
+        piano_part, durations_piano = self.piano_tensor_to_score(piano_pianoroll)
+        # orchestra_stream = self.orchestra_tensor_to_score(orchestra_pianoroll, durations_piano)
 
         piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
-        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')
+        # orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')
         # Both in the same score
-        orchestra_stream.append(piano_part)
-        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.xml", fmt='musicxml')
+        # orchestra_stream.append(piano_part)
+        # orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.xml", fmt='musicxml')
 
 
 if __name__ == '__main__':
@@ -804,7 +828,7 @@ if __name__ == '__main__':
          'subdivision': 2,
          'sequence_size': 2,
          'velocity_quantization': 4,  # Better if it is divided by 128
-         'max_transposition': 12,
+         'max_transposition': 3,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': "/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/statistics"
          })
@@ -820,7 +844,7 @@ if __name__ == '__main__':
     (train_dataloader,
      val_dataloader,
      test_dataloader) = dataset.data_loaders(
-        batch_size=16,
+        batch_size=2,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=False
     )
@@ -840,5 +864,5 @@ if __name__ == '__main__':
         orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
         if i_batch > number_dump:
             break
-        dataset.visualise_batch((piano_flat, None), (orchestra_flat, None), writing_dir, filepath=f"{i_batch}_seq")
-        dataset.visualise_batch((piano_flat_t, None), (orchestra_flat_t, None), writing_dir, filepath=f"{i_batch}_t")
+        dataset.visualise_batch(piano_flat, orchestra_flat, writing_dir, filepath=f"{i_batch}_seq")
+        dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")

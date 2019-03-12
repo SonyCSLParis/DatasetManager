@@ -49,7 +49,7 @@ all_datasets = {
                 subsets=[
                     'debug',
                 ],
-                num_elements=5,
+                num_elements=None,
             )
         },
     'arrangement_frame_test':

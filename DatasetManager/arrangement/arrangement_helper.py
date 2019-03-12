@@ -7,7 +7,7 @@ import os
 import glob
 import re
 import music21
-from helpers import MAX_VELOCITY
+from DatasetManager.helpers import MAX_VELOCITY
 
 
 def note_to_midiPitch(note):
@@ -66,6 +66,7 @@ def unquantize_velocity(q_vel, velocity_quantization):
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):
+    # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
@@ -76,6 +77,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
     end_offset = 1 + int(score.flat.highestOffset)
     # Output
     pianoroll = dict()
+    onsets = dict()
     number_frames = (end_offset - start_offset) * subdivision
     for part in score_soundingPitch.parts:
         # Parse file
@@ -83,14 +85,17 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
                                                           classList=[music21.note.Note,
                                                                      music21.chord.Chord])
         this_pr = np.zeros((number_frames, 128))
+        this_onsets = np.zeros((number_frames, 128))
 
-        def add_note_to_pianoroll(note, note_start, note_end, pr):
+        def add_note_to_pianoroll(note, note_start, note_end, pr, onsets):
             note_velocity = note.volume.velocity
             if note_velocity is None:
                 note_velocity = 128
             note_pitch = note_to_midiPitch(note)
 
             pr[note_start:note_end, note_pitch] = note_velocity
+            onsets[note_start, note_pitch] = 1
+            return
 
         for element in elements_iterator:
             # Start at stop at previous frame. Problem: we loose too short events
@@ -99,9 +104,9 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
                 continue
             if element.isChord:
                 for note in element._notes:
-                    add_note_to_pianoroll(note, note_start, note_end, this_pr)
+                    add_note_to_pianoroll(note, note_start, note_end, this_pr, this_onsets)
             else:
-                add_note_to_pianoroll(element, note_start, note_end, this_pr)
+                add_note_to_pianoroll(element, note_start, note_end, this_pr, this_onsets)
 
         # Sometimes, typically for truncated files or when thick subdivisions are used
         # We might end up with instrument pr only files with zeros.
@@ -114,10 +119,12 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
         for instrument_name in instrument_names:
             if instrument_name in pianoroll.keys():
                 pianoroll[instrument_name] = np.maximum(pianoroll[instrument_name], this_pr)
+                onsets[instrument_name] = np.maximum(onsets[instrument_name], this_onsets)
             else:
                 pianoroll[instrument_name] = this_pr
+                onsets[instrument_name] = this_onsets
 
-    return pianoroll, number_frames
+    return pianoroll, onsets, number_frames
 
 
 def pianoroll_to_score(pianoroll):

@@ -18,7 +18,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset, \
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
-from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
+# from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
@@ -52,28 +52,28 @@ all_datasets = {
                 num_elements=None,
             )
         },
-    'arrangement_frame_test':
-        {
-            'dataset_class_name': ArrangementFrameDataset,
-            'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
-                subsets=[
-                    'debug'
-                ],
-                num_elements=None,
-            )
-        },
-    'arrangement_frame':
-        {
-            'dataset_class_name': ArrangementFrameDataset,
-            'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
-                subsets=[
-                    'liszt_classical_archives',
-                ],
-                num_elements=None,
-            )
-        },
+    # 'arrangement_frame_test':
+    #     {
+    #         'dataset_class_name': ArrangementFrameDataset,
+    #         'corpus_it_gen':      ArrangementIteratorGenerator(
+    #             arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+    #             subsets=[
+    #                 'debug'
+    #             ],
+    #             num_elements=None,
+    #         )
+    #     },
+    # 'arrangement_frame':
+    #     {
+    #         'dataset_class_name': ArrangementFrameDataset,
+    #         'corpus_it_gen':      ArrangementIteratorGenerator(
+    #             arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+    #             subsets=[
+    #                 'liszt_classical_archives',
+    #             ],
+    #             num_elements=None,
+    #         )
+    #     },
     'bach_chorales':
         {
             'dataset_class_name': ChoraleDataset,
@@ -326,12 +326,14 @@ if __name__ == '__main__':
 
     # Arrangement
     subdivision = 2
-    sequence_size = 4
+    sequence_size = 7
     arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
         name='arrangement_test',
         transpose_to_sounding_pitch=True,
         subdivision=subdivision,
         sequence_size=sequence_size,
+        velocity_quantization=8,
+        max_transposition=3,
         compute_statistics_flag=False
     )
 

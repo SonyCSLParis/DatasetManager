@@ -94,7 +94,7 @@ class ArrangementDataset(MusicDataset):
         return
 
     def __repr__(self):
-        return f'ArrangementFrameDataset(' \
+        return f'ArrangementDataset(' \
             f'{self.name},' \
             f'{self.subdivision})'
 

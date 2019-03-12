@@ -96,7 +96,10 @@ class ArrangementDataset(MusicDataset):
     def __repr__(self):
         return f'ArrangementDataset(' \
             f'{self.name},' \
-            f'{self.subdivision})'
+            f'{self.subdivision}, ' \
+            f'{self.sequence_size}, ' \
+            f'{self.velocity_quantization}, ' \
+            f'{self.max_transposition})'
 
     def iterator_gen(self):
         return (self.sort_arrangement_pairs(arrangement_pair)
@@ -564,12 +567,12 @@ class ArrangementDataset(MusicDataset):
     def pianoroll_to_piano_tensor(self, pr, onsets, frame_index):
         piano_encoded = np.zeros((self.number_pitch_piano))
         #  Write one-hot
-        for midi_pitch, index_velocity in self.midi_pitch2index_piano.items():
+        for midi_pitch, index in self.midi_pitch2index_piano.items():
             this_velocity = pr[frame_index, midi_pitch]
             if (this_velocity != 0) and (onsets[frame_index, midi_pitch] == 0):
-                piano_encoded[index_velocity] = self.value2oneHot_perPianoToken[index_velocity][SLUR_SYMBOL]
+                piano_encoded[index] = self.value2oneHot_perPianoToken[index][SLUR_SYMBOL]
             else:
-                piano_encoded[index_velocity] = self.value2oneHot_perPianoToken[index_velocity][this_velocity]
+                piano_encoded[index] = self.value2oneHot_perPianoToken[index][this_velocity]
         piano_tensor = torch.from_numpy(piano_encoded).long()
         return piano_tensor
 
@@ -753,27 +756,31 @@ class ArrangementDataset(MusicDataset):
         else:
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
-    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, writing_dir=None, filepath=None):
+    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano=None, writing_dir=None, filepath=None):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
             writing_dir = f"{os.getcwd()}/dump"
 
-        # Add padding vectors between each example
-        batch_size, time_length, num_features = piano_pianoroll.size()
-        piano_with_padding_between_batch = torch.zeros(batch_size, time_length + 1, num_features)
-        piano_with_padding_between_batch[:, :time_length] = piano_pianoroll
-        piano_with_padding_between_batch[:, time_length] = self.piano_padding_vector
-        piano_flat = piano_with_padding_between_batch.view(-1, dataset.number_pitch_piano)
-        #
-        batch_size, time_length, num_features = orchestra_pianoroll.size()
-        orchestra_with_padding_between_batch = torch.zeros(batch_size, time_length + 1, num_features)
-        orchestra_with_padding_between_batch[:, :time_length] = orchestra_pianoroll
-        orchestra_with_padding_between_batch[:, time_length] = self.orchestra_padding_vector
-        orchestra_flat = orchestra_with_padding_between_batch.view(-1, dataset.number_instruments)
+        if len(piano_pianoroll.size()) == 2:
+            piano_flat = piano_pianoroll
+            orchestra_flat = orchestra_pianoroll
+        else:
+            # Add padding vectors between each example
+            batch_size, time_length, num_features = piano_pianoroll.size()
+            piano_with_padding_between_batch = torch.zeros(batch_size, time_length + 1, num_features)
+            piano_with_padding_between_batch[:, :time_length] = piano_pianoroll
+            piano_with_padding_between_batch[:, time_length] = self.piano_padding_vector
+            piano_flat = piano_with_padding_between_batch.view(-1, dataset.number_pitch_piano)
+            #
+            batch_size, time_length, num_features = orchestra_pianoroll.size()
+            orchestra_with_padding_between_batch = torch.zeros(batch_size, time_length + 1, num_features)
+            orchestra_with_padding_between_batch[:, :time_length] = orchestra_pianoroll
+            orchestra_with_padding_between_batch[:, time_length] = self.orchestra_padding_vector
+            orchestra_flat = orchestra_with_padding_between_batch.view(-1, dataset.number_instruments)
 
-        piano_part = self.piano_tensor_to_score(piano_flat)
-        orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat)
+        piano_part = self.piano_tensor_to_score(piano_flat, durations_piano)
+        orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano)
 
         piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')

@@ -596,7 +596,10 @@ class ArrangementDataset(MusicDataset):
                 if slur_bool:
                     orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
                 else:
-                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
+                    try:
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
+                    except:
+                        print("yo")
         orchestra_tensor = torch.from_numpy(orchestra_encoded).long()
         return orchestra_tensor
 
@@ -811,9 +814,9 @@ if __name__ == '__main__':
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
          'subdivision': 2,
-         'sequence_size': 3,
+         'sequence_size': 5,
          'velocity_quantization': 4,  # Better if it is divided by 128
-         'max_transposition': 3,
+         'max_transposition': 12,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': "/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/statistics"
          })

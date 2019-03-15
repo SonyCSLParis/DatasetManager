@@ -18,7 +18,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset, \
 from DatasetManager.the_session.folk_data_helpers \
              import FolkIteratorGenerator
 
-# from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
+from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
@@ -26,8 +26,6 @@ from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGen
 # add an entry in the all_datasets variable
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
-
-
 
 all_datasets = {
     'arrangement':
@@ -52,28 +50,28 @@ all_datasets = {
                 num_elements=None,
             )
         },
-    # 'arrangement_frame_test':
-    #     {
-    #         'dataset_class_name': ArrangementFrameDataset,
-    #         'corpus_it_gen':      ArrangementIteratorGenerator(
-    #             arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
-    #             subsets=[
-    #                 'debug'
-    #             ],
-    #             num_elements=None,
-    #         )
-    #     },
-    # 'arrangement_frame':
-    #     {
-    #         'dataset_class_name': ArrangementFrameDataset,
-    #         'corpus_it_gen':      ArrangementIteratorGenerator(
-    #             arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
-    #             subsets=[
-    #                 'liszt_classical_archives',
-    #             ],
-    #             num_elements=None,
-    #         )
-    #     },
+    'arrangement_frame_test':
+        {
+            'dataset_class_name': ArrangementFrameDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                subsets=[
+                    'debug'
+                ],
+                num_elements=None,
+            )
+        },
+    'arrangement_frame':
+        {
+            'dataset_class_name': ArrangementFrameDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                subsets=[
+                    'liszt_classical_archives',
+                ],
+                num_elements=None,
+            )
+        },
     'bach_chorales':
         {
             'dataset_class_name': ChoraleDataset,

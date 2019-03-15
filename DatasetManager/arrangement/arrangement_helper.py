@@ -65,6 +65,17 @@ def unquantize_velocity(q_vel, velocity_quantization):
     return int(u_vel)
 
 
+def shift_pr_along_pitch_axis(matrix, shift):
+    ret = np.zeros_like(matrix)
+    if shift < 0:
+        ret[:, :shift] = matrix[:, -shift:]
+    elif shift > 0:
+        ret[:, shift:] = matrix[:, :-shift]
+    else:
+        ret = matrix
+    return ret
+
+
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score

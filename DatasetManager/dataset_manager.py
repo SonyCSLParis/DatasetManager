@@ -1,3 +1,4 @@
+import json
 import os
 
 import music21
@@ -27,12 +28,17 @@ from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGen
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
 
+
+config_path = f"{os.path.dirname(os.path.abspath(__file__))}/config.json"
+with open(config_path) as config_file:
+    config = json.load(config_file)
+
 all_datasets = {
     'arrangement':
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
                 subsets=[
                     'liszt_classical_archives',
                 ],
@@ -43,7 +49,7 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
                 subsets=[
                     'debug',
                 ],
@@ -54,7 +60,7 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementFrameDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
                 subsets=[
                     'debug'
                 ],
@@ -65,7 +71,7 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementFrameDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path='/home/leo/Recherche/databases/Orchestration/arrangement_mxml',
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
                 subsets=[
                     'liszt_classical_archives',
                 ],

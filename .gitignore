@@ -118,3 +118,4 @@ stub.py
 
 # Config files
 DatasetManager/arrangement/config_arrangement.json
+DatasetManager/config.json

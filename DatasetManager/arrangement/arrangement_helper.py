@@ -79,6 +79,7 @@ def shift_pr_along_pitch_axis(matrix, shift):
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
+    import pdb; pdb.set_trace()
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
     else:

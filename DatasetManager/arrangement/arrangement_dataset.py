@@ -1,4 +1,3 @@
-# TODO Use future piano information ?
 import json
 import os
 import re

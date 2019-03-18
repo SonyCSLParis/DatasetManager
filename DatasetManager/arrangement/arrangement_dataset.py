@@ -57,7 +57,7 @@ class ArrangementDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
 
-        config_path = f"{os.path.dirname(__file__)}/config_arrangement.json"
+        config_path = f"{os.path.dirname(os.path.abspath(__file__))}/config_arrangement.json"
         with open(config_path) as config_file:
             config = json.load(config_file)
         reference_tessitura_path = config["reference_tessitura_path"]

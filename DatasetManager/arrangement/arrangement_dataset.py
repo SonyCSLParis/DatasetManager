@@ -37,8 +37,8 @@ class ArrangementDataset(MusicDataset):
                  velocity_quantization=8,
                  max_transposition=3,
                  transpose_to_sounding_pitch=True,
-                 reference_tessitura_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/reference_tessitura.json',
-                 simplify_instrumentation_path='/home/leo/Recherche/DatasetManager/DatasetManager/arrangement/simplify_instrumentation.json',
+                 reference_tessitura_path=None,
+                 simplify_instrumentation_path=None,
                  cache_dir=None,
                  compute_statistics_flag=None):
         """
@@ -58,6 +58,14 @@ class ArrangementDataset(MusicDataset):
         self.velocity_quantization = velocity_quantization
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
+
+        with open('config_arrangement.json') as config_file:
+            config = json.load(config_file)
+
+        if reference_tessitura_path is None:
+            reference_tessitura_path = config["reference_tessitura_path"]
+        if simplify_instrumentation_path is None:
+            simplify_instrumentation_path = config["simplify_instrumentation_path"]
 
         # Reference tessitura for each instrument
         with open(reference_tessitura_path, 'r') as ff:

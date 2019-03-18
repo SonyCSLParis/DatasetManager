@@ -116,7 +116,7 @@ class ArrangementDataset(MusicDataset):
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
             # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
             pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                                  self.simplify_instrumentation,
+                                                                  None,
                                                                   self.transpose_to_sounding_pitch)
             pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
             set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(pitch_set_this_track)
@@ -239,7 +239,8 @@ class ArrangementDataset(MusicDataset):
         # metadata_tensor_dataset = []
 
         total_chunk_counter = 0
-        missed_chunk_counter = 0
+        too_many_instruments_frame = 0
+        impossible_transposition = 0
 
         # Variables for statistics
         if self.compute_statistics_flag:
@@ -247,6 +248,10 @@ class ArrangementDataset(MusicDataset):
             num_frames_with_different_pitch_class = 0
             total_frames_counter = 0
             open(f"{self.compute_statistics_flag}/different_set_pc.txt", 'w').close()
+
+        # List storing piano and orchestra datasets
+        piano_tensor_dataset = []
+        orchestra_tensor_dataset = []
 
         # Iterate over files
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
@@ -269,7 +274,7 @@ class ArrangementDataset(MusicDataset):
             pianoroll_piano, onsets_piano, _ = score_to_pianoroll(
                 arr_pair['Piano'],
                 self.subdivision,
-                self.simplify_instrumentation,
+                None,
                 self.transpose_to_sounding_pitch)
 
             # Quantize piano
@@ -288,28 +293,26 @@ class ArrangementDataset(MusicDataset):
 
             # First get non transposed score
             transposition_semi_tone = 0
-            piano_tensor_dataset = []
-            orchestra_tensor_dataset = []
             minimum_transpositions_allowed = None
             maximum_transpositions_allowed = None
             minimum_transpositions_allowed, maximum_transpositions_allowed, \
             piano_tensor_dataset, orchestra_tensor_dataset, \
-            total_chunk_counter, missed_chunk_counter = \
+            total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
                 self.transpose_loop_iteration(pr_pair, onsets_pair, transposition_semi_tone,
                                               chunks_piano_indices, chunks_orchestra_indices,
                                               minimum_transpositions_allowed, maximum_transpositions_allowed,
                                               piano_tensor_dataset, orchestra_tensor_dataset,
-                                              total_chunk_counter, missed_chunk_counter)
+                                              total_chunk_counter, too_many_instruments_frame, impossible_transposition)
 
             for transposition_semi_tone in range(-self.max_transposition, self.max_transposition + 1):
                 if transposition_semi_tone == 0:
                     continue
-                _, _, piano_tensor_dataset, orchestra_tensor_dataset, total_chunk_counter, missed_chunk_counter = \
+                _, _, piano_tensor_dataset, orchestra_tensor_dataset, total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
                     self.transpose_loop_iteration(pr_pair, onsets_pair, transposition_semi_tone,
                                                   chunks_piano_indices, chunks_orchestra_indices,
                                                   minimum_transpositions_allowed, maximum_transpositions_allowed,
                                                   piano_tensor_dataset, orchestra_tensor_dataset,
-                                                  total_chunk_counter, missed_chunk_counter)
+                                                  total_chunk_counter, too_many_instruments_frame, impossible_transposition)
 
             if self.compute_statistics_flag:
                 for pc_piano, pc_orchestra in zip(pc_piano_list, pc_orchestra_list):
@@ -324,8 +327,6 @@ class ArrangementDataset(MusicDataset):
                             for this_pc in pc_orchestra:
                                 ff.write(f"{this_pc} ")
                             ff.write("\n")
-
-            break
 
         piano_tensor_dataset = torch.cat(piano_tensor_dataset, 0)
         orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
@@ -379,7 +380,7 @@ class ArrangementDataset(MusicDataset):
         print(
             f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n Orchestra: {orchestra_tensor_dataset.size()}\n')
         print(
-            f'Chunks: {total_chunk_counter}  Missed chunks: {missed_chunk_counter}  Ratio: {missed_chunk_counter / total_chunk_counter}')
+            f'Chunks: {total_chunk_counter}\nToo many instru chunks: {too_many_instruments_frame}\nImpossible transpo: {impossible_transposition}')
         return dataset
 
     def get_score_tensor(self, scores, offsets):
@@ -392,16 +393,20 @@ class ArrangementDataset(MusicDataset):
         return None
 
     def score_to_list_pc(self, score):
-        # Need only the flatten orchestra for aligning
-        sounding_pitch_score = score.toSoundingPitch()
-        score_flat = sounding_pitch_score.flat
-        notes_and_chords = score_flat.notes
 
         list_pc = []
         current_frame_index = 0
         current_set_pc = set()
 
-        for elem in notes_and_chords:
+        if self.transpose_to_sounding_pitch:
+            score_soundingPitch = score.toSoundingPitch()
+        else:
+            score_soundingPitch = score
+
+        # TODO Filter out the parts associated to remove ?? Did not raise issue yet, but could be some day
+        elements_iterator = score_soundingPitch.flat.notes
+
+        for elem in elements_iterator:
             # Don't consider elements which are not on a subdivision of the beat
             note_start, note_end = quantize_and_filter_music21_element(elem, self.subdivision)
             if note_start is None:
@@ -506,32 +511,7 @@ class ArrangementDataset(MusicDataset):
                                  chunks_piano_indices, chunks_orchestra_indices,
                                  minimum_transposition_allowed, maximum_transposition_allowed,
                                  piano_tensor_dataset, orchestra_tensor_dataset,
-                                 total_chunk_counter, missed_chunk_counter):
-        # ############################################################
-        # # Compute transposed pianorolls
-        # if transposition_semi_tone != 0:
-        #     # Transpose score
-        #     arr_pair_transposed = {k: v.transpose(transposition_semi_tone) for k, v in arr_pair.items()}
-        # else:
-        #     arr_pair_transposed = dict.copy(arr_pair)
-        #
-        # pianoroll_piano_transposed, this_onsets_piano, _ = score_to_pianoroll(
-        #     arr_pair_transposed['Piano'],
-        #     self.subdivision,
-        #     self.simplify_instrumentation,
-        #     self.transpose_to_sounding_pitch)
-        #
-        # # Quantize piano
-        # this_pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano_transposed["Piano"],
-        #                                                   self.velocity_quantization)
-        # this_onsets_piano = this_onsets_piano["Piano"]
-        #
-        # this_pr_orchestra, this_onsets_orchestra, _ = score_to_pianoroll(
-        #     arr_pair_transposed['Orchestra'],
-        #     self.subdivision,
-        #     self.simplify_instrumentation,
-        #     self.transpose_to_sounding_pitch)
-        # ############################################################
+                                 total_chunk_counter, too_many_instruments_frame, impossible_transposition):
 
         ############################################################
         # Transpose pianorolls
@@ -577,6 +557,7 @@ class ArrangementDataset(MusicDataset):
                     self.get_allowed_transpositions_from_pr(this_pr_piano,
                                                             this_chunk_piano_indices,
                                                             "Piano")
+
                 min_transposition = max(this_min_transposition, min_transposition)
                 max_transposition = min(this_max_transposition, max_transposition)
 
@@ -599,10 +580,10 @@ class ArrangementDataset(MusicDataset):
                 this_maximum_transposition_allowed = maximum_transposition_allowed[chunk_index]
             ############################################################
 
-            # Test if the transposition is possible
+            #  Test if the transposition is possible
             if (this_minimum_transposition_allowed > transposition_semi_tone) \
                     or (this_maximum_transposition_allowed < transposition_semi_tone):
-                missed_chunk_counter += 1
+                impossible_transposition += 1
                 continue
 
             ############################################################
@@ -633,7 +614,7 @@ class ArrangementDataset(MusicDataset):
             ############################################################
 
             if avoid_this_chunk:
-                missed_chunk_counter += 1
+                too_many_instruments_frame += 1
                 continue
 
             assert len(local_piano_tensor) == self.sequence_size
@@ -648,8 +629,8 @@ class ArrangementDataset(MusicDataset):
                 local_orchestra_tensor[None, :, :].int())
 
         return minimum_transposition_allowed, maximum_transposition_allowed, \
-               piano_tensor_dataset, orchestra_tensor_dataset, \
-               total_chunk_counter, missed_chunk_counter
+            piano_tensor_dataset, orchestra_tensor_dataset, \
+            total_chunk_counter, too_many_instruments_frame, impossible_transposition
 
     def pianoroll_to_piano_tensor(self, pr, onsets, frame_index):
         piano_encoded = np.zeros((self.number_pitch_piano))
@@ -683,11 +664,8 @@ class ArrangementDataset(MusicDataset):
                 if slur_bool:
                     orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
                 else:
-                    try:
-                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
-                            this_note]
-                    except:
-                        print("yo")
+                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
+                        this_note]
         orchestra_tensor = torch.from_numpy(orchestra_encoded).long()
         return orchestra_tensor
 
@@ -889,16 +867,16 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            'liszt_classical_archives',
+            # 'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            # 'debug'
+            'debug'
         ],
         num_elements=None
     )
 
     kwargs = {}
     kwargs.update(
-        {'name': "arrangement",
+        {'name': "arrangement_SHIT",
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
          'subdivision': 2,

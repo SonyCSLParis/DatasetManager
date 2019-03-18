@@ -92,9 +92,12 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
     number_frames = (end_offset - start_offset) * subdivision
     for part in score_soundingPitch.parts:
         # Parse file
-        elements_iterator = part.flat.getElementsByOffset(start_offset, end_offset,
-                                                          classList=[music21.note.Note,
-                                                                     music21.chord.Chord])
+        # aaa = part.flat.getElementsByOffset(start_offset, end_offset,
+        #                                                   classList=[music21.note.Note,
+        #                                                              music21.chord.Chord])
+
+        elements_iterator = part.flat.notes
+
         this_pr = np.zeros((number_frames, 128))
         this_onsets = np.zeros((number_frames, 128))
 
@@ -111,8 +114,10 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
         for element in elements_iterator:
             # Start at stop at previous frame. Problem: we loose too short events
             note_start, note_end = quantize_and_filter_music21_element(element, subdivision)
+
             if note_start is None:
                 continue
+
             if element.isChord:
                 for note in element._notes:
                     add_note_to_pianoroll(note, note_start, note_end, this_pr, this_onsets)
@@ -126,7 +131,11 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
             continue
 
         # Instrument name
-        instrument_names = separate_instruments_names(simplify_instrumentation[part.partName])
+        if simplify_instrumentation is None:
+            instrument_names = ["Piano"]
+        else:
+            instrument_names = separate_instruments_names(simplify_instrumentation[part.partName])
+
         for instrument_name in instrument_names:
             if instrument_name in pianoroll.keys():
                 pianoroll[instrument_name] = np.maximum(pianoroll[instrument_name], this_pr)

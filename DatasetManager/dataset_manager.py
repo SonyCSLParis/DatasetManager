@@ -242,7 +242,7 @@ all_datasets = {
 class DatasetManager:
     def __init__(self):
         self.package_dir = os.path.dirname(os.path.realpath(__file__))
-        self.cache_dir = os.path.join(config["package_dir"],
+        self.cache_dir = os.path.join(self.package_dir,
                                       'dataset_cache')
         # create cache dir if it doesn't exist
         if not os.path.exists(self.cache_dir):
@@ -278,6 +278,7 @@ class DatasetManager:
              'corpus_it_gen': corpus_it_gen,
              'cache_dir': self.cache_dir
              })
+        import pdb; pdb.set_trace()
         dataset = dataset_class_name(**kwargs)
         if os.path.exists(dataset.filepath):
             print(f'Loading {dataset.__repr__()} from {dataset.filepath}')

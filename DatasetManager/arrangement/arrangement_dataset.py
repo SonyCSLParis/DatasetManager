@@ -18,6 +18,8 @@ from DatasetManager.helpers import PAD_SYMBOL, REST_SYMBOL, SLUR_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
+from DatasetManager.config import get_config
+
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
     quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis
 
@@ -56,9 +58,7 @@ class ArrangementDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
 
-        config_path = f"{os.path.dirname(os.path.abspath(__file__))}/config_arrangement.json"
-        with open(config_path) as config_file:
-            config = json.load(config_file)
+        config = get_config()
         reference_tessitura_path = config["reference_tessitura_path"]
         simplify_instrumentation_path = config["simplify_instrumentation_path"]
 
@@ -315,7 +315,8 @@ class ArrangementDataset(MusicDataset):
                                                   chunks_piano_indices, chunks_orchestra_indices,
                                                   minimum_transpositions_allowed, maximum_transpositions_allowed,
                                                   piano_tensor_dataset, orchestra_tensor_dataset,
-                                                  total_chunk_counter, too_many_instruments_frame, impossible_transposition)
+                                                  total_chunk_counter, too_many_instruments_frame,
+                                                  impossible_transposition)
 
             if self.compute_statistics_flag:
                 for pc_piano, pc_orchestra in zip(pc_piano_list, pc_orchestra_list):
@@ -632,8 +633,8 @@ class ArrangementDataset(MusicDataset):
                 local_orchestra_tensor[None, :, :].int())
 
         return minimum_transposition_allowed, maximum_transposition_allowed, \
-            piano_tensor_dataset, orchestra_tensor_dataset, \
-            total_chunk_counter, too_many_instruments_frame, impossible_transposition
+               piano_tensor_dataset, orchestra_tensor_dataset, \
+               total_chunk_counter, too_many_instruments_frame, impossible_transposition
 
     def pianoroll_to_piano_tensor(self, pr, onsets, frame_index):
         piano_encoded = np.zeros((self.number_pitch_piano))

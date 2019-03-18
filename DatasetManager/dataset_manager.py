@@ -1,14 +1,9 @@
-import json
 import os
 
 import music21
 import torch
 from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
-from DatasetManager.metadata import TickMetadata, \
-                                    BeatMarkerMetadata, \
-                                    FermataMetadata, \
-                                    KeyMetadata
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.music_dataset import MusicDataset
@@ -23,15 +18,15 @@ from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFram
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
+from DatasetManager.config import get_config
+
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
 
 
-config_path = f"{os.path.dirname(os.path.abspath(__file__))}/config.json"
-with open(config_path) as config_file:
-    config = json.load(config_file)
+config = get_config()
 
 all_datasets = {
     'arrangement':

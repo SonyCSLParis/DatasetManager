@@ -117,5 +117,4 @@ stub.py
 .DS_Store
 
 # Config files
-DatasetManager/arrangement/config_arrangement.json
-DatasetManager/config.json
+DatasetManager/config.py

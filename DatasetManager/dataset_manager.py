@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import music21
 import torch
@@ -301,27 +302,6 @@ class DatasetManager:
 if __name__ == '__main__':
     dataset_manager = DatasetManager()
 
-    # # Arrangement
-    # subdivision = 2
-    # metadatas = []
-    #
-    # arrangement_dataset: ArrangementFrameDataset = dataset_manager.get_dataset(
-    #     name='arrangement_frame',
-    #     transpose_to_sounding_pitch=True,
-    #     subdivision=subdivision,
-    #     compute_statistics_flag=False
-    # )
-    #
-    # (train_dataloader,
-    #  val_dataloader,
-    #  test_dataloader) = arrangement_dataset.data_loaders(
-    #     batch_size=256,
-    #     split=(0.85, 0.10)
-    # )
-    # print('Num Train Batches: ', len(train_dataloader))
-    # print('Num Valid Batches: ', len(val_dataloader))
-    # print('Num Test Batches: ', len(test_dataloader))
-
     # Arrangement
     subdivision = 2
     sequence_size = 5
@@ -330,20 +310,39 @@ if __name__ == '__main__':
         transpose_to_sounding_pitch=True,
         subdivision=subdivision,
         sequence_size=sequence_size,
-        velocity_quantization=4,
-        max_transposition=3,
+        velocity_quantization=2,
+        max_transposition=6,
         compute_statistics_flag=False
     )
 
     (train_dataloader,
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
-        batch_size=256,
-        split=(0.85, 0.10)
+        batch_size=16,
+        split=(0.85, 0.10),
+        DEBUG_BOOL_SHUFFLE=True
     )
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    number_dump = 20
+    writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, orchestra_batch = sample_batched
+        # Flatten matrices
+        # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
+        # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
+        # orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
+        # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
+        if i_batch > number_dump:
+            break
+        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}_seq")
+        # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
 
     # BACH
     # subdivision = 4

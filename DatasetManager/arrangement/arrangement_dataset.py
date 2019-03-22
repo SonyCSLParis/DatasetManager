@@ -96,9 +96,7 @@ class ArrangementDataset(MusicDataset):
 
         # Often used vectors, computed in compute_index_dicts
         self.precomputed_vectors_piano = {
-            START_SYMBOL: None,
-            END_SYMBOL: None,
-            PAD_SYMBOL: None,
+            REST_SYMBOL: None,
         }
         self.precomputed_vectors_orchestra = {
             START_SYMBOL: None,
@@ -238,18 +236,18 @@ class ArrangementDataset(MusicDataset):
         index += 1
         dict_for_velocity2oneHot[SLUR_SYMBOL] = index
         dict_for_oneHot2velocity[index] = SLUR_SYMBOL
-        # Pad (for nade like inference schemes)
-        index += 1
-        dict_for_velocity2oneHot[PAD_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = PAD_SYMBOL
-        # Start
-        index += 1
-        dict_for_velocity2oneHot[START_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = START_SYMBOL
-        # End
-        index += 1
-        dict_for_velocity2oneHot[END_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = END_SYMBOL
+        # # Pad (for nade like inference schemes)
+        # index += 1
+        # dict_for_velocity2oneHot[PAD_SYMBOL] = index
+        # dict_for_oneHot2velocity[index] = PAD_SYMBOL
+        # # Start
+        # index += 1
+        # dict_for_velocity2oneHot[START_SYMBOL] = index
+        # dict_for_oneHot2velocity[index] = START_SYMBOL
+        # # End
+        # index += 1
+        # dict_for_velocity2oneHot[END_SYMBOL] = index
+        # dict_for_oneHot2velocity[index] = END_SYMBOL
 
         for token_index, _ in self.index2midi_pitch_piano.items():
             self.value2oneHot_perPianoToken[token_index] = dict.copy(dict_for_velocity2oneHot)
@@ -259,16 +257,19 @@ class ArrangementDataset(MusicDataset):
         self.number_pitch_piano = len(self.midi_pitch2index_piano)
 
         # These are the one-hot representation of several useful (especially during generation) vectors
-        piano_start_vector = []
-        piano_end_vector = []
-        piano_padding_vector = []
+        # piano_start_vector = []
+        # piano_end_vector = []
+        # piano_padding_vector = []
+        piano_rest_vector = []
         for token_index, value2oneHot in self.value2oneHot_perPianoToken.items():
-            piano_start_vector.append(value2oneHot[START_SYMBOL])
-            piano_end_vector.append(value2oneHot[END_SYMBOL])
-            piano_padding_vector.append(value2oneHot[PAD_SYMBOL])
-        self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
-        self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
-        self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_padding_vector)).long()
+            # piano_start_vector.append(value2oneHot[START_SYMBOL])
+            # piano_end_vector.append(value2oneHot[END_SYMBOL])
+            # piano_padding_vector.append(value2oneHot[PAD_SYMBOL])
+            piano_rest_vector.append(value2oneHot[REST_SYMBOL])
+        # self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
+        # self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
+        # self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_padding_vector)).long()
+        self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
 
         orchestra_start_vector = []
         orchestra_end_vector = []
@@ -515,7 +516,7 @@ class ArrangementDataset(MusicDataset):
 
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
-        pr_frames = np.asarray([pr[frame] for frame in frames if frame not in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]])
+        pr_frames = np.asarray([pr[frame] for frame in frames if frame not in [REST_SYMBOL, PAD_SYMBOL, START_SYMBOL, END_SYMBOL]])
         flat_pr = pr_frames.sum(axis=0)
         non_zeros_pitches = list(np.where(flat_pr > 0)[0])
         if len(non_zeros_pitches) > 0:
@@ -553,7 +554,7 @@ class ArrangementDataset(MusicDataset):
                                     corresponding_frames[start_index_truncated:end_index_truncated + 1]]
 
             # Padding
-            this_piano_chunk = [START_SYMBOL] * padding_beginning + this_piano_chunk + [END_SYMBOL] * padding_end
+            this_piano_chunk = [REST_SYMBOL] * padding_beginning + this_piano_chunk + [REST_SYMBOL] * padding_end
             this_orchestra_chunk = [START_SYMBOL] * padding_beginning + this_orchestra_chunk + [END_SYMBOL] * padding_end
             chunks_piano_indices.append(this_piano_chunk)
             chunks_orchestra_indices.append(this_orchestra_chunk)
@@ -643,7 +644,7 @@ class ArrangementDataset(MusicDataset):
             local_orchestra_tensor = []
             for frame_piano, frame_orchestra in zip(this_chunk_piano_indices, this_chunk_orchestra_indices):
                 # Piano encoded vector
-                if frame_piano in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
+                if (frame_piano == REST_SYMBOL) and (frame_orchestra in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]):
                     piano_t_encoded = self.precomputed_vectors_piano[frame_piano].clone().detach()
                     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
                 else:
@@ -763,7 +764,7 @@ class ArrangementDataset(MusicDataset):
                 if current_velocity != SLUR_SYMBOL:
                     #  Write previous frame if it was not a silence
                     if velocity is not None:
-                        if velocity not in [PAD_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                        if velocity != REST_SYMBOL:
                             f = music21.note.Note(pitch)
                             f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                             f.quarterLength = duration / self.subdivision
@@ -783,7 +784,7 @@ class ArrangementDataset(MusicDataset):
                 current_offset += current_duration
 
             # Don't forget the last note
-            if velocity not in [PAD_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL]:
+            if velocity != REST_SYMBOL:
                 f = music21.note.Note(pitch)
                 f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                 f.quarterLength = duration / self.subdivision
@@ -914,7 +915,7 @@ class ArrangementDataset(MusicDataset):
             batch_size, time_length, num_features = piano_pianoroll.size()
             piano_with_padding_between_batch = torch.zeros(batch_size, time_length + 1, num_features)
             piano_with_padding_between_batch[:, :time_length] = piano_pianoroll
-            piano_with_padding_between_batch[:, time_length] = self.precomputed_vectors_piano[PAD_SYMBOL]
+            piano_with_padding_between_batch[:, time_length] = self.precomputed_vectors_piano[REST_SYMBOL]
             piano_flat = piano_with_padding_between_batch.view(-1, self.number_pitch_piano)
             #
             batch_size, time_length, num_features = orchestra_pianoroll.size()

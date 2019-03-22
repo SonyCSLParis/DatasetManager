@@ -304,14 +304,14 @@ if __name__ == '__main__':
 
     # Arrangement
     subdivision = 2
-    sequence_size = 5
+    sequence_size = 3
     arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
         name='arrangement_test',
         transpose_to_sounding_pitch=True,
         subdivision=subdivision,
         sequence_size=sequence_size,
         velocity_quantization=2,
-        max_transposition=6,
+        max_transposition=3,
         compute_statistics_flag=False
     )
 

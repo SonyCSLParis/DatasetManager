@@ -24,7 +24,7 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, qu
     quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis
 
 
-class ArrangementDataset(MusicDataset):
+class ArrangementPianorollDataset(MusicDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
@@ -48,7 +48,7 @@ class ArrangementDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ArrangementDataset, self).__init__(cache_dir=cache_dir)
+        super(ArrangementPianorollDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.subdivision = subdivision  # We use only on beats notes so far
@@ -81,35 +81,15 @@ class ArrangementDataset(MusicDataset):
         self.instrumentation = get_instrumentation()
 
         # Mapping between instruments and indices
-        self.index2instrument = {}
-        self.instrument2index = {}
-        self.index2midi_pitch = {}
-        self.midi_pitch2index = {}
-        #  Piano
-        self.midi_pitch2index_piano = {}
-        self.index2midi_pitch_piano = {}
-        self.value2oneHot_perPianoToken = {}
-        self.oneHot2value_perPianoToken = {}
-        # Dimensions
-        self.number_instruments = None
-        self.number_pitch_piano = None
-
-        # Often used vectors, computed in compute_index_dicts
-        self.precomputed_vectors_piano = {
-            REST_SYMBOL: None,
-        }
-        self.precomputed_vectors_orchestra = {
-            START_SYMBOL: None,
-            END_SYMBOL: None,
-            PAD_SYMBOL: None,
-        }
+        self.pitch2index= {}
+        self.index2pitch= {}
 
         # Compute statistics slows down the construction of the dataset
         self.compute_statistics_flag = compute_statistics_flag
         return
 
     def __repr__(self):
-        return f'ArrangementDataset-' \
+        return f'ArrangementPianorollDataset-' \
             f'{self.name}-' \
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
@@ -119,10 +99,6 @@ class ArrangementDataset(MusicDataset):
     def iterator_gen(self):
         return (self.sort_arrangement_pairs(arrangement_pair)
                 for arrangement_pair in self.corpus_it_gen())
-
-    @staticmethod
-    def pair2index(one_hot_0, one_hot_1):
-        return one_hot_0 * 12 + one_hot_1
 
     def compute_index_dicts(self):
         #  Mapping midi_pitch to token for each instrument
@@ -512,11 +488,13 @@ class ArrangementDataset(MusicDataset):
         for part in score.parts:
             list_instru.append(part.partName)
         return list_instru
+
     ###################################
 
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
-        pr_frames = np.asarray([pr[frame] for frame in frames if frame not in [REST_SYMBOL, PAD_SYMBOL, START_SYMBOL, END_SYMBOL]])
+        pr_frames = np.asarray(
+            [pr[frame] for frame in frames if frame not in [REST_SYMBOL, PAD_SYMBOL, START_SYMBOL, END_SYMBOL]])
         flat_pr = pr_frames.sum(axis=0)
         non_zeros_pitches = list(np.where(flat_pr > 0)[0])
         if len(non_zeros_pitches) > 0:
@@ -555,7 +533,8 @@ class ArrangementDataset(MusicDataset):
 
             # Padding
             this_piano_chunk = [REST_SYMBOL] * padding_beginning + this_piano_chunk + [REST_SYMBOL] * padding_end
-            this_orchestra_chunk = [START_SYMBOL] * padding_beginning + this_orchestra_chunk + [END_SYMBOL] * padding_end
+            this_orchestra_chunk = [START_SYMBOL] * padding_beginning + this_orchestra_chunk + [
+                END_SYMBOL] * padding_end
             chunks_piano_indices.append(this_piano_chunk)
             chunks_orchestra_indices.append(this_orchestra_chunk)
         return chunks_piano_indices, chunks_orchestra_indices

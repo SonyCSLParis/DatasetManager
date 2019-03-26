@@ -192,7 +192,7 @@ class MusicDataset(ABC):
             train_dataset,
             batch_size=batch_size,
             shuffle=DEBUG_BOOL_SHUFFLE,
-            num_workers=4,
+            num_workers=0,
             pin_memory=True,
             drop_last=True,
         )

@@ -736,18 +736,26 @@ class ArrangementDataset(MusicDataset):
     def random_score_tensor(self, score_length):
         return None
 
-    def piano_tensor_to_score(self, tensor_score, durations=None):
+    def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo='adagio', subdivision=None):
 
         piano_matrix = tensor_score.numpy()
         length = len(piano_matrix)
 
+        if subdivision is None:
+            subdivision = self.subdivision
+
         if durations is None:
-            durations = np.ones((length)) * self.subdivision
+            durations = np.ones((length)) * subdivision
         assert length == len(durations)
 
+        # Instrument
         this_part = music21.stream.Part(id='Piano')
         music21_instrument = music21.instrument.fromString('Piano')
         this_part.insert(music21_instrument)
+
+        # Tempo
+        t = music21.tempo.MetronomeMark(writing_tempo)
+        this_part.insert(0, t)
 
         # Browse pitch dimension first, to deal with sustained notes
         for piano_index, pitch in self.index2midi_pitch_piano.items():
@@ -767,14 +775,14 @@ class ArrangementDataset(MusicDataset):
                         if velocity != REST_SYMBOL:
                             f = music21.note.Note(pitch)
                             f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
-                            f.quarterLength = duration / self.subdivision
-                            this_part.insert((offset / self.subdivision), f)
-                            # print(f"{pitch} - {offset/self.subdivision} - {duration/self.subdivision} - {unquantize_velocity(velocity, self.velocity_quantization)}")
+                            f.quarterLength = duration / subdivision
+                            this_part.insert((offset / subdivision), f)
+                            # print(f"{pitch} - {offset/subdivision} - {duration/subdivision} - {unquantize_velocity(velocity, self.velocity_quantization)}")
                         # Reinitialise (note that we don't need to write silences, they are handled by the offset)
                         else:
                             f = music21.note.Rest()
-                            f.quarterLength = duration / self.subdivision
-                            this_part.insert((offset / self.subdivision), f)
+                            f.quarterLength = duration / subdivision
+                            this_part.insert((offset / subdivision), f)
                     duration = current_duration
                     offset = current_offset
                     velocity = current_velocity
@@ -787,27 +795,30 @@ class ArrangementDataset(MusicDataset):
             if velocity != REST_SYMBOL:
                 f = music21.note.Note(pitch)
                 f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
-                f.quarterLength = duration / self.subdivision
-                this_part.insert((offset / self.subdivision), f)
+                f.quarterLength = duration / subdivision
+                this_part.insert((offset / subdivision), f)
 
         # Very important, if not spread the note of the chord
         this_part_chordified = this_part.chordify()
 
         return this_part_chordified
 
-    def orchestra_tensor_to_score(self, tensor_score, durations=None):
+    def orchestra_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
         """
 
+        :param durations:
         :param tensor_score: one-hot encoding with dimensions (time, instrument)
-        :param rhythm:
         :return:
         """
         # (batch, num_parts, notes_encoding)
         orchestra_matrix = tensor_score.numpy()
         length = len(orchestra_matrix)
 
+        if subdivision is None:
+            subdivision = self.subdivision
+
         if durations is None:
-            durations = np.ones((length)) * self.subdivision
+            durations = np.ones((length)) * subdivision
         else:
             assert length == len(durations), "Rhythm vector must be the same length as tensor[0]"
 
@@ -831,18 +842,24 @@ class ArrangementDataset(MusicDataset):
                 else:
                     if pitch is not None:
                         #  Write previous pitch
-                        if pitch == PAD_SYMBOL:
-                            # Special treatment for PADDING frames
-                            score_dict[instrument_name].append((0, offset, self.subdivision))  # In fact, pitch 0 = C4
-                        elif pitch == START_SYMBOL:
-                            # Special treatment for PADDING frames
-                            score_dict[instrument_name].append((0, offset, self.subdivision))
-                            score_dict[instrument_name].append((6, offset, self.subdivision))
-                        elif pitch == END_SYMBOL:
-                            # Special treatment for PADDING frames
-                            score_dict[instrument_name].append((6, offset, self.subdivision))
-                            score_dict[instrument_name].append((7, offset, self.subdivision))
-                        elif pitch != REST_SYMBOL:
+
+                        # For debugging
+                        # if pitch == PAD_SYMBOL:
+                        #     # Special treatment for PADDING frames
+                        #     score_dict[instrument_name].append((0, offset, subdivision))  # In fact, pitch 0 = C4
+                        # elif pitch == START_SYMBOL:
+                        #     # Special treatment for PADDING frames
+                        #     score_dict[instrument_name].append((0, offset, subdivision))
+                        #     score_dict[instrument_name].append((6, offset, subdivision))
+                        # elif pitch == END_SYMBOL:
+                        #     # Special treatment for PADDING frames
+                        #     score_dict[instrument_name].append((6, offset, subdivision))
+                        #     score_dict[instrument_name].append((7, offset, subdivision))
+                        # elif pitch != REST_SYMBOL:
+                        #     #  Write previous event
+                        #     score_dict[instrument_name].append((pitch, offset, duration))
+
+                        if pitch not in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL, REST_SYMBOL]:
                             #  Write previous event
                             score_dict[instrument_name].append((pitch, offset, duration))
 
@@ -859,12 +876,12 @@ class ArrangementDataset(MusicDataset):
                     score_dict[instrument_name].append((0, offset, duration))
                 elif pitch == START_SYMBOL:
                     # Special treatment for PADDING frames
-                    score_dict[instrument_name].append((0, offset, self.subdivision))
-                    score_dict[instrument_name].append((6, offset, self.subdivision))
+                    score_dict[instrument_name].append((0, offset, subdivision))
+                    score_dict[instrument_name].append((6, offset, subdivision))
                 elif pitch == END_SYMBOL:
                     # Special treatment for PADDING frames
-                    score_dict[instrument_name].append((6, offset, self.subdivision))
-                    score_dict[instrument_name].append((7, offset, self.subdivision))
+                    score_dict[instrument_name].append((6, offset, subdivision))
+                    score_dict[instrument_name].append((7, offset, subdivision))
                 elif pitch != REST_SYMBOL:
                     score_dict[instrument_name].append((pitch, offset, duration))
 
@@ -878,13 +895,16 @@ class ArrangementDataset(MusicDataset):
             else:
                 music21_instrument = music21.instrument.fromString(re.sub('_', ' ', instrument_name))
             this_part.insert(music21_instrument)
+            # Tempo
+            t = music21.tempo.MetronomeMark(writing_tempo)
+            this_part.insert(0, t)
 
             for elem in elems:
                 pitch, offset, duration = elem
                 f = music21.note.Note(pitch)
                 f.volume.velocity = 60.
-                f.quarterLength = duration / self.subdivision
-                this_part.insert((offset / self.subdivision), f)
+                f.quarterLength = duration / subdivision
+                this_part.insert((offset / subdivision), f)
 
             this_part_chordified = this_part.chordify()
             this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch
@@ -901,7 +921,7 @@ class ArrangementDataset(MusicDataset):
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
     def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano=None, writing_dir=None,
-                        filepath=None):
+                        filepath=None, writing_tempo='adagio', subdivision=None):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
@@ -924,8 +944,8 @@ class ArrangementDataset(MusicDataset):
             orchestra_with_padding_between_batch[:, time_length] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
             orchestra_flat = orchestra_with_padding_between_batch.view(-1, self.number_instruments)
 
-        piano_part = self.piano_tensor_to_score(piano_flat, durations_piano)
-        orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano)
+        piano_part = self.piano_tensor_to_score(piano_flat, durations_piano, writing_tempo=writing_tempo, subdivision=subdivision)
+        orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano, writing_tempo=writing_tempo, subdivision=subdivision)
 
         piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')
@@ -943,9 +963,9 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            # 'liszt_classical_archives',
+            'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            'debug'
+            # 'debug'
         ],
         num_elements=None
     )
@@ -955,10 +975,10 @@ if __name__ == '__main__':
         {'name': "arrangement_SHIT",
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
-         'subdivision': 2,
-         'sequence_size': 5,
+         'subdivision': 4,
+         'sequence_size': 3,
          'velocity_quantization': 2,  # Better if it is divided by 128
-         'max_transposition': 6,
+         'max_transposition': 12,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': True
          })

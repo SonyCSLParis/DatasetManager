@@ -62,7 +62,7 @@ class ArrangementPianorollDataset(MusicDataset):
         reference_tessitura_path = config["reference_tessitura_path"]
         simplify_instrumentation_path = config["simplify_instrumentation_path"]
         self.dump_folder = config["dump_folder"]
-        self.statistic_folder = self.dump_folder + '/arrangement/statistics'
+        self.statistic_folder = self.dump_folder + '/arrangement_pianoroll/statistics'
         if os.path.isdir(self.statistic_folder):
             shutil.rmtree(self.statistic_folder)
         os.makedirs(self.statistic_folder)
@@ -80,16 +80,12 @@ class ArrangementPianorollDataset(MusicDataset):
         #  Instrumentation used for learning
         self.instrumentation = get_instrumentation()
 
-        # Mapping between instruments and indices
-        self.pitch2index= {}
-        self.index2pitch= {}
-
         # Compute statistics slows down the construction of the dataset
         self.compute_statistics_flag = compute_statistics_flag
         return
 
     def __repr__(self):
-        return f'ArrangementPianorollDataset-' \
+        return f'ArrangementPR-' \
             f'{self.name}-' \
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
@@ -130,133 +126,31 @@ class ArrangementPianorollDataset(MusicDataset):
                     for pc in set_pitch_class:
                         ff.write(f"   {pc}\n")
 
-        # Local dicts used temporarily
-        midi_pitch2index_per_instrument = {}
-        index2midi_pitch_per_instrument = {}
-        for instrument_name, set_midiPitch in set_midiPitch_per_instrument.items():
-            min_pitch = min(set_midiPitch)
-            max_pitch = max(set_midiPitch)
-            self.observed_tessitura[instrument_name] = {
-                "min": min_pitch,
-                "max": max_pitch
-            }
-            if instrument_name == "Piano":
-                continue
-            # Use range to avoid gaps in instruments tessitura (needed since we use
-            # pitch transpositions as data augmentations
-            list_midiPitch = sorted(list(range(min_pitch, max_pitch + 1)))
-            midi_pitch2index_per_instrument[instrument_name] = {}
-            index2midi_pitch_per_instrument[instrument_name] = {}
-            for index, midi_pitch in enumerate(list_midiPitch):
-                midi_pitch2index_per_instrument[instrument_name][midi_pitch] = index
-                index2midi_pitch_per_instrument[instrument_name][index] = midi_pitch
-            # Silence
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][REST_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = REST_SYMBOL
-            #  Slur
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][SLUR_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = SLUR_SYMBOL
-            # Pad (for nade like inference schemes)
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
-            # Start
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][START_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = START_SYMBOL
-            # End
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][END_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = END_SYMBOL
-
-        # Mapping instruments <-> indices
         index_counter = 0
-        for instrument_name, number_instruments in self.instrumentation.items():
-            #  Check if instrument appears in the dataset
-            if instrument_name not in midi_pitch2index_per_instrument.keys():
-                continue
-            self.instrument2index[instrument_name] = list(range(index_counter, index_counter + number_instruments))
-            for ind in range(index_counter, index_counter + number_instruments):
-                self.index2instrument[ind] = instrument_name
-            index_counter += number_instruments
-
-        # Mapping pitch <-> index per voice (that's the one we'll use, easier to manipulate when training)
-        for instrument_name, instrument_indices in self.instrument2index.items():
-            for instrument_index in instrument_indices:
-                self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
-                self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
-
-        # Piano
-        min_pitch_piano = min(set_midiPitch_per_instrument["Piano"])
-        max_pitch_piano = max(set_midiPitch_per_instrument["Piano"])
-        #  Use range to avoid "gaps" in the piano tessitura
-        list_midiPitch = sorted(list(range(min_pitch_piano, max_pitch_piano + 1)))
-        for index, midi_pitch in enumerate(list_midiPitch):
-            self.midi_pitch2index_piano[midi_pitch] = index
-            self.index2midi_pitch_piano[index] = midi_pitch
-
-        # One hot encoding for velocitites
-        dict_for_velocity2oneHot = {}
-        dict_for_oneHot2velocity = {}
-        # Silence (start with silence mapped to zero, kinda more logical, and then velocity and oneHot are the same value)
-        index = 0
-        dict_for_velocity2oneHot[REST_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = REST_SYMBOL
-        for velocity in range(1, self.velocity_quantization):
-            index += 1
-            dict_for_velocity2oneHot[velocity] = index
-            dict_for_oneHot2velocity[index] = velocity
-        # Slur
-        index += 1
-        dict_for_velocity2oneHot[SLUR_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = SLUR_SYMBOL
-        # # Pad (for nade like inference schemes)
-        # index += 1
-        # dict_for_velocity2oneHot[PAD_SYMBOL] = index
-        # dict_for_oneHot2velocity[index] = PAD_SYMBOL
-        # # Start
-        # index += 1
-        # dict_for_velocity2oneHot[START_SYMBOL] = index
-        # dict_for_oneHot2velocity[index] = START_SYMBOL
-        # # End
-        # index += 1
-        # dict_for_velocity2oneHot[END_SYMBOL] = index
-        # dict_for_oneHot2velocity[index] = END_SYMBOL
-
-        for token_index, _ in self.index2midi_pitch_piano.items():
-            self.value2oneHot_perPianoToken[token_index] = dict.copy(dict_for_velocity2oneHot)
-            self.oneHot2value_perPianoToken[token_index] = dict.copy(dict_for_oneHot2velocity)
-
-        self.number_instruments = len(self.midi_pitch2index)
-        self.number_pitch_piano = len(self.midi_pitch2index_piano)
-
-        # These are the one-hot representation of several useful (especially during generation) vectors
-        # piano_start_vector = []
-        # piano_end_vector = []
-        # piano_padding_vector = []
-        piano_rest_vector = []
-        for token_index, value2oneHot in self.value2oneHot_perPianoToken.items():
-            # piano_start_vector.append(value2oneHot[START_SYMBOL])
-            # piano_end_vector.append(value2oneHot[END_SYMBOL])
-            # piano_padding_vector.append(value2oneHot[PAD_SYMBOL])
-            piano_rest_vector.append(value2oneHot[REST_SYMBOL])
-        # self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
-        # self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
-        # self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_padding_vector)).long()
-        self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
-
-        orchestra_start_vector = []
-        orchestra_end_vector = []
-        orchestra_padding_vector = []
-        for instru_ind, mapping in self.midi_pitch2index.items():
-            orchestra_start_vector.append(mapping[START_SYMBOL])
-            orchestra_end_vector.append(mapping[END_SYMBOL])
-            orchestra_padding_vector.append(mapping[PAD_SYMBOL])
-        self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
-        self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
-        self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
+        for instrument_name, set_midiPitch in set_midiPitch_per_instrument.items():
+            if instrument_name == 'Piano':
+                min_pitch = min(set_midiPitch)
+                max_pitch = max(set_midiPitch) + 1  #  +1 is for creating intervals
+                length = max_pitch - min_pitch
+                self.observed_tessitura["Piano"] = {
+                    "pitch_min": min_pitch,
+                    "pitch_max": max_pitch,
+                    "index_min": 0,
+                    "index_max": length
+                }
+            else:
+                min_pitch = min(set_midiPitch)
+                max_pitch = max(set_midiPitch) + 1  #  +1 is for creating intervals
+                length = max_pitch - min_pitch
+                min_index = index_counter
+                max_index = index_counter + length
+                index_counter += length
+                self.observed_tessitura[instrument_name] = {
+                    "pitch_min": min_pitch,
+                    "pitch_max": max_pitch,
+                    "index_min": min_index,
+                    "index_max": max_index
+                }
         return
 
     def make_tensor_dataset(self, frame_orchestra=None):
@@ -931,18 +825,17 @@ if __name__ == '__main__':
 
     kwargs = {}
     kwargs.update(
-        {'name': "arrangement_SHIT",
+        {'name': "arrangement_PR_SHIT",
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/DatasetManager/DatasetManager/dataset_cache',
          'subdivision': 2,
          'sequence_size': 5,
-         'velocity_quantization': 2,  # Better if it is divided by 128
          'max_transposition': 6,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': True
          })
 
-    dataset = ArrangementDataset(**kwargs)
+    dataset = ArrangementPianorollDataset(**kwargs)
     print(f'Creating {dataset.__repr__()}, '
           f'both tensor dataset and parameters')
     # if os.path.exists(dataset.tensor_dataset_filepath):

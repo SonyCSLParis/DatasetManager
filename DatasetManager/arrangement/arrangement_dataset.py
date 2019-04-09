@@ -754,8 +754,8 @@ class ArrangementDataset(MusicDataset):
         this_part.insert(music21_instrument)
 
         # Tempo
-        t = music21.tempo.MetronomeMark(writing_tempo)
-        this_part.insert(0, t)
+        # t = music21.tempo.MetronomeMark(writing_tempo)
+        # this_part.insert(0, t)
 
         # Browse pitch dimension first, to deal with sustained notes
         for piano_index, pitch in self.index2midi_pitch_piano.items():
@@ -887,17 +887,25 @@ class ArrangementDataset(MusicDataset):
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()
+
+        TEMP_DEBUG = 0
+
         for instrument_name, elems in score_dict.items():
+
+            if TEMP_DEBUG > 4:
+                return stream
+            TEMP_DEBUG += 1
+
             this_part = music21.stream.Part(id=instrument_name)
             #  re is for removing underscores in instrument names which raise errors in music21
             if instrument_name == "Cymbal":
                 music21_instrument = music21.instrument.Cymbals()
             else:
                 music21_instrument = music21.instrument.fromString(re.sub('_', ' ', instrument_name))
-            this_part.insert(music21_instrument)
+            this_part.insert(0, music21_instrument)
             # Tempo
-            t = music21.tempo.MetronomeMark(writing_tempo)
-            this_part.insert(0, t)
+            # t = music21.tempo.MetronomeMark(writing_tempo)
+            # this_part.insert(0, t)
 
             for elem in elems:
                 pitch, offset, duration = elem
@@ -963,9 +971,9 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            'liszt_classical_archives',
+            # 'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            # 'debug'
+            'debug'
         ],
         num_elements=None
     )

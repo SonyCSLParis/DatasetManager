@@ -1,6 +1,8 @@
 import copy
 import csv
-from arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, separate_instruments_names
+
+from DatasetManager.config import get_config
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, separate_instruments_names
 import music21
 import numpy as np
 import json
@@ -10,7 +12,12 @@ import matplotlib.pyplot as plt
 
 
 class ComputeStatistics:
-    def __init__(self, database_path, subsets, simplify_instrumentation_path, subdivision, sounding_pitch_boolean=False):
+    def __init__(self, database_path, subsets, subdivision, sounding_pitch_boolean=False):
+
+        config = get_config()
+        self.dump_folder = config['dump_folder']
+        simplify_instrumentation_path = config['simplify_instrumentation_path']
+
         with open(simplify_instrumentation_path, 'r') as ff:
             self.simplify_instrumentation = json.load(ff)
         #  Histogram with range of notes per instrument
@@ -27,7 +34,7 @@ class ComputeStatistics:
         self.sounding_pitch_boolean = sounding_pitch_boolean
 
         # Write out paths here
-        self.simultaneous_notes_details_path = 'statistics/simultaneous_notes_details.txt'
+        self.simultaneous_notes_details_path = f'{self.dump_folder}/arrangement/statistics/simultaneous_notes_details.txt'
         open(self.simultaneous_notes_details_path, 'w').close()
 
         return
@@ -66,9 +73,9 @@ class ComputeStatistics:
                 y = [0 for e in range(len(x))]
                 plt.plot(x, y, 'ro')
                 if self.sounding_pitch_boolean:
-                    plt.savefig('statistics/tessitura_sounding/' + instrument_name + '_tessitura.pdf')
+                    plt.savefig(f'{self.dump_folder}/arrangement/statistics/tessitura_sounding/' + instrument_name + '_tessitura.pdf')
                 else:
-                    plt.savefig('statistics/tessitura/' + instrument_name + '_tessitura.pdf')
+                    plt.savefig(f'{self.dump_folder}/arrangement/statistics/tessitura/' + instrument_name + '_tessitura.pdf')
                 plt.show()
 
                 # Write stats in txt file
@@ -85,13 +92,13 @@ class ComputeStatistics:
                 stats.append(this_stats)
 
         # Write number of co-occuring notes
-        with open('statistics/simultaneous_notes.txt', 'w') as ff:
+        with open(f'{self.dump_folder}/arrangement/statistics/simultaneous_notes.txt', 'w') as ff:
             for instrument_name, simultaneous_counter in self.simultaneous_notes.items():
                 ff.write(f"## {instrument_name}\n")
                 for ind, simultaneous_occurences in enumerate(list(simultaneous_counter)):
                     ff.write('  {:d} : {:d}\n'.format(ind, int(simultaneous_occurences)))
 
-        with open('statistics/statistics.csv', 'w') as ff:
+        with open(f'{self.dump_folder}/arrangement/statistics/statistics.csv', 'w') as ff:
             fieldnames = this_stats.keys()
             writer = csv.DictWriter(ff, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
@@ -161,11 +168,10 @@ class ComputeStatistics:
 
 
 if __name__ == '__main__':
-    database_path = '/home/leo/Recherche/databases/Orchestration/arrangement_mxml/'
+    database_path = '/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/'
     subsets = ['liszt_classical_archives']
-    # subsets = ['debug']
     simplify_instrumentation_path = 'simplify_instrumentation.json'
     sounding_pitch_boolean = True
-    subdivision = 16
-    computeStatistics = ComputeStatistics(database_path, subsets, simplify_instrumentation_path, subdivision, sounding_pitch_boolean)
+    subdivision = 2
+    computeStatistics = ComputeStatistics(database_path, subsets, subdivision, sounding_pitch_boolean)
     computeStatistics.get_statistics()

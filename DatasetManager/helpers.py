@@ -13,6 +13,9 @@ PAD_SYMBOL = 'XX'
 BEAT_SYMBOL = 'b'
 DOWNBEAT_SYMBOL = 'B'
 DURATION_SYMBOL = 'DUR'
+YES_SYMBOL = 'YES'
+NO_SYMBOL = 'NO'
+UNKNOWN_SYMBOL = 'UKN'
 MAX_VELOCITY = 128
 
 def standard_name(note_or_rest, voice_range=None):

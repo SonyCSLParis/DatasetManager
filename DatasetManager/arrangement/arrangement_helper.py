@@ -76,7 +76,7 @@ def shift_pr_along_pitch_axis(matrix, shift):
     return ret
 
 
-def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_to_sounding_pitch=False):
+def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_grouping, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     if transpose_to_sounding_pitch:
@@ -85,7 +85,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
         score_soundingPitch = score
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
-    end_offset = 1 + int(score.flat.highestOffset)
+    end_offset = 1 + int(score.flat.highestTime)
     # Output
     pianoroll = dict()
     onsets = dict()
@@ -134,7 +134,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, transpose_t
         if simplify_instrumentation is None:
             instrument_names = ["Piano"]
         else:
-            instrument_names = separate_instruments_names(simplify_instrumentation[part.partName])
+            instrument_names = [instrument_grouping[e] for e in separate_instruments_names(simplify_instrumentation[part.partName])]
 
         for instrument_name in instrument_names:
             if instrument_name in pianoroll.keys():

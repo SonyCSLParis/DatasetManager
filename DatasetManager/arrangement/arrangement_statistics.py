@@ -64,7 +64,7 @@ class ComputeStatistics:
                 plt.title(instrument_name, fontsize=10)
                 plt.xticks(np.arange(0, 128, 1))
                 # Add reference tessitura
-                if instrument_name != "Remove":
+                if instrument_name != "Unknown":
                     min_ref, max_ref = reference_tessitura[instrument_name]
                 else:
                     min_ref = 0

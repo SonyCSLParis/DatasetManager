@@ -41,6 +41,20 @@ all_datasets = {
                 num_elements=None,
             )
         },
+    'arrangement_large':
+        {
+            'dataset_class_name': ArrangementDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                subsets=[
+                    'liszt_classical_archives',
+                    'imslp',
+                    'bouliane',
+                    'hand_picked_Spotify'
+                ],
+                num_elements=None,
+            )
+        },
     'arrangement_test':
         {
             'dataset_class_name': ArrangementDataset,
@@ -48,6 +62,17 @@ all_datasets = {
                 arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
                 subsets=[
                     'debug',
+                ],
+                num_elements=None,
+            )
+        },
+    'arrangement_small':
+        {
+            'dataset_class_name': ArrangementDataset,
+            'corpus_it_gen':      ArrangementIteratorGenerator(
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                subsets=[
+                    'small_liszt_beethov',
                 ],
                 num_elements=None,
             )

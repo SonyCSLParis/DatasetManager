@@ -1,10 +1,11 @@
-from arrangement.arrangement_helper import ArrangementIteratorGenerator
+from DatasetManager.config import get_config
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
 
-def list_instruments_name(database_path):
+def list_instruments_name(database_path, subsets):
     score_iterator = ArrangementIteratorGenerator(
         arrangement_path=database_path,
-        subsets=['liszt_classical_archives']
+        subsets=subsets
     )
     parts = set()
     instruments = set()
@@ -35,7 +36,20 @@ def write_sets(ss, out_file):
 
 
 if __name__ == '__main__':
-    database_path = '/home/leo/databases/Orchestration/arrangement_mxml/'
-    parts, instruments = list_instruments_name(database_path)
-    write_sets(parts, 'parts.txt')
-    write_sets(instruments, 'instruments.txt')
+    config = get_config()
+    database_path = f'{config["database_path"]}/Orchestration/arrangement_mxml'
+    subsets = [
+        'hand_picked_Spotify',
+        'imslp'
+    ]
+
+    parts, instruments = list_instruments_name(
+        database_path=database_path,
+        subsets=subsets
+    )
+
+    dump_folder = config["dump_folder"]
+    out_file = f'{dump_folder}/arrangement/parts.txt'
+    write_sets(parts, out_file)
+    out_file = f'{dump_folder}/arrangement/instruments.txt'
+    write_sets(instruments, out_file)

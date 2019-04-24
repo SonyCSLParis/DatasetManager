@@ -498,7 +498,10 @@ class ChoraleDataset(MusicDataset):
                 zip(tensor_score,
                     self.index2note_dicts,
                     slur_indexes)):
+
             part = stream.Part(id='part' + str(voice_index))
+            music21_instrument = music21.instrument.Piano()
+            part.insert(0, music21_instrument)
             dur = 0
             f = music21.note.Rest()
             for note_index in [n.item() for n in voice]:

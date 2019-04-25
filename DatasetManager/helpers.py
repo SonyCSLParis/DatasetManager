@@ -77,6 +77,6 @@ class ShortChoraleIteratorGen:
         it = (
             chorale
             for chorale in
-            islice(music21.corpus.chorales.Iterator(), 3)
+            islice(music21.corpus.chorales.Iterator(), 10)
         )
         return it.__iter__()

@@ -127,8 +127,7 @@ class ArrangementDataset(MusicDataset):
             f'{self.max_transposition}'
 
     def iterator_gen(self):
-        return (self.sort_arrangement_pairs(arrangement_pair)
-                for arrangement_pair in self.corpus_it_gen())
+        return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
 
     @staticmethod
     def pair2index(one_hot_0, one_hot_1):
@@ -167,7 +166,7 @@ class ArrangementDataset(MusicDataset):
 
         # Save this in a file
         if self.compute_statistics_flag:
-            with open(f"{self.statistic_folder}/pc_frequency_per_instrument", "w") as ff:
+            with open(f"{self.statistic_folder}/note_frequency_per_instrument", "w") as ff:
                 for instrument_name, set_pitch_class in set_midiPitch_per_instrument.items():
                     ff.write(f"# {instrument_name}: \n")
                     for pc in set_pitch_class:
@@ -572,26 +571,6 @@ class ArrangementDataset(MusicDataset):
                                 for ind_piano, ind_orchestra in corresponding_indices]
 
         return corresponding_frames, score_matrix
-
-    ###################################
-    # Small helpers for quickly determining which score is orchestra and which one is piano
-    def sort_arrangement_pairs(self, arrangement_pair):
-        # Find which score is piano and which is orchestral
-        if len(self.list_instru_score(arrangement_pair[0])) > len(self.list_instru_score(arrangement_pair[1])):
-            return {'Orchestra': arrangement_pair[0], 'Piano': arrangement_pair[1]}
-        elif len(self.list_instru_score(arrangement_pair[0])) < len(self.list_instru_score(arrangement_pair[1])):
-            return {'Piano': arrangement_pair[0], 'Orchestra': arrangement_pair[1]}
-        else:
-            print(f'# SKIP!!')
-            return None
-
-    def list_instru_score(self, score):
-        list_instru = []
-        for part in score.parts:
-            list_instru.append(part.partName)
-        return list_instru
-
-    ###################################
 
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
@@ -1082,7 +1061,8 @@ if __name__ == '__main__':
             # 'bouliane',
             # 'imslp',
             # 'liszt_classical_archives',
-            'hand_picked_Spotify',
+            # 'hand_picked_Spotify',
+            'debug',
         ],
         num_elements=None
     )
@@ -1092,10 +1072,10 @@ if __name__ == '__main__':
         {'name': "arrangement_SHIT",
          'corpus_it_gen': corpus_it_gen,
          'cache_dir': '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dataset_cache',
-         'subdivision': 4,
+         'subdivision': 2,
          'sequence_size': 3,
          'velocity_quantization': 2,  # Better if it is divided by 128
-         'max_transposition': 1,
+         'max_transposition': 3,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': True
          })

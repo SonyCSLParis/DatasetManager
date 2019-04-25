@@ -130,6 +130,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_
         if this_pr.sum() == 0:
             continue
 
+        # print(part.partName)
         # Instrument name
         if simplify_instrumentation is None:
             instrument_names = ["Piano"]
@@ -154,6 +155,24 @@ def pianoroll_to_score(pianoroll):
 
 def separate_instruments_names(instrument_names):
     return re.split(' and ', instrument_names)
+
+
+def list_instru_score(score):
+    list_instru = []
+    for part in score.parts:
+        list_instru.append(part.partName)
+    return list_instru
+
+
+def sort_arrangement_pairs(arrangement_pair):
+    # Find which score is piano and which is orchestral
+    if len(list_instru_score(arrangement_pair[0])) > len(list_instru_score(arrangement_pair[1])):
+        return {'Orchestra': arrangement_pair[0], 'Piano': arrangement_pair[1]}
+    elif len(list_instru_score(arrangement_pair[0])) < len(list_instru_score(arrangement_pair[1])):
+        return {'Piano': arrangement_pair[0], 'Orchestra': arrangement_pair[1]}
+    else:
+        print(f'# SKIP!!')
+        return None
 
 
 class ArrangementIteratorGenerator:
@@ -198,7 +217,8 @@ class ArrangementIteratorGenerator:
                 # arrangement_pair = process(xml_files)
                 arrangement_pair = music21.converter.parse(music_files[0]), \
                                    music21.converter.parse(music_files[1])
-                yield (arrangement_pair[0], arrangement_pair[1])
+                arr_pair = sort_arrangement_pairs(arrangement_pair)
+                yield arr_pair
             except Exception as e:
                 print(f'{music_files} is not parsable')
                 print(e)

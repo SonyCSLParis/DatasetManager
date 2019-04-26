@@ -5,13 +5,11 @@ import glob
 import os
 import re
 import shutil
-import time
 
 import numpy as np
 import torch
 
-import music21
-from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
+from DatasetManager.arrangement.arrangement_helper import OrchestraIteratorGenerator
 from DatasetManager.dataset_manager import DatasetManager
 from Transformer.reduction.reduc_data_processor import ReductionDataProcessor
 from Transformer.transformer import Transformer
@@ -45,7 +43,7 @@ class Reducter:
             'max_transposition': 12,
             'compute_statistics_flag': False
         }
-        dataset: ArrangementDataset = dataset_manager.get_dataset(
+        dataset = dataset_manager.get_dataset(
             name='arrangement_large',
             **arrangement_dataset_kwargs
         )
@@ -124,7 +122,10 @@ class Reducter:
         #  Load model weights
         self.model.load_overfit(model_path)
 
-        for filepath in self.iterator_gen():
+        for arr_pair in self.iterator_gen():
+
+            filepath = arr_pair['Orchestra']
+
             context_size = self.model.data_processor_decoder.num_frames_piano - 1
 
             #  Load input piano score
@@ -161,46 +162,6 @@ class Reducter:
             orchestra.write(fp=f"{self.writing_dir}/{filepath}_orch.xml", fmt='musicxml')
 
         return
-
-
-class OrchestraIteratorGenerator:
-    """
-    Object that returns a iterator over xml files when called
-    :return:
-    """
-
-    # todo redo
-    def __init__(self, folder_path, process_file):
-        self.folder_path = folder_path  # Root of the database
-        self.process_file = process_file
-
-    def __call__(self, *args, **kwargs):
-        it = (
-            xml_file
-            for xml_file in self.generator()
-        )
-        return it
-
-    def generator(self):
-
-        folder_paths = glob.glob(f'{self.folder_path}/**')
-
-        for folder_path in folder_paths:
-            xml_files = glob.glob(folder_path + '/*.xml')
-            midi_files = glob.glob(folder_path + '/*.mid')
-            if len(xml_files) == 1:
-                music_files = xml_files
-            elif len(midi_files) == 1:
-                music_files = midi_files
-            else:
-                raise Exception(f"No or too much files in {folder_path}")
-            print(music_files)
-            # Here parse files and return as a dict containing matrices for piano and orchestra
-            if self.process_file:
-                ret = music21.converter.parse(music_files[0])
-            else:
-                ret = music_files[0]
-            yield ret
 
 
 def prepare_db(root_dir, write_dir):

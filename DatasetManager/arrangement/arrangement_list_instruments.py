@@ -1,7 +1,6 @@
 import music21
-from DatasetManager.arrangement.generate_piano_reduction import OrchestraIteratorGenerator
 from DatasetManager.config import get_config
-from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
 
 
 def list_instruments_name(score_iterator):
@@ -19,7 +18,7 @@ def list_instruments_name_pure_orch(score_iterator):
     parts = set()
     instruments = set()
     for score in score_iterator():
-        part_names, instru_names = get_names_score(score)
+        part_names, instru_names = get_names_score(score['Orchestra'])
         parts = parts.union(part_names)
         instruments = instruments.union(instru_names)
     return parts, instruments
@@ -62,7 +61,7 @@ if __name__ == '__main__':
     # )
 
     database_path = f'{config["database_path"]}/Orchestration/BACKUP/Kunstderfuge'
-    score_iterator = OrchestraIteratorGenerator(f'{database_path}/Selected_works_clean', process_file=True)
+    score_iterator = OrchestraIteratorGenerator(f'{database_path}/Selected_works_clean_mxml', process_file=True)
     parts, instruments = list_instruments_name_pure_orch(score_iterator)
 
     dump_folder = config["dump_folder"]

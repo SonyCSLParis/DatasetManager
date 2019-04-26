@@ -5,7 +5,6 @@ import shutil
 
 import torch
 import matplotlib as mpl
-from DatasetManager.arrangement.generate_piano_reduction import OrchestraIteratorGenerator
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 
 mpl.use('Agg')
@@ -24,7 +23,7 @@ import DatasetManager.arrangement.nw_align as nw_align
 from DatasetManager.config import get_config
 
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
-    quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis
+    quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis, OrchestraIteratorGenerator
 
 
 class ArrangementDataset(MusicDataset):
@@ -178,15 +177,6 @@ class ArrangementDataset(MusicDataset):
 
                 if arr_pair is None:
                     continue
-
-                # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-                pianoroll_piano, _, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                           None,
-                                                           self.instrument_grouping,
-                                                           self.transpose_to_sounding_pitch)
-                pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
-                set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
-                    pitch_set_this_track)
 
                 pianoroll_orchestra, _, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                                self.simplify_instrumentation,
@@ -1092,17 +1082,17 @@ if __name__ == '__main__':
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path='/home/leo/Recherche/Databases/Orchestration/arrangement_mxml',
         subsets=[
-            # 'bouliane',
-            # 'imslp',
-            # 'liszt_classical_archives',
-            # 'hand_picked_Spotify',
-            'debug',
+            'bouliane',
+            'imslp',
+            'liszt_classical_archives',
+            'hand_picked_Spotify',
+            # 'debug',
         ],
         num_elements=None
     )
 
     orchestra_iterator = OrchestraIteratorGenerator(
-        folder_path='/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean',
+        folder_path='/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml',
         process_file=True
     )
 

@@ -43,7 +43,7 @@ def change_instrument_names(source_folder, target_folder):
         shutil.rmtree(target_folder)
     os.makedirs(target_folder)
 
-    list_folders = glob.glob(source_folder + '/[0-9]*')
+    list_folders = glob.glob(source_folder + '/**')
 
     for folder in list_folders:
         # List mxml
@@ -86,8 +86,14 @@ def change_instrument_names(source_folder, target_folder):
 
 
 if __name__ == '__main__':
-    name = 'imslp'
+    # name = 'imslp'
     # convert_database(database_source=f'/home/leo/Recherche/Databases/Orchestration/arrangement_midi/{name}',
     #                  database_dest=f'/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/{name}_temp')
-    change_instrument_names(source_folder=f'/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/{name}_temp',
-                            target_folder=f'/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/{name}')
+    # change_instrument_names(source_folder=f'/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/{name}_temp',
+    #                         target_folder=f'/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/{name}')
+
+
+    # convert_database(database_source=f'/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean',
+    #                  database_dest=f'/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml')
+    change_instrument_names(source_folder=f'/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml_temp',
+                            target_folder=f'/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml')

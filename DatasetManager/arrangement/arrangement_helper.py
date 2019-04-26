@@ -79,7 +79,7 @@ def shift_pr_along_pitch_axis(matrix, shift):
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_grouping, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
-    if transpose_to_sounding_pitch:
+    if transpose_to_sounding_pitch and (score.atSoundingPitch != 'unknown'):
         score_soundingPitch = score.toSoundingPitch()
     else:
         score_soundingPitch = score
@@ -138,6 +138,8 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_
             instrument_names = [instrument_grouping[e] for e in separate_instruments_names(simplify_instrumentation[part.partName])]
 
         for instrument_name in instrument_names:
+            if instrument_name == "Horn":
+                continue
             if instrument_name in pianoroll.keys():
                 pianoroll[instrument_name] = np.maximum(pianoroll[instrument_name], this_pr)
                 onsets[instrument_name] = np.maximum(onsets[instrument_name], this_onsets)

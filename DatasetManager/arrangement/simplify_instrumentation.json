@@ -1,14 +1,6 @@
 {
 	"1 Flauto": "Flute",
 	"1.Violine": "Violin_1",
-	"1st Violins": "Violin_1",
-	"2 Clarinetti in A": "Clarinet",
-	"2 Clarinetti in C": "Clarinet",
-	"2 Fagotti": "Bassoon",
-	"2 Flauti": "Flute",
-	"2 Oboi": "Oboe",
-	"2 Trombe in C": "Trumpet",
-	"2 Trombe in D": "Trumpet",
 	"2.Violine": "Violin_2",
 	"2nd Violins": "Violin_2",
 	"A Clarinet": "Clarinet",
@@ -283,7 +275,6 @@
 	"2 Trumpets in E": "Trumpet",
 	"2ND VIOLIN": "Violin_2",
 	"2nd Violin": "Violin_2",
-	"2nd Violins": "Violin_2",
 	"3 Flutes": "Flute",
 	"4 Horns in F": "Horn",
 	":sopranos": "VoiceSoprano",
@@ -627,5 +618,6 @@
 	"violin": "Violin_1",
 	"vla": "Viola",
 	"vln1": "Violin_1",
-	"vln2": "Violin_2"
+	"vln2": "Violin_2",
+	"StringInstrument": "Strings"
 }

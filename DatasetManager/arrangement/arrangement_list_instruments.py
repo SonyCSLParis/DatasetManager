@@ -1,12 +1,10 @@
+import music21
+from DatasetManager.arrangement.generate_piano_reduction import OrchestraIteratorGenerator
 from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
 
-def list_instruments_name(database_path, subsets):
-    score_iterator = ArrangementIteratorGenerator(
-        arrangement_path=database_path,
-        subsets=subsets
-    )
+def list_instruments_name(score_iterator):
     parts = set()
     instruments = set()
     for arrangement_pair in score_iterator():
@@ -17,12 +15,26 @@ def list_instruments_name(database_path, subsets):
     return parts, instruments
 
 
+def list_instruments_name_pure_orch(score_iterator):
+    parts = set()
+    instruments = set()
+    for score in score_iterator():
+        part_names, instru_names = get_names_score(score)
+        parts = parts.union(part_names)
+        instruments = instruments.union(instru_names)
+    return parts, instruments
+
+
 def get_names_score(score):
     list_instrus = []
     list_parts = []
     for part in score.parts:
-        list_instrus.append(part.getInstrument().instrumentName)
-        list_parts.append(part.partName)
+        instru = part.getInstrument().instrumentName
+        part_name = part.partName
+        if (part_name is None) or (instru is None):
+            continue
+        list_instrus.append(instru)
+        list_parts.append(part_name)
     return set(list_parts), set(list_instrus)
 
 
@@ -37,16 +49,21 @@ def write_sets(ss, out_file):
 
 if __name__ == '__main__':
     config = get_config()
-    database_path = f'{config["database_path"]}/Orchestration/arrangement_mxml'
-    subsets = [
-        'hand_picked_Spotify',
-        'imslp'
-    ]
+    # database_path = f'{config["database_path"]}/Orchestration/arrangement_mxml'
+    # subsets = [
+    #     'imslp'
+    # ]
+    # score_iterator = ArrangementIteratorGenerator(
+    #     arrangement_path=database_path,
+    #     subsets=subsets
+    # )
+    # parts, instruments = list_instruments_name(
+    #     score_iterator=score_iterator
+    # )
 
-    parts, instruments = list_instruments_name(
-        database_path=database_path,
-        subsets=subsets
-    )
+    database_path = f'{config["database_path"]}/Orchestration/BACKUP/Kunstderfuge'
+    score_iterator = OrchestraIteratorGenerator(f'{database_path}/Selected_works_clean', process_file=True)
+    parts, instruments = list_instruments_name_pure_orch(score_iterator)
 
     dump_folder = config["dump_folder"]
     out_file = f'{dump_folder}/arrangement/parts.txt'

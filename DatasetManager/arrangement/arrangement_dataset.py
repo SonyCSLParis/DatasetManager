@@ -172,7 +172,7 @@ class ArrangementDataset(MusicDataset):
 
         ############################################################
         # Potentially, we may want to also include ranges from an other database
-        if self.iterator_gen_complementary is not None:
+        if self.corpus_it_gen_instru_range is not None:
             for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen_complementary())):
 
                 if arr_pair is None:
@@ -1079,8 +1079,10 @@ if __name__ == '__main__':
     #  Read
     from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
+    config = get_config()
+
     corpus_it_gen = ArrangementIteratorGenerator(
-        arrangement_path='/home/leo/Recherche/Databases/Orchestration/arrangement_mxml',
+        arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
             'bouliane',
             'imslp',
@@ -1092,7 +1094,7 @@ if __name__ == '__main__':
     )
 
     orchestra_iterator = OrchestraIteratorGenerator(
-        folder_path='/home/leo/Recherche/Databases/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml',
+        folder_path=f'{config["database_path"]}/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml',
         process_file=True
     )
 

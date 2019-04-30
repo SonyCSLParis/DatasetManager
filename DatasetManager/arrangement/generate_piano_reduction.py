@@ -11,6 +11,13 @@ import torch
 
 from DatasetManager.arrangement.arrangement_helper import OrchestraIteratorGenerator
 from DatasetManager.dataset_manager import DatasetManager
+
+# Ugliness to the max, but I don't want to add Transformer to the venv path
+import sys
+from DatasetManager.config import get_config
+
+config = get_config()
+sys.path.append(config["transformer_path"])
 from Transformer.reduction.reduc_data_processor import ReductionDataProcessor
 from Transformer.transformer import Transformer
 
@@ -123,7 +130,6 @@ class Reducter:
         self.model.load_overfit(model_path)
 
         for arr_pair in self.iterator_gen():
-
             filepath = arr_pair['Orchestra']
 
             context_size = self.model.data_processor_decoder.num_frames_piano - 1
@@ -188,7 +194,6 @@ if __name__ == '__main__':
     # prepare_db(src, dest)
 
     model_path = '/home/leo/Recherche/Code/Transformer/models_backup/Reducter-2_ArrangementDataset-arrangement_large-2-3-2-12/'
-    # model_path = None
 
     orchestra_iterator = OrchestraIteratorGenerator(
         folder_path=db_path,

@@ -233,9 +233,10 @@ class OrchestraIteratorGenerator:
     """
 
     # todo redo
-    def __init__(self, folder_path, process_file):
+    def __init__(self, folder_path, subsets, process_file):
         self.folder_path = folder_path  # Root of the database
         self.process_file = process_file
+        self.subsets = subsets
 
     def __call__(self, *args, **kwargs):
         it = (
@@ -246,7 +247,9 @@ class OrchestraIteratorGenerator:
 
     def generator(self):
 
-        folder_paths = glob.glob(f'{self.folder_path}/**')
+        folder_paths = []
+        for subset in self.subsets:
+            folder_paths += glob.glob(f'{self.folder_path}/{subset}/**')
 
         for folder_path in folder_paths:
             xml_files = glob.glob(folder_path + '/*.xml')

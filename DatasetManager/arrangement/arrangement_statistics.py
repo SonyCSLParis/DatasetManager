@@ -5,24 +5,30 @@ import shutil
 
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.config import get_config
-from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, separate_instruments_names
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, \
+    separate_instruments_names, OrchestraIteratorGenerator
 import music21
 import numpy as np
 import json
 import matplotlib as mpl
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 
 class ComputeStatistics:
-    def __init__(self, database_path, subsets, subdivision, sounding_pitch_boolean=False):
+    def __init__(self, score_iterator, subdivision, savefolder_name, sounding_pitch_boolean=False):
 
         config = get_config()
 
-        # Dump folder
+        #  Dump folder
         self.dump_folder = config['dump_folder']
+        self.savefolder_name = f'{self.dump_folder}/{savefolder_name}/statistics'
+        if os.path.isdir(self.savefolder_name):
+            shutil.rmtree(self.savefolder_name)
+        os.makedirs(self.savefolder_name)
 
-        # Simplify instrumentation
+        #  Simplify instrumentation
         simplify_instrumentation_path = config['simplify_instrumentation_path']
         with open(simplify_instrumentation_path, 'r') as ff:
             self.simplify_instrumentation = json.load(ff)
@@ -37,21 +43,18 @@ class ComputeStatistics:
         # Histogram with the number of simultaneous notes per instrument
         self.stat_dict = dict()
 
-        # Other stuffs used for parsing
-        self.score_iterator = ArrangementIteratorGenerator(
-            arrangement_path=database_path,
-            subsets=subsets
-        )
+        #  Other stuffs used for parsing
+        self.score_iterator = score_iterator
         self.subdivision = subdivision
         self.sounding_pitch_boolean = sounding_pitch_boolean
 
-        # Write out paths here
-        self.simultaneous_notes_details_path = f'{self.dump_folder}/arrangement/statistics/simultaneous_notes_details.txt'
+        #  Write out paths here
+        self.simultaneous_notes_details_path = f'{self.savefolder_name}/simultaneous_notes_details.txt'
         open(self.simultaneous_notes_details_path, 'w').close()
         if self.sounding_pitch_boolean:
-            self.tessitura_path = f'{self.dump_folder}/arrangement/statistics/tessitura_sounding'
+            self.tessitura_path = f'{self.savefolder_name}/tessitura_sounding'
         else:
-            self.tessitura_path = f'{self.dump_folder}/arrangement/statistics/tessitura'
+            self.tessitura_path = f'{self.savefolder_name}/tessitura'
         if os.path.isdir(self.tessitura_path):
             shutil.rmtree(self.tessitura_path)
         os.makedirs(self.tessitura_path)
@@ -69,8 +72,9 @@ class ComputeStatistics:
         # Get reference tessitura for comparing when plotting
         with open('reference_tessitura.json') as ff:
             reference_tessitura = json.load(ff)
-        reference_tessitura = {k: (note_to_midiPitch(music21.note.Note(v[0])), note_to_midiPitch(music21.note.Note(v[1]))) for
-                               k, v in reference_tessitura.items()}
+        reference_tessitura = {
+        k: (note_to_midiPitch(music21.note.Note(v[0])), note_to_midiPitch(music21.note.Note(v[1]))) for
+        k, v in reference_tessitura.items()}
 
         stats = []
         this_stats = {}
@@ -109,13 +113,13 @@ class ComputeStatistics:
             stats.append(this_stats)
 
         # Write number of co-occuring notes
-        with open(f'{self.dump_folder}/arrangement/statistics/simultaneous_notes.txt', 'w') as ff:
+        with open(f'{self.savefolder_name}/simultaneous_notes.txt', 'w') as ff:
             for instrument_name, simultaneous_counter in self.simultaneous_notes.items():
                 ff.write(f"## {instrument_name}\n")
                 for ind, simultaneous_occurences in enumerate(list(simultaneous_counter)):
                     ff.write('  {:d} : {:d}\n'.format(ind, int(simultaneous_occurences)))
 
-        with open(f'{self.dump_folder}/arrangement/statistics/statistics.csv', 'w') as ff:
+        with open(f'{self.savefolder_name}/statistics.csv', 'w') as ff:
             fieldnames = this_stats.keys()
             writer = csv.DictWriter(ff, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
@@ -192,15 +196,34 @@ class ComputeStatistics:
 
 
 if __name__ == '__main__':
-    database_path = '/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/'
+
+    # database_path = '/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/'
+    # subsets = [
+    #     'bouliane',
+    #     'hand_picked_Spotify',
+    #     'imslp',
+    #     'liszt_classical_archives'
+    # ]
+    # score_iterator = ArrangementIteratorGenerator(
+    #     arrangement_path=database_path,
+    #     subsets=subsets
+    # )
+    # savefolder_name = 'arrangement'
+
+    database_path = '/home/leo/Recherche/Databases/Orchestration/orchestral_mxml/'
     subsets = [
-        'bouliane',
-        'hand_picked_Spotify',
-        'imslp',
-        'liszt_classical_archives'
+        'kunstderfuge'
     ]
+    score_iterator = OrchestraIteratorGenerator(
+        folder_path=database_path,
+        subsets=subsets,
+        process_file=True
+    )
+    savefolder_name = 'kunst_orchestral'
+
     simplify_instrumentation_path = 'simplify_instrumentation.json'
+
     sounding_pitch_boolean = True
-    subdivision = 2
-    computeStatistics = ComputeStatistics(database_path, subsets, subdivision, sounding_pitch_boolean)
+    subdivision = 4
+    computeStatistics = ComputeStatistics(score_iterator, subdivision, savefolder_name, sounding_pitch_boolean)
     computeStatistics.get_statistics()

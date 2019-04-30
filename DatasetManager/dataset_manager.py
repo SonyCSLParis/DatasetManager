@@ -17,7 +17,7 @@ from DatasetManager.the_session.folk_data_helpers \
 
 from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
-from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
 
 from DatasetManager.config import get_config
 
@@ -34,32 +34,42 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'liszt_classical_archives',
                 ],
                 num_elements=None,
-            )
+            ),
+            'corpus_it_gen_instru_range': None
         },
     'arrangement_large':
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'liszt_classical_archives',
                     'imslp',
                     'bouliane',
-                    'hand_picked_Spotify'
+                    'hand_picked_Spotify',
+                    # 'debug'
                 ],
                 num_elements=None,
+            ),
+            'corpus_it_gen_instru_range': OrchestraIteratorGenerator(
+                folder_path=f"{config['database_path']}/Orchestration/orchestral",
+                subsets=[
+                    # "debug",
+                    "kunstderfuge"
+                ],
+                process_file=True,
             )
         },
     'arrangement_test':
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'debug',
                 ],
@@ -70,18 +80,19 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'small_liszt_beethov',
                 ],
                 num_elements=None,
-            )
+            ),
+            'corpus_it_gen_instru_range': None
         },
     'arrangement_frame_test':
         {
             'dataset_class_name': ArrangementFrameDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'debug'
                 ],
@@ -92,7 +103,7 @@ all_datasets = {
         {
             'dataset_class_name': ArrangementFrameDataset,
             'corpus_it_gen':      ArrangementIteratorGenerator(
-                arrangement_path=f"{config['database_path']}/Orchestration/arrangement_mxml",
+                arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
                     'liszt_classical_archives',
                 ],

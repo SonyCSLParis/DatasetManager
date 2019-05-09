@@ -40,7 +40,13 @@ all_datasets = {
                 ],
                 num_elements=None,
             ),
-            'corpus_it_gen_instru_range': None
+            'corpus_it_gen_instru_range': OrchestraIteratorGenerator(
+                folder_path=f"{config['database_path']}/Orchestration/orchestral",
+                subsets=[
+                    "kunstderfuge"
+                ],
+                process_file=True,
+            )
         },
     'arrangement_large':
         {
@@ -48,8 +54,8 @@ all_datasets = {
             'corpus_it_gen':      ArrangementIteratorGenerator(
                 arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                 subsets=[
-                    'liszt_classical_archives',
                     'imslp',
+                    'liszt_classical_archives',
                     'bouliane',
                     'hand_picked_Spotify',
                     # 'debug'
@@ -269,8 +275,14 @@ all_datasets = {
                 has_chords=False,
                 time_sigs=[(4, 4)]
             )
-        }
+        },
+    'mnist':
+        {
+            'dataset_class_name': MNISTDataset,
+        },
 }
+
+
 class DatasetManager:
     def __init__(self):
         self.package_dir = os.path.dirname(os.path.realpath(__file__))

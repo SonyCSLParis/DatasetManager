@@ -1,7 +1,3 @@
-import math
-import shutil
-
-import torch
 import numpy as np
 import os
 import glob
@@ -79,10 +75,7 @@ def shift_pr_along_pitch_axis(matrix, shift):
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_grouping, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
-    if transpose_to_sounding_pitch and (score.atSoundingPitch != 'unknown'):
-        score_soundingPitch = score.toSoundingPitch()
-    else:
-        score_soundingPitch = score
+    score_soundingPitch = score.toSoundingPitch()
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
     end_offset = 1 + int(score.flat.highestTime)
@@ -91,10 +84,6 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_
     onsets = dict()
     number_frames = (end_offset - start_offset) * subdivision
     for part in score_soundingPitch.parts:
-        # Parse file
-        # aaa = part.flat.getElementsByOffset(start_offset, end_offset,
-        #                                                   classList=[music21.note.Note,
-        #                                                              music21.chord.Chord])
 
         elements_iterator = part.flat.notes
 
@@ -138,8 +127,6 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_
             instrument_names = [instrument_grouping[e] for e in separate_instruments_names(simplify_instrumentation[part.partName])]
 
         for instrument_name in instrument_names:
-            if instrument_name == "Horn":
-                continue
             if instrument_name in pianoroll.keys():
                 pianoroll[instrument_name] = np.maximum(pianoroll[instrument_name], this_pr)
                 onsets[instrument_name] = np.maximum(onsets[instrument_name], this_onsets)

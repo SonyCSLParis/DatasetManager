@@ -23,7 +23,8 @@ import DatasetManager.arrangement.nw_align as nw_align
 from DatasetManager.config import get_config
 
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
-    quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis, OrchestraIteratorGenerator
+    quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis, OrchestraIteratorGenerator, \
+    note_to_midiPitch
 
 
 class ArrangementDataset(MusicDataset):
@@ -61,6 +62,9 @@ class ArrangementDataset(MusicDataset):
         self.velocity_quantization = velocity_quantization
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
+
+        #  Tessitura computed on data or use the reference tessitura ?
+        self.compute_tessitura = True
 
         config = get_config()
         reference_tessitura_path = config["reference_tessitura_path"]
@@ -139,55 +143,66 @@ class ArrangementDataset(MusicDataset):
         return one_hot_0 * 12 + one_hot_1
 
     def compute_index_dicts(self):
-        ############################################################
-        ############################################################
-        #  Mapping midi_pitch to token for each instrument
-        set_midiPitch_per_instrument = {'Piano': set()}
+        if self.compute_tessitura:
+            ############################################################
+            ############################################################
+            #  Mapping midi_pitch to token for each instrument
+            set_midiPitch_per_instrument = {'Piano': set()}
 
-        ############################################################
-        # First pass over the database to create the mapping pitch <-> index for each instrument
-        for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
-
-            if arr_pair is None:
-                continue
-
-            # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-            pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                                  None,
-                                                                  self.instrument_grouping,
-                                                                  self.transpose_to_sounding_pitch)
-            pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
-            set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(pitch_set_this_track)
-
-            pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
-                                                                          self.simplify_instrumentation,
-                                                                          self.instrument_grouping,
-                                                                          self.transpose_to_sounding_pitch)
-            for instrument_name in pianoroll_orchestra:
-                if instrument_name not in set_midiPitch_per_instrument.keys():
-                    set_midiPitch_per_instrument[instrument_name] = set()
-                pitch_set_this_track = set(np.where(np.sum(pianoroll_orchestra[instrument_name], axis=0) > 0)[0])
-                set_midiPitch_per_instrument[instrument_name] = set_midiPitch_per_instrument[instrument_name].union(
-                    pitch_set_this_track)
-
-        ############################################################
-        # Potentially, we may want to also include ranges from an other database
-        if self.corpus_it_gen_instru_range is not None:
-            for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen_complementary())):
+            ############################################################
+            # First pass over the database to create the mapping pitch <-> index for each instrument
+            for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
                 if arr_pair is None:
                     continue
 
-                pianoroll_orchestra, _, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
-                                                               self.simplify_instrumentation,
-                                                               self.instrument_grouping,
-                                                               self.transpose_to_sounding_pitch)
+                # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
+                pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
+                                                                      None,
+                                                                      self.instrument_grouping,
+                                                                      self.transpose_to_sounding_pitch)
+                pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
+                set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(pitch_set_this_track)
+
+                pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+                                                                              self.simplify_instrumentation,
+                                                                              self.instrument_grouping,
+                                                                              self.transpose_to_sounding_pitch)
                 for instrument_name in pianoroll_orchestra:
                     if instrument_name not in set_midiPitch_per_instrument.keys():
                         set_midiPitch_per_instrument[instrument_name] = set()
                     pitch_set_this_track = set(np.where(np.sum(pianoroll_orchestra[instrument_name], axis=0) > 0)[0])
                     set_midiPitch_per_instrument[instrument_name] = set_midiPitch_per_instrument[instrument_name].union(
                         pitch_set_this_track)
+
+            ############################################################
+            # Potentially, we may want to also include ranges from an other database
+            if self.corpus_it_gen_instru_range is not None:
+                for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen_complementary())):
+
+                    if arr_pair is None:
+                        continue
+
+                    pianoroll_orchestra, _, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
+                                                                   self.simplify_instrumentation,
+                                                                   self.instrument_grouping,
+                                                                   self.transpose_to_sounding_pitch)
+                    for instrument_name in pianoroll_orchestra:
+                        if instrument_name not in set_midiPitch_per_instrument.keys():
+                            set_midiPitch_per_instrument[instrument_name] = set()
+                        pitch_set_this_track = set(np.where(np.sum(pianoroll_orchestra[instrument_name], axis=0) > 0)[0])
+                        set_midiPitch_per_instrument[instrument_name] = set_midiPitch_per_instrument[instrument_name].union(
+                            pitch_set_this_track)
+        else:
+            set_midiPitch_per_instrument = {}
+            instrument_name_list = list(self.instrumentation.keys())
+            instrument_name_list.append("Piano")
+            for instrument_name in instrument_name_list:
+                lowest_note, highest_note = self.reference_tessitura[instrument_name]
+                lowest_pitch = note_to_midiPitch(lowest_note)
+                highest_pitch = note_to_midiPitch(highest_note)
+                set_pitches = set(range(lowest_pitch, highest_pitch+1))
+                set_midiPitch_per_instrument[instrument_name] = set_pitches
 
         ############################################################
         # Save this in a file
@@ -284,7 +299,8 @@ class ArrangementDataset(MusicDataset):
         # One hot encoding for velocitites
         dict_for_velocity2oneHot = {}
         dict_for_oneHot2velocity = {}
-        # Silence (start with silence mapped to zero, kinda more logical, and then velocity and oneHot are the same value)
+        # Silence (start with silence mapped to zero, kinda more logical, and then velocity and oneHot are the same
+        # value)
         index = 0
         dict_for_velocity2oneHot[REST_SYMBOL] = index
         dict_for_oneHot2velocity[index] = REST_SYMBOL
@@ -812,12 +828,9 @@ class ArrangementDataset(MusicDataset):
                 if slur_bool:
                     orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
                 else:
-                    try:
-                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
-                            this_note]
-                    except:
-                        print(
-                            "Found a note which does not respect the reference tessitura computed on the original database")
+                    if this_note not in self.midi_pitch2index[this_instrument_index].keys():
+                        this_note = REST_SYMBOL
+                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
 
                 # Keep trace of instruments presence
                 if this_note in [REST_SYMBOL, START_SYMBOL, END_SYMBOL]:
@@ -1084,17 +1097,21 @@ if __name__ == '__main__':
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            'bouliane',
-            'imslp',
-            'liszt_classical_archives',
-            'hand_picked_Spotify',
-            # 'debug',
+            # 'bouliane',
+            # 'imslp',
+            # 'liszt_classical_archives',
+            # 'hand_picked_Spotify',
+            'debug',
         ],
         num_elements=None
     )
 
     orchestra_iterator = OrchestraIteratorGenerator(
-        folder_path=f'{config["database_path"]}/Orchestration/BACKUP/Kunstderfuge/Selected_works_clean_mxml',
+        folder_path=f'{config["database_path"]}/Orchestration/orchestral',
+        subsets=[
+            # 'kunstderfuge',
+            'debug'
+        ],
         process_file=True
     )
 
@@ -1107,7 +1124,7 @@ if __name__ == '__main__':
          'subdivision': 2,
          'sequence_size': 3,
          'velocity_quantization': 2,  # Better if it is divided by 128
-         'max_transposition': 3,
+         'max_transposition': 12,
          'transpose_to_sounding_pitch': True,
          'compute_statistics_flag': True
          })
@@ -1115,8 +1132,8 @@ if __name__ == '__main__':
     dataset = ArrangementDataset(**kwargs)
     print(f'Creating {dataset.__repr__()}, '
           f'both tensor dataset and parameters')
-    # if os.path.exists(dataset.tensor_dataset_filepath):
-    #     os.remove(dataset.tensor_dataset_filepath)
+    if os.path.exists(dataset.tensor_dataset_filepath):
+        os.remove(dataset.tensor_dataset_filepath)
     tensor_dataset = dataset.tensor_dataset
 
     # Data loaders
@@ -1135,7 +1152,7 @@ if __name__ == '__main__':
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
     for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch, orchestra_batch = sample_batched
+        piano_batch, orchestra_batch, instruments_batch = sample_batched
         # Flatten matrices
         # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
         # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]

@@ -197,29 +197,29 @@ class ComputeStatistics:
 
 if __name__ == '__main__':
 
-    # database_path = '/home/leo/Recherche/Databases/Orchestration/arrangement_mxml/'
-    # subsets = [
-    #     'bouliane',
-    #     'hand_picked_Spotify',
-    #     'imslp',
-    #     'liszt_classical_archives'
-    # ]
-    # score_iterator = ArrangementIteratorGenerator(
-    #     arrangement_path=database_path,
-    #     subsets=subsets
-    # )
-    # savefolder_name = 'arrangement'
-
-    database_path = '/home/leo/Recherche/Databases/Orchestration/orchestral_mxml/'
+    database_path = '/home/leo/Recherche/Databases/Orchestration/arrangement/'
     subsets = [
-        'kunstderfuge'
+        # 'bouliane',
+        # 'hand_picked_Spotify',
+        # 'imslp',
+        'liszt_classical_archives'
     ]
-    score_iterator = OrchestraIteratorGenerator(
-        folder_path=database_path,
-        subsets=subsets,
-        process_file=True
+    score_iterator = ArrangementIteratorGenerator(
+        arrangement_path=database_path,
+        subsets=subsets
     )
-    savefolder_name = 'kunst_orchestral'
+    savefolder_name = 'liszt_beethov'
+
+    # database_path = '/home/leo/Recherche/Databases/Orchestration/orchestral/'
+    # subsets = [
+    #     'kunstderfuge'
+    # ]
+    # score_iterator = OrchestraIteratorGenerator(
+    #     folder_path=database_path,
+    #     subsets=subsets,
+    #     process_file=True
+    # )
+    # savefolder_name = 'kunst_orchestral'
 
     simplify_instrumentation_path = 'simplify_instrumentation.json'
 

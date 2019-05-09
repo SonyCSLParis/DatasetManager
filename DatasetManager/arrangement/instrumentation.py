@@ -11,8 +11,6 @@ def get_instrumentation():
         "Trumpet": 2,
         "Trombone": 2,
         "Tuba": 1,
-        "Cymbal": 1,
-        "Timpani": 2,
         "Violin_1": 3,
         "Violin_2": 2,
         "Viola": 2,

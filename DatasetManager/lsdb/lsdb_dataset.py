@@ -563,7 +563,7 @@ class LsdbDataset(MusicDataset):
         # LEAD
         dur = 0
         f = music21.note.Rest()
-        tensor_score_np = tensor_score.flatten()
+        tensor_score_np = tensor_score.numpy().flatten()
         slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
         for tick_index, note_index in enumerate(tensor_score_np):
             note_index = note_index.item()
@@ -604,8 +604,8 @@ class LsdbDataset(MusicDataset):
             type_nc_index = chordtype2index[NC]
 
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root#.numpy().flatten()
-            tensor_chords_name_np = tensor_chords_name#.numpy().flatten()
+            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
+            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
             for beat_index, (chord_root_index, chord_type_index) \
                     in enumerate(
                 zip(
@@ -652,8 +652,8 @@ class LsdbDataset(MusicDataset):
             dur = 0
             c = music21.note.Rest()
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root.flatten()
-            tensor_chords_name_np = tensor_chords_name.flatten()
+            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
+            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
             for (beat_index,
                  (chord_root_index, chord_type_index)) \
                     in enumerate(
@@ -798,6 +798,135 @@ class LsdbDataset(MusicDataset):
             score.append(chords_part)
 
         return score
+
+    def tensor_to_multichords_score(self, tensor_score, tensor_chords_list):
+        """
+        Converts leadsheet given as tensor_lead and tensor_chords
+        to a true music21 score
+        :param tensor_lead:
+        :param tensor_chords:
+        :return:
+        """
+        score = music21.stream.Score()
+        part1 = music21.stream.Part()
+        part2 = music21.stream.Part()
+        part3 = music21.stream.Part()
+
+        # LEAD
+        dur = 0
+        f = music21.note.Rest()
+        tensor_score_np = tensor_score.flatten()
+        slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
+        for tick_index, note_index in enumerate(tensor_score_np):
+            note_index = note_index.item()
+            # if it is a played note
+            if not note_index == slur_index:
+                # add previous note
+                if dur > 0:
+                    f.duration = music21.duration.Duration(dur)
+                    part1.append(f)
+                    part2.append(f)
+                    part3.append(f)
+                # TODO two types of tick_durations
+                dur = self.tick_durations[tick_index % self.subdivision]
+                f = standard_note(self.index2symbol_dicts[self.NOTES][note_index])
+            else:
+                dur += self.tick_durations[tick_index % self.subdivision]
+        # add last note
+        f.duration = music21.duration.Duration(dur)
+        part1.append(f)
+        part2.append(f)
+        part3.append(f)
+        score.append(part1)
+
+        for ii,tensor_chords in enumerate(tensor_chords_list):
+            if ii == 5:
+                score.append(music21.stream.Part())
+                score.append(part2)
+            elif ii == 10:
+                score.append(music21.stream.Part())
+                score.append(part3)
+            score = self.add_chords_to_score(score,tensor_chords)
+            #score.append(music21.stream.Part())
+
+            #import pdb;pdb.set_trace()
+
+        return score
+
+
+    def add_chords_to_score(self, score, tensor_chords):
+
+        # index2chordroot = self.index2symbol_dicts[self.CHORD_ROOT]
+        chordroot2index = self.symbol2index_dicts[self.CHORD_ROOT]
+        start_index = chordroot2index[START_SYMBOL]
+        end_index = chordroot2index[END_SYMBOL]
+        slur_index = chordroot2index[SLUR_SYMBOL]
+        pad_index = chordroot2index[PAD_SYMBOL]
+        nc_index = chordroot2index[NC]
+        chords_part = music21.stream.Part()
+        dur = 0
+        c = music21.note.Rest()
+        tensor_chords_root, tensor_chords_name = tensor_chords
+        tensor_chords_root_np = tensor_chords_root.flatten()
+        tensor_chords_name_np = tensor_chords_name.flatten()
+        for (beat_index,
+             (chord_root_index, chord_type_index)) \
+                in enumerate(
+            zip(
+                tensor_chords_root_np,
+                tensor_chords_name_np
+            )
+        ):
+            chord_root_index = chord_root_index.item()
+            chord_type_index = chord_type_index.item()
+            # if it is a played note
+            if chord_root_index not in [slur_index,
+                                        start_index,
+                                        end_index,
+                                        pad_index,
+                                        nc_index]:
+                # add previous note
+                if dur > 0:
+                    c.duration = music21.duration.Duration(dur)
+                    chords_part.append(c)
+                dur = 1
+                try:
+                    jazz_chord = self.get_jazzchord_from_index(
+                        chord_root_index,
+                        self.simple_chord_type_index(chord_type_index)
+                    )
+                    voicing_pitch_list = jazz_chord.get_pitchlist_from_chord()
+                    c = music21.chord.Chord([
+                        p.transpose(-12) for p in voicing_pitch_list
+                    ])
+                except:
+                    c = music21.note.Rest()
+            else:
+                dur += 1
+        # add last note
+        c.duration = music21.duration.Duration(dur)
+        chords_part.append(c)
+        score.append(chords_part)
+
+        return score
+
+    def simple_chord_type_index(self, chord_type_index):
+        stype_dict = {0: 'END', 1: 'START', 2: 'XX', 3: '__', 4: '', 5: 'm7', 6: '7', 7: 'Maj7',
+                      8: 'm7b5', 9: 'm6',12: 'm', 13: '9', 14: '6', 17: '7b5', 18: 'm9', 20: 'sus', 22: 'N.C.', 34: 'dim'}
+        stype_dict_rev = {v:k for k,v in stype_dict.items()}
+        #stype=['END', 'START', 'XX', '__', '', 'm7', '7', 'Maj7', 'm7b5', 'm6', 'm', '9', '6', 'dim', '7b5', 'sus', 'N.C.', 'mMaj7']
+
+        typesymbol = self.index2symbol_dicts[2][chord_type_index]
+        #import pdb; pdb.set_trace()
+        if typesymbol in list(stype_dict.values()):
+            return chord_type_index
+        else:
+            for _ in range(len(typesymbol)):
+                typesymbol = typesymbol[:-1]
+                if typesymbol in list(stype_dict.values()):
+                    return stype_dict_rev[typesymbol]
+        return stype_dict_rev['N.C.']
+
 
 
     def tensor_leadsheet_to_score_and_chord_list(self,

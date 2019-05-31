@@ -17,7 +17,7 @@ def score_function(A, B):
     posTerm = len(AandB)
     negTerm = len(AorB - AandB)
     score = (posTerm - negTerm) / denominator
-    return 3*score
+    return 3 * score
 
 
 def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
@@ -99,10 +99,14 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
     skip_j = []
     skip_i = []
     pairs = []
+    previous_coord = None
     while True:
+
         p = pointer[i, j]
-        if p == NONE: break
-        s = score[i, j]
+
+        if p == NONE:
+            break
+
         if p == DIAG:
             align_j.append(seqj[j - 1])
             align_i.append(seqi[i - 1])
@@ -110,7 +114,9 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             j -= 1
             skip_j.append(1)
             skip_i.append(1)
-            pairs.append((j, i))
+            # pairs.append((j, i))
+            if previous_coord is not None:
+                pairs.append(previous_coord)
         elif p == LEFT:
             # Loose the element
             # align_j += seqj[j - 1]
@@ -124,6 +130,12 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             skip_i.append(0)
         else:
             raise Exception('wtf!')
+
+        if (i != len(seqi)) and (j != len(seqj)):
+            previous_coord = j, i
+
+    # Don't forget last one
+    pairs.append(previous_coord)
 
     # return (align_j[::-1], align_i[::-1]), (skip_j[::-1], skip_i[::-1])
     return pairs[::-1], termScores

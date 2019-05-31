@@ -72,6 +72,31 @@ def shift_pr_along_pitch_axis(matrix, shift):
     return ret
 
 
+def flatten_dict_pr(dic):
+    matrix = None
+    for _, mat in dic.items():
+        if matrix is None:
+            matrix = mat
+        else:
+            matrix = matrix + mat
+    return matrix
+
+
+def new_events(pr_dict, onsets_dict):
+    #  Sum them in one matrix
+    pr = flatten_dict_pr(pr_dict)
+    onsets = flatten_dict_pr(onsets_dict)
+
+    #  Get new events indices (diff matrices)
+    delta_flat = (pr[1:] - pr[:-1]).sum(1)
+    new_events_indices = list(np.where(delta_flat != 0)[0] + 1)
+    onsets_flat = onsets.sum(1)
+    repeated_event_indices = list(np.where(onsets_flat> 0)[0])
+
+    events = sorted(list(set(repeated_event_indices + new_events_indices)))
+    return events
+
+
 def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_grouping, transpose_to_sounding_pitch=False):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score

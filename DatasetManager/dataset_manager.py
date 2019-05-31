@@ -276,10 +276,10 @@ all_datasets = {
                 time_sigs=[(4, 4)]
             )
         },
-    'mnist':
-        {
-            'dataset_class_name': MNISTDataset,
-        },
+    # 'mnist':
+    #     {
+    #         'dataset_class_name': MNISTDataset,
+    #     },
 }
 
 

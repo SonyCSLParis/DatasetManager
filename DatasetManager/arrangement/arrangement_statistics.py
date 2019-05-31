@@ -6,7 +6,7 @@ import shutil
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, \
-    separate_instruments_names, OrchestraIteratorGenerator
+    separate_instruments_names, OrchestraIteratorGenerator, score_to_pianoroll
 import music21
 import numpy as np
 import json
@@ -27,6 +27,8 @@ class ComputeStatistics:
         if os.path.isdir(self.savefolder_name):
             shutil.rmtree(self.savefolder_name)
         os.makedirs(self.savefolder_name)
+
+        self.num_bins = 30
 
         #  Simplify instrumentation
         simplify_instrumentation_path = config['simplify_instrumentation_path']
@@ -65,9 +67,10 @@ class ComputeStatistics:
         for arrangement_pair in self.score_iterator():
             if arrangement_pair is None:
                 continue
-            # Only compute statistics on orchestra scores
+            # Orchestra scores
             self.histogram_tessitura(arrangement_pair['Orchestra'])
-            self.counting_simultaneous_notes(arrangement_pair['Orchestra'])
+            self.counting_simultaneous_notes(arrangement_pair['Orchestra'], True)
+            self.counting_simultaneous_notes(arrangement_pair['Piano'], False)
 
         # Get reference tessitura for comparing when plotting
         with open('reference_tessitura.json') as ff:
@@ -147,51 +150,39 @@ class ComputeStatistics:
                     self.tessitura[instrument_name][int(pitch)] += frequency
         return
 
-    def counting_simultaneous_notes(self, score):
-        start_offset = score.flat.lowestOffset
-        end_offset = score.flat.highestOffset
+    def counting_simultaneous_notes(self, score, orchestra_flag):
+
+        if orchestra_flag:
+            pr, onsets, _ = score_to_pianoroll(
+                score,
+                self.subdivision,
+                self.simplify_instrumentation,
+                self.instrument_grouping,
+                self.sounding_pitch_boolean)
+        else:
+            pr, onsets, _ = score_to_pianoroll(
+                score,
+                self.subdivision,
+                None,
+                self.instrument_grouping,
+                self.sounding_pitch_boolean)
 
         with open(self.simultaneous_notes_details_path, 'a') as ff:
             ff.write(f'##### {score.filePath}\n')
 
-        for part in score.parts:
-            # Instrument name
-            instrument_names = [self.instrument_grouping[e] for e in
-                                separate_instruments_names(self.simplify_instrumentation[part.partName])]
-            # Parse file
-            element_iterator = part.flat.getElementsByOffset(start_offset, end_offset,
-                                                             classList=[music21.note.Note,
-                                                                        music21.chord.Chord])
-            # Count simultaneous notes
-            notes_on = []  # Contains offset of note_off events
-            for elem in element_iterator:
-                current_offset = float(elem.offset)
-                # Add the end of notes time to the list of notes on
-                if elem.isChord:
-                    notes_on.append((float(elem.offset + elem.duration.quarterLength), len(elem._notes)))
-                else:
-                    notes_on.append((elem.offset + elem.duration.quarterLength, 1))
-                # Clean notes_on and count number of simultaneous notes
-                this_simultaneous_notes = 0
-                notes_on_OLD = copy.copy(notes_on)
-                notes_on = []
-                for note_off_offset, num_notes in notes_on_OLD:
-                    if current_offset < note_off_offset:
-                        notes_on.append((note_off_offset, num_notes))
-                        this_simultaneous_notes += num_notes
+        for instrument_name, this_pr in pr.items():
+            # binarize
+            this_pr_bin = np.where(this_pr > 0, 1, 0)
+            # flatten
+            this_pr_flat = this_pr_bin.sum(1)
 
-                for instrument_name in instrument_names:
-                    #  Update simultaneous notes counter
-                    if instrument_name not in self.simultaneous_notes.keys():
-                        self.simultaneous_notes[instrument_name] = np.zeros((10,))
+            #  Update simultaneous notes counter
+            if instrument_name not in self.simultaneous_notes.keys():
+                self.simultaneous_notes[instrument_name] = np.zeros((self.num_bins,))
 
-                    if (instrument_name != 'Piano') and (this_simultaneous_notes > 2):
-                        with open(self.simultaneous_notes_details_path, 'a') as ff:
-                            ff.write('{} : {:f}\n'.format(instrument_name, float(current_offset)))
-                    try:
-                        self.simultaneous_notes[instrument_name][this_simultaneous_notes] += 1
-                    except:
-                        print(f"More than 10 notes in {instrument_name}")
+            histo, _ = np.histogram(this_pr_flat, bins=range(self.num_bins+1), range=range(self.num_bins+1))
+            self.simultaneous_notes[instrument_name] = self.simultaneous_notes[instrument_name] + histo
+
         return
 
 

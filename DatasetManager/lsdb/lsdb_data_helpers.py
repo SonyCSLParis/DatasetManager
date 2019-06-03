@@ -697,6 +697,7 @@ def leadsheet_to_music21(leadsheet, lsdb_chord_to_notes):
     part_notes.measure(1).keySignature = key_signature
     score.append(part_notes)
     set_metadata(score, leadsheet)
+    import pdb;pdb.set_trace()
     # normally we should use this but it does not look good...
     # score = music21.harmony.realizeChordSymbolDurations(score)
 

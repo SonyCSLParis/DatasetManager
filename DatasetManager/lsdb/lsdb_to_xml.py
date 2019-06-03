@@ -185,7 +185,7 @@ class LsdbConverter:
 
 if __name__ == '__main__':
     # All
-    LsdbConverter().make_score_dataset()
+    #LsdbConverter().make_score_dataset()
     # Blues
     #LsdbConverter(songset_id='5641fc497cea1f63710ac907').make_score_dataset()
 
@@ -218,3 +218,4 @@ if __name__ == '__main__':
     # LsdbConverter(composer='Herbie Hancock').make_score_dataset()
     # LsdbConverter(composer='Pat Metheny').make_score_dataset()
     # LsdbConverter(composer='McCoy Tyner').make_score_dataset()
+    LsdbConverter(composer='Miles Davis').make_score_dataset()

@@ -46,13 +46,15 @@ class LsdbDataset(MusicDataset):
         self.sequences_size = sequences_size
         self.subdivision = len(self.tick_values)
         self.pitch_range = [55, 84]
+        self.section = ''##''1barpSpE'#''
         self.init_index_dicts()
 
     def __repr__(self):
         # TODO
         return f'LsdbDataset(' \
                f'{self.name},' \
-               f'{self.sequences_size})'
+               f'{self.sequences_size})'# \
+               #f'{self.section})'
 
     def iterator_gen(self):
         return (score
@@ -241,6 +243,7 @@ class LsdbDataset(MusicDataset):
                                              int(transposed_leadsheet.highestTime)):
                         if random.randint(0,2)==0:
                             continue
+                        import pdb; pdb.set_trace()
                         offsetEnd = offsetStart + self.sequences_size
                         local_lead_tensor = self.extract_score_tensor_with_padding(
                             tensor=lead_tensor,
@@ -563,7 +566,10 @@ class LsdbDataset(MusicDataset):
         # LEAD
         dur = 0
         f = music21.note.Rest()
-        tensor_score_np = tensor_score.numpy().flatten()
+        try:
+            tensor_score_np = tensor_score.numpy().flatten()
+        except:
+            tensor_score_np = tensor_score.flatten()
         slur_index = self.symbol2index_dicts[self.NOTES][SLUR_SYMBOL]
         for tick_index, note_index in enumerate(tensor_score_np):
             note_index = note_index.item()
@@ -604,8 +610,12 @@ class LsdbDataset(MusicDataset):
             type_nc_index = chordtype2index[NC]
 
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            try:
+                tensor_chords_root_np = tensor_chords_root.numpy().flatten()
+                tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            except:
+                tensor_chords_root_np = tensor_chords_root.flatten()
+                tensor_chords_name_np = tensor_chords_name.flatten()
             for beat_index, (chord_root_index, chord_type_index) \
                     in enumerate(
                 zip(
@@ -652,8 +662,12 @@ class LsdbDataset(MusicDataset):
             dur = 0
             c = music21.note.Rest()
             tensor_chords_root, tensor_chords_name = tensor_chords
-            tensor_chords_root_np = tensor_chords_root.numpy().flatten()
-            tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            try:
+                tensor_chords_root_np = tensor_chords_root.numpy().flatten()
+                tensor_chords_name_np = tensor_chords_name.numpy().flatten()
+            except:
+                tensor_chords_root_np = tensor_chords_root.flatten()
+                tensor_chords_name_np = tensor_chords_name.flatten()
             for (beat_index,
                  (chord_root_index, chord_type_index)) \
                     in enumerate(

@@ -17,7 +17,9 @@ YES_SYMBOL = 'YES'
 NO_SYMBOL = 'NO'
 MASK_SYMBOL = 'MASK'
 UNKNOWN_SYMBOL = 'UKN'
+TIME_SHIFT = 'TS'
 MAX_VELOCITY = 128
+
 
 def standard_name(note_or_rest, voice_range=None):
     """

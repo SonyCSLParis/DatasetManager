@@ -1,6 +1,3 @@
-import glob
-import shutil
-
 import torch
 import numpy as np
 from DatasetManager.arrangement.arrangement_categorical_dataset import ArrangementCategoricalDataset
@@ -24,13 +21,13 @@ if __name__ == '__main__':
         subsets=[
             # 'bouliane',
             # 'imslp',
-            'liszt_classical_archives',
+            # 'liszt_classical_archives',
             # 'hand_picked_Spotify',
-            # 'debug',
+            'debug',
         ],
         num_elements=None
     )
-    group_instrument_per_section = False
+    group_instrument_per_section = True
 
     dataset = ArrangementCategoricalDataset(corpus_it_gen,
                                             corpus_it_gen_instru_range=None,
@@ -45,7 +42,7 @@ if __name__ == '__main__':
 
     dataset.compute_index_dicts()
 
-    writing_dir = f'{config["dump_folder"]}/reconstruction'
+    writing_dir = f'{config["dump_folder"]}/reconstruction_section'
 
     for arr_id, arr_pair in enumerate(dataset.iterator_gen()):
         ######################################################################

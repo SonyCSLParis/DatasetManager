@@ -25,6 +25,18 @@ from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, shift_pr_along_pitch_axis, note_to_midiPitch, new_events, flatten_dict_pr
 
 
+
+"""
+SLUR symbol for piano makes absolutely no sense... consider the case of [Do,Sol blanche] on beat 1, 
+then on 2nd beat [Re noir]
+
+G -
+  D
+C -
+
+... how to encode that ?
+"""
+
 class ArrangementCategoricalDataset(MusicDataset):
     """
     Class for all arrangement dataset
@@ -697,29 +709,40 @@ class ArrangementCategoricalDataset(MusicDataset):
                                                             this_chunk_piano_indices,
                                                             "Piano")
 
-                min_transposition = max(this_min_transposition, min_transposition)
-                max_transposition = min(this_max_transposition, max_transposition)
+                if (this_min_transposition is None) or (this_max_transposition is None):
+                    min_transposition = None
+                    max_transposition = None
+                else:
+                    min_transposition = max(this_min_transposition, min_transposition)
+                    max_transposition = min(this_max_transposition, max_transposition)
 
                 # Use reference tessitura or compute tessitura directly on the files ?
-                for instrument_name, pr in this_pr_orchestra.items():
-                    this_min_transposition, this_max_transposition = \
-                        self.get_allowed_transpositions_from_pr(pr,
-                                                                this_chunk_orchestra_indices,
-                                                                instrument_name)
-                    if this_min_transposition is not None:  # If instrument not in this chunk, None was returned
-                        min_transposition = max(this_min_transposition, min_transposition)
-                        max_transposition = min(this_max_transposition, max_transposition)
+                if min_transposition is not None:
+                    for instrument_name, pr in this_pr_orchestra.items():
+                        this_min_transposition, this_max_transposition = \
+                            self.get_allowed_transpositions_from_pr(pr,
+                                                                    this_chunk_orchestra_indices,
+                                                                    instrument_name)
+                        if this_min_transposition is not None:  # If instrument not in this chunk, None was returned
+                            min_transposition = max(this_min_transposition, min_transposition)
+                            max_transposition = min(this_max_transposition, max_transposition)
 
-                this_minimum_transposition_allowed = min(0, min_transposition)
-                this_maximum_transposition_allowed = max(0, max_transposition)
+                    this_minimum_transposition_allowed = min(0, min_transposition)
+                    this_maximum_transposition_allowed = max(0, max_transposition)
+                else:
+                    this_minimum_transposition_allowed = None
+                    this_maximum_transposition_allowed = None
                 minimum_transposition_allowed.append(this_minimum_transposition_allowed)
                 maximum_transposition_allowed.append(this_maximum_transposition_allowed)
             else:
                 this_minimum_transposition_allowed = minimum_transposition_allowed[chunk_index]
                 this_maximum_transposition_allowed = maximum_transposition_allowed[chunk_index]
-            ############################################################
 
+            ############################################################
             #  Test if the transposition is possible
+            if (this_maximum_transposition_allowed is None) or (this_minimum_transposition_allowed is None):
+                impossible_transposition += 1
+                continue
             if (this_minimum_transposition_allowed > transposition_semi_tone) \
                     or (this_maximum_transposition_allowed < transposition_semi_tone):
                 impossible_transposition += 1
@@ -732,23 +755,21 @@ class ArrangementCategoricalDataset(MusicDataset):
             local_orchestra_instruments_presence_tensor = []
             for frame_piano, frame_orchestra in zip(this_chunk_piano_indices, this_chunk_orchestra_indices):
                 # Piano encoded vector
-                # if (frame_piano == REST_SYMBOL) and (frame_orchestra in [START_SYMBOL, END_SYMBOL, MASK_SYMBOL]):
-                # if (frame_piano == REST_SYMBOL) and (frame_orchestra in [START_SYMBOL, END_SYMBOL]):
-                #     #  Padding vectors at beginning or end
-                #     piano_t_encoded = self.precomputed_vectors_piano[frame_piano].clone().detach()
-                #     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
-                #     orchestra_instruments_presence_t_encoded = \
-                #         self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL].clone().detach()
-                # else:
-
-                piano_t_encoded = self.pianoroll_to_piano_tensor(
-                    this_pr_piano,
-                    this_onsets_piano,
-                    frame_piano)
-                orchestra_t_encoded, orchestra_instruments_presence_t_encoded = self.pianoroll_to_orchestral_tensor(
-                    this_pr_orchestra,
-                    this_onsets_orchestra,
-                    frame_orchestra)
+                if (frame_piano == REST_SYMBOL) and (frame_orchestra in [START_SYMBOL, END_SYMBOL]):
+                    #  Padding vectors at beginning or end
+                    piano_t_encoded = self.precomputed_vectors_piano[frame_piano].clone().detach()
+                    orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
+                    orchestra_instruments_presence_t_encoded = \
+                        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL].clone().detach()
+                else:
+                    piano_t_encoded = self.pianoroll_to_piano_tensor(
+                        this_pr_piano,
+                        this_onsets_piano,
+                        frame_piano)
+                    orchestra_t_encoded, orchestra_instruments_presence_t_encoded = self.pianoroll_to_orchestral_tensor(
+                        this_pr_orchestra,
+                        this_onsets_orchestra,
+                        frame_orchestra)
 
                 if orchestra_t_encoded is None:
                     avoid_this_chunk = True
@@ -1024,11 +1045,11 @@ class ArrangementCategoricalDataset(MusicDataset):
             if instrument_name == "Cymbal":
                 music21_instrument = music21.instrument.Cymbals()
             elif instrument_name == "Woodwind":
-                music21_instrument = music21.instrument.WoodwindInstrument
+                music21_instrument = music21.instrument.fromString("Clarinet")
             elif instrument_name == "String":
-                music21_instrument = music21.instrument.StringInstrument
+                music21_instrument = music21.instrument.fromString("Violoncello")
             elif instrument_name == "Brass":
-                music21_instrument = music21.instrument.BrassInstrument
+                music21_instrument = music21.instrument.fromString("Horn")
             else:
                 music21_instrument = music21.instrument.fromString(re.sub('_', ' ', instrument_name))
             this_part.insert(0, music21_instrument)

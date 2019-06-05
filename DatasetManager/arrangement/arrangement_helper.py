@@ -97,7 +97,8 @@ def new_events(pr_dict, onsets_dict):
     return events
 
 
-def score_to_pianoroll(score, subdivision, simplify_instrumentation, instrument_grouping, transpose_to_sounding_pitch=False):
+def score_to_pianoroll(score, subdivision, simplify_instrumentation,
+                       instrument_grouping, binarize):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     score_soundingPitch = score.toSoundingPitch()

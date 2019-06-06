@@ -897,15 +897,13 @@ class ArrangementMidipianoDataset(MusicDataset):
         """
         # (batch, num_parts, notes_encoding)
         elems = list(tensor_score.numpy())
-        length = len(elems)
 
         if subdivision is None:
             subdivision = self.subdivision
 
         if durations is None:
-            durations = np.ones((length)) * subdivision
-        else:
-            assert length == len(durations), "Rhythm vector must be the same length as tensor[0]"
+            # Note: using len(elems) yields a duration vector which is too long, but fuck it
+            durations = np.ones((len(elems))) * subdivision
 
         # Init score
         stream = music21.stream.Stream()
@@ -916,79 +914,65 @@ class ArrangementMidipianoDataset(MusicDataset):
         # Keep track of the duration of notes on
         notes_on_duration = {}
         frame_index = 0
-        offset = 0
+        global_offset = 0
         for elem in elems:
+            # DEBUG
+            if elem == -1:
+                # This is for debugging, to separate between batches
+                f = music21.note.Rest()
+                f.quarterLength = 1
+                this_part.insert(global_offset/subdivision, f)
+                global_offset += subdivision
+                continue
+
+            # Get symbol corresponding to one-hot encoding
             symbol = self.index2symbol_piano[elem]
+
             if symbol in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                 continue
             elif symbol == TIME_SHIFT:
                 # Increment duration in notes_on_duration
-                offset += durations[frame_index]
+                global_offset += durations[frame_index]
                 for pitch, _ in notes_on_duration.items():
-                    notes_on_duration[pitch] += durations[frame_index]
-            elif symbol == -1:
-                # This is for debugging
-                WRITE A SILENCE
+                    notes_on_duration[pitch]['duration'] += durations[frame_index]
+                #  increment frame counter
+                frame_index += 1
             else:
                 pitch, on = re.split('_', symbol)
+
+                # Repeat case
                 if on == 'on':
                     if pitch in notes_on_duration.keys():
                         # Write this pitch with its associated duration
-                        duration = notes_on_duration[pitch]
-                        f = music21.note.Note(pitch)
+                        duration = notes_on_duration[pitch]['duration']
+                        offset = notes_on_duration[pitch]['offset']
+                        f = music21.note.Note(int(pitch))
                         f.volume.velocity = 60.
                         f.quarterLength = duration / subdivision
                         this_part.insert((offset / subdivision), f)
-                        # Write pitch back in notes_on_duration
-                        # Write 0, as durations are all updated when a time shift event is met
-                        notes_on_duration[pitch] = 0
+                    # Either it's a repeat or not, add in notes_on_duration
+                    # Write 0, as durations are all updated when a time shift event is met
+                    else:
+                        # If it's not a note repeat need to instantiate the note in the dict
+                        notes_on_duration[pitch] = {}
+                    notes_on_duration[pitch]['duration'] = 0
+                    notes_on_duration[pitch]['offset'] = global_offset
+                # Note off
                 elif on == 'off':
                     # Write this pitch with its associated duration
-
+                    if pitch not in notes_on_duration.keys():
+                        print("Try to note off a note which was not on :(")
+                        continue
+                    duration = notes_on_duration[pitch]['duration']
+                    offset = notes_on_duration[pitch]['offset']
+                    f = music21.note.Note(int(pitch))
+                    f.volume.velocity = 60.
+                    f.quarterLength = duration / subdivision
+                    this_part.insert((offset / subdivision), f)
                     # Remove from notes_on_duration
-
+                    notes_on_duration.pop(pitch, None)
                 else:
-
-
-
-
-
-        # First store every in a dict {instrus : [time [notes]]}
-        score_list = []
-        for voice_index, index2midi in self.index2midi_pitch_piano.items():
-            duration = 0
-            offset = 0
-            this_offset = 0
-            pitch = None
-            for frame_index, this_duration in enumerate(durations):
-                this_pitch = index2midi[piano_matrix[frame_index, voice_index]]
-
-                if this_pitch == SLUR_SYMBOL:
-                    duration += this_duration
-                else:
-                    if pitch is not None:
-                        if pitch not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL]:
-                            score_list.append((pitch, offset, duration))
-                    # Reset values
-                    duration = this_duration
-                    pitch = this_pitch
-                    offset = this_offset
-                this_offset += this_duration
-            # Last note
-            if pitch != REST_SYMBOL:
-                if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL]:
-                    score_list.append((pitch, offset, duration))
-        #  Batch is used as time in the score
-        stream = music21.stream.Stream()
-        this_part = music21.stream.Part(id='Piano')
-        music21_instrument = music21.instrument.fromString('Piano')
-        this_part.insert(0, music21_instrument)
-        for elem in score_list:
-            pitch, offset, duration = elem
-            f = music21.note.Note(pitch)
-            f.volume.velocity = 60.
-            f.quarterLength = duration / subdivision
-            this_part.insert((offset / subdivision), f)
+                    raise Exception("should not happen")
 
         this_part_chordified = this_part.chordify()
         this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch

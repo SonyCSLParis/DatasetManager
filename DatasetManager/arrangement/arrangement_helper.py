@@ -98,10 +98,11 @@ def new_events(pr_dict, onsets_dict):
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation,
-                       instrument_grouping, binarize):
+                       instrument_grouping, transpose_to_sounding_pitch):
     # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
-    score_soundingPitch = score.toSoundingPitch()
+    if transpose_to_sounding_pitch:
+        score_soundingPitch = score.toSoundingPitch()
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
     end_offset = 1 + int(score.flat.highestTime)
@@ -123,7 +124,12 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
             note_pitch = note_to_midiPitch(note)
 
             pr[note_start:note_end, note_pitch] = note_velocity
-            onsets[note_start, note_pitch] = 1
+
+            if (note.tie is None) or (note.tie.type == 'start'):
+                onsets[note_start, note_pitch] = 1
+            # else:
+            #     if :
+            #         onsets[note_start, note_pitch] = 1
             return
 
         for element in elements_iterator:

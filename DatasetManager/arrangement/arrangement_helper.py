@@ -88,10 +88,11 @@ def new_events(pr_dict, onsets_dict):
     onsets = flatten_dict_pr(onsets_dict)
 
     #  Get new events indices (diff matrices)
-    delta_flat = (pr[1:] - pr[:-1]).sum(1)
+    delta_flat = (np.abs(pr[1:] - pr[:-1])).sum(1)
     new_events_indices = list(np.where(delta_flat != 0)[0] + 1)
+    # Note that this actually gives us the end of events, which is okay (miss first event and add a last note_off event)
     onsets_flat = onsets.sum(1)
-    repeated_event_indices = list(np.where(onsets_flat> 0)[0])
+    repeated_event_indices = list(np.where(onsets_flat > 0)[0])
 
     events = sorted(list(set(repeated_event_indices + new_events_indices)))
     return events
@@ -103,6 +104,8 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
+    else:
+        score_soundingPitch = score
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
     end_offset = 1 + int(score.flat.highestTime)
@@ -239,6 +242,9 @@ class ArrangementIteratorGenerator:
                 arrangement_pair = music21.converter.parse(music_files[0]), \
                                    music21.converter.parse(music_files[1])
                 arr_pair = sort_arrangement_pairs(arrangement_pair)
+
+                name = '-'.join(re.split('/', arrangement_path)[-2:])
+                arr_pair['name'] = name
                 yield arr_pair
             except Exception as e:
                 print(f'{music_files} is not parsable')
@@ -285,4 +291,7 @@ class OrchestraIteratorGenerator:
                 ret = music21.converter.parse(music_files[0])
             else:
                 ret = music_files[0]
-            yield {'Piano': None, 'Orchestra': ret}
+
+            name = '-'.join(re.split('/', folder_path)[-2:])
+
+            yield {'Piano': None, 'Orchestra': ret, 'name': name}

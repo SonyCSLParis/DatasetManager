@@ -26,7 +26,6 @@ from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, shift_pr_along_pitch_axis, \
     note_to_midiPitch, new_events, flatten_dict_pr
 
-
 """
 Typical piano sequence:
 p0 p1 TS p0 p1 p2 TS p0 X X X X
@@ -38,6 +37,7 @@ If end:
 p0 p1 TS p0 p1 p2 TS p0 END X X X
 
 """
+
 
 class ArrangementMidipianoDataset(MusicDataset):
     """
@@ -562,6 +562,7 @@ class ArrangementMidipianoDataset(MusicDataset):
 
         #  Get new events indices (diff matrices)
         events = new_events(pianoroll, onsets)
+        # Pad at the end of the pitch axis to get a multiple of 12 (number of pitch classes)
         pr_event = np.pad(flat_pr[events], pad_width=[(0, 0), (0, 4)], mode='constant', constant_values=0)
 
         # Reduce on 12 pitch-classes
@@ -766,7 +767,8 @@ class ArrangementMidipianoDataset(MusicDataset):
                     orchestra_t_encoded, orchestra_instruments_presence_t_encoded = self.pianoroll_to_orchestral_tensor(
                         this_pr_orchestra,
                         this_onsets_orchestra,
-                        frame_orchestra)
+                        first_frame_chunk_bool=(index_frame == 0),
+                        frame_index=frame_orchestra)
 
                 if orchestra_t_encoded is None:
                     avoid_this_chunk = True
@@ -775,7 +777,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                 local_orchestra_tensor.append(orchestra_t_encoded)
                 local_orchestra_instruments_presence_tensor.append(orchestra_instruments_presence_t_encoded)
 
-            # Remove the last time shift added
+            #  Remove the last time shift added
             local_piano_tensor.pop()
 
             #  Pad piano vector to max length
@@ -816,7 +818,6 @@ class ArrangementMidipianoDataset(MusicDataset):
             delta_pr = pr[previous_frame_index] - pr[frame_index]
             notes += [(e, False) for e in list(np.where(delta_pr)[0])]
 
-
         # Sort notes from lowest to highest
         #  Todo check register individually for each voice for smaller categorical representations
         notes = sorted(notes, key=lambda e: e[0])
@@ -836,7 +837,7 @@ class ArrangementMidipianoDataset(MusicDataset):
             previous_note = note
         return piano_vector
 
-    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, frame_index):
+    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, first_frame_chunk_bool, frame_index):
         orchestra_encoded = np.zeros((self.number_instruments))
         orchestra_instruments_presence = np.zeros((self.number_instruments))
         for instrument_name, indices_instruments in self.instrument2index.items():
@@ -854,8 +855,9 @@ class ArrangementMidipianoDataset(MusicDataset):
             notes_played.extend([REST_SYMBOL] * (number_of_parts - len(notes_played)))
             for this_note, this_instrument_index in zip(notes_played, indices_instruments):
                 slur_bool = False
-                if this_note != REST_SYMBOL:
+                if this_note != REST_SYMBOL and not first_frame_chunk_bool:
                     slur_bool = (onsets[instrument_name][frame_index, this_note] == 0)
+
                 if slur_bool:
                     orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
                 else:
@@ -905,7 +907,7 @@ class ArrangementMidipianoDataset(MusicDataset):
             # Note: using len(elems) yields a duration vector which is too long, but fuck it
             durations = np.ones((len(elems))) * subdivision
 
-        # Init score
+        #  Init score
         stream = music21.stream.Stream()
         this_part = music21.stream.Part(id='Piano')
         music21_instrument = music21.instrument.fromString('Piano')
@@ -916,21 +918,24 @@ class ArrangementMidipianoDataset(MusicDataset):
         frame_index = 0
         global_offset = 0
         for elem in elems:
-            # DEBUG
+            if global_offset == 60:
+                print("yo")
+            #  DEBUG
             if elem == -1:
                 # This is for debugging, to separate between batches
                 f = music21.note.Rest()
                 f.quarterLength = 1
-                this_part.insert(global_offset/subdivision, f)
+                this_part.insert(global_offset / subdivision, f)
                 global_offset += subdivision
                 continue
 
-            # Get symbol corresponding to one-hot encoding
+            #  Get symbol corresponding to one-hot encoding
             symbol = self.index2symbol_piano[elem]
 
             if symbol in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                 continue
             elif symbol == TIME_SHIFT:
+                # print(f'TS')
                 # Increment duration in notes_on_duration
                 global_offset += durations[frame_index]
                 for pitch, _ in notes_on_duration.items():
@@ -940,20 +945,25 @@ class ArrangementMidipianoDataset(MusicDataset):
             else:
                 pitch, on = re.split('_', symbol)
 
-                # Repeat case
+                # print(f'{pitch} {on}')
+                #
+                # if pitch == '38':
+                #     print("yo")
+
+                #  Repeat case
                 if on == 'on':
                     if pitch in notes_on_duration.keys():
-                        # Write this pitch with its associated duration
+                        #  Write this pitch with its associated duration
                         duration = notes_on_duration[pitch]['duration']
                         offset = notes_on_duration[pitch]['offset']
                         f = music21.note.Note(int(pitch))
                         f.volume.velocity = 60.
                         f.quarterLength = duration / subdivision
                         this_part.insert((offset / subdivision), f)
-                    # Either it's a repeat or not, add in notes_on_duration
-                    # Write 0, as durations are all updated when a time shift event is met
+                    #  Either it's a repeat or not, add in notes_on_duration
+                    #  Write 0, as durations are all updated when a time shift event is met
                     else:
-                        # If it's not a note repeat need to instantiate the note in the dict
+                        #  If it's not a note repeat need to instantiate the note in the dict
                         notes_on_duration[pitch] = {}
                     notes_on_duration[pitch]['duration'] = 0
                     notes_on_duration[pitch]['offset'] = global_offset
@@ -961,7 +971,6 @@ class ArrangementMidipianoDataset(MusicDataset):
                 elif on == 'off':
                     # Write this pitch with its associated duration
                     if pitch not in notes_on_duration.keys():
-                        print("Try to note off a note which was not on :(")
                         continue
                     duration = notes_on_duration[pitch]['duration']
                     offset = notes_on_duration[pitch]['offset']
@@ -969,14 +978,13 @@ class ArrangementMidipianoDataset(MusicDataset):
                     f.volume.velocity = 60.
                     f.quarterLength = duration / subdivision
                     this_part.insert((offset / subdivision), f)
-                    # Remove from notes_on_duration
+                    #  Remove from notes_on_duration
                     notes_on_duration.pop(pitch, None)
                 else:
                     raise Exception("should not happen")
 
-        this_part_chordified = this_part.chordify()
-        this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch
-        stream.append(this_part_chordified)
+        this_part.atSoundingPitch = self.transpose_to_sounding_pitch
+        stream.append(this_part)
 
         return stream
 
@@ -1103,9 +1111,12 @@ class ArrangementMidipianoDataset(MusicDataset):
                     f.quarterLength = duration / subdivision
                     this_part.insert((offset / subdivision), f)
 
-            this_part_chordified = this_part.chordify()
-            this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch
-            stream.append(this_part_chordified)
+            # this_part_chordified = this_part.chordify()
+            # this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch
+            # stream.append(this_part_chordified)
+
+            this_part.atSoundingPitch = self.transpose_to_sounding_pitch
+            stream.append(this_part)
 
         return stream
 
@@ -1130,7 +1141,7 @@ class ArrangementMidipianoDataset(MusicDataset):
         else:
             # Add padding vectors between each example
             batch_size, num_features = piano_pianoroll.size()
-            piano_with_padding_between_batch = torch.zeros(batch_size, num_features+1)
+            piano_with_padding_between_batch = torch.zeros(batch_size, num_features + 1)
             piano_with_padding_between_batch[:, :num_features] = piano_pianoroll
             piano_with_padding_between_batch[:, num_features] = -1
             piano_flat = piano_with_padding_between_batch.view(-1)

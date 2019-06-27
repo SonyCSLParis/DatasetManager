@@ -37,9 +37,10 @@ def orchestral_tensor_to_pianoroll(tensor):
 
 def quantize_and_filter_music21_element(element, subdivision):
     frame_start = int(round(element.offset * subdivision))
-    if abs((element.offset * subdivision) - frame_start) > 0.1:
-        # Avoid elements not on fixed subdivision of quarter notes
-        return None, None
+    # Todo perhaps we should keep them !!
+    # if abs((element.offset * subdivision) - frame_start) > 0.1:
+    #     # Avoid elements not on fixed subdivision of quarter notes
+    #     return None, None
     frame_end = int(round((element.offset + element.duration.quarterLength) * subdivision))
     if frame_start == frame_end:
         # TODO What do we do with very short events ?

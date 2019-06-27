@@ -54,10 +54,14 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
 
     termScores = []
 
+    ##################################
+    #  Build score matrix
     for i in range(1, max_i + 1):
         ci = seqi[i - 1]
 
-        # Ok plus rapide, mais tester reconstruction
+        # Constraint to a losange
+        # Faster, probably sufficient for almost aligned sequences like in Beethov/Liszt,
+        # but probably do not work in general
         j_min = max(i - 1000, 1)
         j_max = min(i + 1000, max_j + 1)
         for j in range(j_min, j_max):
@@ -94,10 +98,8 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
                     score[i, j] = left_score
                     pointer[i, j] = LEFT
 
-    align_j = []
-    align_i = []
-    skip_j = []
-    skip_i = []
+    ##################################
+    #  Build aligned indices
     pairs = []
     previous_coord = None
     while True:
@@ -108,34 +110,23 @@ def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
             break
 
         if p == DIAG:
-            align_j.append(seqj[j - 1])
-            align_i.append(seqi[i - 1])
             i -= 1
             j -= 1
-            skip_j.append(1)
-            skip_i.append(1)
-            # pairs.append((j, i))
-            if previous_coord is not None:
-                pairs.append(previous_coord)
+            pairs.append((j, i))
+            # if previous_coord is not None:
+            #     pairs.append(previous_coord)
         elif p == LEFT:
-            # Loose the element
-            # align_j += seqj[j - 1]
-            # align_i += [] #silence
             j -= 1
-            skip_j.append(0)
         elif p == UP:
-            # align_j += []
-            # align_i += seqi[i - 1]
             i -= 1
-            skip_i.append(0)
         else:
             raise Exception('wtf!')
 
-        if (i != len(seqi)) and (j != len(seqj)):
-            previous_coord = j, i
+        # if (i != len(seqi)) and (j != len(seqj)):
+        #     previous_coord = j, i
 
     # Don't forget last one
-    pairs.append(previous_coord)
+    # pairs.append(previous_coord)
 
     # return (align_j[::-1], align_i[::-1]), (skip_j[::-1], skip_i[::-1])
     return pairs[::-1], termScores

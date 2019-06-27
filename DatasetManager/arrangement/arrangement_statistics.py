@@ -132,7 +132,8 @@ class ComputeStatistics:
     def histogram_tessitura(self, score):
         # Transpose to sounding pitch ?
         if self.sounding_pitch_boolean:
-            score_processed = score.toSoundingPitch()
+            if score.atSoundingPitch != 'unknown':
+                score_processed = score.toSoundingPitch()
         else:
             score_processed = score
 

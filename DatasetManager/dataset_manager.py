@@ -81,7 +81,7 @@ if __name__ == '__main__':
     from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 
     # Arrangement
-    subdivision = 2
+    subdivision = 4
     sequence_size = 3
     arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
         name='arrangement_test',

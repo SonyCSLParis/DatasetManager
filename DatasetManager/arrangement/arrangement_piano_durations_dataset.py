@@ -477,7 +477,8 @@ class ArrangementDataset(MusicDataset):
 
     def score_to_list_pc(self, score):
         # Need only the flatten orchestra for aligning
-        sounding_pitch_score = score.toSoundingPitch()
+        if score.atSoundingPitch != 'unknown':
+            sounding_pitch_score = score.toSoundingPitch()
         score_flat = sounding_pitch_score.flat
         notes_and_chords = score_flat.notes
 

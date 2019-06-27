@@ -737,6 +737,7 @@ class ArrangementMidipianoDataset(MusicDataset):
             local_piano_tensor = []
             local_orchestra_tensor = []
             local_orchestra_instruments_presence_tensor = []
+            previous_frame_orchestra = None
             for index_frame in range(len(this_chunk_piano_indices)):
                 if index_frame != 0:
                     previous_frame_piano = this_chunk_piano_indices[index_frame - 1]
@@ -767,7 +768,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                     orchestra_t_encoded, orchestra_instruments_presence_t_encoded = self.pianoroll_to_orchestral_tensor(
                         this_pr_orchestra,
                         this_onsets_orchestra,
-                        first_frame_chunk_bool=(index_frame == 0),
+                        previous_frame=previous_frame_orchestra,
                         frame_index=frame_orchestra)
 
                 if orchestra_t_encoded is None:
@@ -776,6 +777,7 @@ class ArrangementMidipianoDataset(MusicDataset):
 
                 local_orchestra_tensor.append(orchestra_t_encoded)
                 local_orchestra_instruments_presence_tensor.append(orchestra_instruments_presence_t_encoded)
+                previous_frame_orchestra = orchestra_t_encoded
 
             #  Remove the last time shift added
             local_piano_tensor.pop()
@@ -837,7 +839,7 @@ class ArrangementMidipianoDataset(MusicDataset):
             previous_note = note
         return piano_vector
 
-    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, first_frame_chunk_bool, frame_index):
+    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, previous_frame, frame_index):
         orchestra_encoded = np.zeros((self.number_instruments))
         orchestra_instruments_presence = np.zeros((self.number_instruments))
         for instrument_name, indices_instruments in self.instrument2index.items():
@@ -855,11 +857,16 @@ class ArrangementMidipianoDataset(MusicDataset):
             notes_played.extend([REST_SYMBOL] * (number_of_parts - len(notes_played)))
             for this_note, this_instrument_index in zip(notes_played, indices_instruments):
                 slur_bool = False
-                if this_note != REST_SYMBOL and not first_frame_chunk_bool:
+                if this_note != REST_SYMBOL:
                     slur_bool = (onsets[instrument_name][frame_index, this_note] == 0)
 
-                if slur_bool:
-                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
+                if slur_bool and (previous_frame is not None):
+                    # After alignement,  it is possible that some frames have been removed, leading to inconsistent slurs symbols
+                    # (like slur after a rest)
+                    if previous_frame[this_instrument_index] == self.midi_pitch2index[this_instrument_index][this_note]:
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
+                    else:
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
                 else:
                     if this_note not in self.midi_pitch2index[this_instrument_index].keys():
                         this_note = REST_SYMBOL
@@ -918,8 +925,6 @@ class ArrangementMidipianoDataset(MusicDataset):
         frame_index = 0
         global_offset = 0
         for elem in elems:
-            if global_offset == 60:
-                print("yo")
             #  DEBUG
             if elem == -1:
                 # This is for debugging, to separate between batches

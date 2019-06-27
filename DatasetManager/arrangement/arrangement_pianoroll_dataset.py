@@ -323,7 +323,8 @@ class ArrangementPianorollDataset(MusicDataset):
         current_set_pc = set()
 
         if self.transpose_to_sounding_pitch:
-            score_soundingPitch = score.toSoundingPitch()
+            if score.atSoundingPitch != 'unknown':
+                score_soundingPitch = score.toSoundingPitch()
         else:
             score_soundingPitch = score
 

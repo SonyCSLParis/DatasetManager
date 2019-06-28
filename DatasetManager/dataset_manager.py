@@ -1,5 +1,4 @@
 import os
-import shutil
 import torch
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.all_datasets as all_datasets
@@ -80,72 +79,74 @@ if __name__ == '__main__':
     dataset_manager = DatasetManager()
     from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 
-    # Arrangement
-    subdivision = 4
-    sequence_size = 3
-    arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
-        name='arrangement_test',
-        transpose_to_sounding_pitch=True,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        velocity_quantization=2,
-        max_transposition=3,
-        compute_statistics_flag=False
-    )
-
-    (train_dataloader,
-     val_dataloader,
-     test_dataloader) = arrangement_dataset.data_loaders(
-        batch_size=16,
-        split=(0.85, 0.10),
-        DEBUG_BOOL_SHUFFLE=True
-    )
-    print('Num Train Batches: ', len(train_dataloader))
-    print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
-
-    # Visualise a few examples
-    number_dump = 20
-    writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
-    if os.path.isdir(writing_dir):
-        shutil.rmtree(writing_dir)
-    os.makedirs(writing_dir)
-    for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch, orchestra_batch = sample_batched
-        # Flatten matrices
-        # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
-        # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
-        # orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
-        # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
-        if i_batch > number_dump:
-            break
-        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}_seq")
-        # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
-
-    # BACH
+    # # Arrangement
     # subdivision = 4
-    # metadatas = [
-    #     TickMetadata(subdivision=subdivision),
-    #     FermataMetadata(),
-    #     KeyMetadata()
-    # ]
-    #
-    # bach_chorales_dataset: ChoraleDataset = dataset_manager.get_dataset(
-    #     name='bach_chorales_test',
-    #     voice_ids=[0, 1, 2, 3],
-    #     metadatas=metadatas,
-    #     sequences_size=8,
-    #     subdivision=subdivision
+    # sequence_size = 3
+    # arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
+    #     name='arrangement_test',
+    #     transpose_to_sounding_pitch=True,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     velocity_quantization=2,
+    #     max_transposition=3,
+    #     compute_statistics_flag=False
     # )
+    #
     # (train_dataloader,
     #  val_dataloader,
-    #  test_dataloader) = bach_chorales_dataset.data_loaders(
-    #     batch_size=128,
-    #     split=(0.85, 0.10)
+    #  test_dataloader) = arrangement_dataset.data_loaders(
+    #     batch_size=16,
+    #     split=(0.85, 0.10),
+    #     DEBUG_BOOL_SHUFFLE=True
     # )
     # print('Num Train Batches: ', len(train_dataloader))
     # print('Num Valid Batches: ', len(val_dataloader))
     # print('Num Test Batches: ', len(test_dataloader))
+    #
+    # # Visualise a few examples
+    # number_dump = 20
+    # writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
+    # if os.path.isdir(writing_dir):
+    #     shutil.rmtree(writing_dir)
+    # os.makedirs(writing_dir)
+    # for i_batch, sample_batched in enumerate(train_dataloader):
+    #     piano_batch, orchestra_batch = sample_batched
+    #     # Flatten matrices
+    #     # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
+    #     # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
+    #     # orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
+    #     # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
+    #     if i_batch > number_dump:
+    #         break
+    #     arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}_seq")
+    #     # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
+
+    # BACH
+    from DatasetManager.metadata import FermataMetadata, TickMetadata, KeyMetadata
+    from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
+    subdivision = 4
+    metadatas = [
+        TickMetadata(subdivision=subdivision),
+        FermataMetadata(),
+        KeyMetadata()
+    ]
+
+    bach_chorales_dataset: ChoraleBeatsDataset = dataset_manager.get_dataset(
+        name='bach_chorales_test',
+        voice_ids=[0, 1, 2, 3],
+        metadatas=metadatas,
+        sequences_size=8,
+        subdivision=subdivision
+    )
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = bach_chorales_dataset.data_loaders(
+        batch_size=128,
+        split=(0.85, 0.10)
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
 
     # LSDB
     # lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(

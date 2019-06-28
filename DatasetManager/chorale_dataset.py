@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_note, OUT_OF_RANGE, REST_SYMBOL
+    standard_note, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL
 from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
 
@@ -50,11 +50,11 @@ class ChoraleDataset(MusicDataset):
 
     def __repr__(self):
         return f'ChoraleDataset(' \
-               f'{self.voice_ids},' \
-               f'{self.name},' \
-               f'{[metadata.name for metadata in self.metadatas]},' \
-               f'{self.sequences_size},' \
-               f'{self.subdivision})'
+            f'{self.voice_ids},' \
+            f'{self.name},' \
+            f'{[metadata.name for metadata in self.metadatas]},' \
+            f'{self.sequences_size},' \
+            f'{self.subdivision})'
 
     def iterator_gen(self):
         return (chorale
@@ -104,9 +104,9 @@ class ChoraleDataset(MusicDataset):
                         if semi_tone not in chorale_transpositions:
                             (chorale_tensor,
                              metadata_tensor) = (
-                                 self.transposed_score_and_metadata_tensors(
-                                     chorale,
-                                     semi_tone=semi_tone))
+                                self.transposed_score_and_metadata_tensors(
+                                    chorale,
+                                    semi_tone=semi_tone))
                             chorale_transpositions.update(
                                 {semi_tone: chorale_tensor})
                             metadatas_transpositions.update(
@@ -361,6 +361,7 @@ class ChoraleDataset(MusicDataset):
             note_set.add(START_SYMBOL)
             note_set.add(END_SYMBOL)
             note_set.add(REST_SYMBOL)
+            note_set.add(PAD_SYMBOL)
 
         # get all notes: used for computing pitch ranges
         for chorale in tqdm(self.iterator_gen()):
@@ -413,13 +414,21 @@ class ChoraleDataset(MusicDataset):
         length = tensor_score.size()[1]
 
         padded_chorale = []
-        # todo add PAD_SYMBOL
         if start_tick < 0:
             start_symbols = np.array([note2index[START_SYMBOL]
                                       for note2index in self.note2index_dicts])
+            pad_symbols = np.array([note2index[PAD_SYMBOL]
+                                    for note2index in self.note2index_dicts])
             start_symbols = torch.from_numpy(start_symbols).long().clone()
-            start_symbols = start_symbols.repeat(-start_tick, 1).transpose(0, 1)
-            padded_chorale.append(start_symbols)
+            pad_symbols = torch.from_numpy(pad_symbols).long().clone()
+
+            if start_tick == -1:
+                padding_sequence_start = start_symbols.repeat(-start_tick, 1).transpose(0, 1)
+            else:
+                pad_symbols = pad_symbols.repeat(-start_tick-1, 1).transpose(0, 1)
+                start_symbols = start_symbols.repeat(1, 1).transpose(0, 1)
+                padding_sequence_start = torch.cat([pad_symbols, start_symbols], dim=1)
+            padded_chorale.append(padding_sequence_start)
 
         slice_start = start_tick if start_tick > 0 else 0
         slice_end = end_tick if end_tick < length else length
@@ -430,8 +439,17 @@ class ChoraleDataset(MusicDataset):
             end_symbols = np.array([note2index[END_SYMBOL]
                                     for note2index in self.note2index_dicts])
             end_symbols = torch.from_numpy(end_symbols).long().clone()
-            end_symbols = end_symbols.repeat(end_tick - length, 1).transpose(0, 1)
-            padded_chorale.append(end_symbols)
+            pad_symbols = np.array([note2index[PAD_SYMBOL]
+                                    for note2index in self.note2index_dicts])
+            pad_symbols = torch.from_numpy(pad_symbols).long().clone()
+
+            if end_tick - length == 1:
+                padding_sequence_end = end_symbols.repeat(end_tick - length, 1).transpose(0, 1)
+            else:
+                pad_symbols = pad_symbols.repeat(end_tick - length - 1, 1).transpose(0, 1)
+                end_symbols = end_symbols.repeat(1, 1).transpose(0, 1)
+                padding_sequence_end = torch.cat([end_symbols, pad_symbols], dim=1)
+            padded_chorale.append(padding_sequence_end)
 
         padded_chorale = torch.cat(padded_chorale, 1)
         return padded_chorale
@@ -471,6 +489,7 @@ class ChoraleDataset(MusicDataset):
         return padded_tensor_metadata
 
     def empty_score_tensor(self, score_length):
+        # todo : END_SYMBOL and PAD_SYMBOL ?????
         start_symbols = np.array([note2index[START_SYMBOL]
                                   for note2index in self.note2index_dicts])
         start_symbols = torch.from_numpy(start_symbols).long().clone()
@@ -528,11 +547,11 @@ class ChoraleDataset(MusicDataset):
 class ChoraleBeatsDataset(ChoraleDataset):
     def __repr__(self):
         return f'ChoraleBeatsDataset(' \
-               f'{self.voice_ids},' \
-               f'{self.name},' \
-               f'{[metadata.name for metadata in self.metadatas]},' \
-               f'{self.sequences_size},' \
-               f'{self.subdivision})'
+            f'{self.voice_ids},' \
+            f'{self.name},' \
+            f'{[metadata.name for metadata in self.metadatas]},' \
+            f'{self.sequences_size},' \
+            f'{self.subdivision})'
 
     def make_tensor_dataset(self):
         """
@@ -576,9 +595,9 @@ class ChoraleBeatsDataset(ChoraleDataset):
                         if semi_tone not in chorale_transpositions:
                             (chorale_tensor,
                              metadata_tensor) = (
-                                 self.transposed_score_and_metadata_tensors(
-                                     chorale,
-                                     semi_tone=semi_tone))
+                                self.transposed_score_and_metadata_tensors(
+                                    chorale,
+                                    semi_tone=semi_tone))
                             chorale_transpositions.update(
                                 {semi_tone: chorale_tensor})
                             metadatas_transpositions.update(

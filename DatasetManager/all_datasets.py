@@ -1,4 +1,5 @@
 import music21
+from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
 
 from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_categorical_dataset import ArrangementCategoricalDataset
@@ -119,6 +120,30 @@ def get_all_datasets():
         'arrangement_categorical_small':
             {
                 'dataset_class_name': ArrangementCategoricalDataset,
+                'corpus_it_gen': ArrangementIteratorGenerator(
+                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    subsets=[
+                        'small_liszt_beethov',
+                    ],
+                    num_elements=None,
+                ),
+                'corpus_it_gen_instru_range': None
+            },
+        'arrangement_midiPiano':
+            {
+                'dataset_class_name': ArrangementMidipianoDataset,
+                'corpus_it_gen': ArrangementIteratorGenerator(
+                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    subsets=[
+                        'liszt_classical_archives',
+                    ],
+                    num_elements=None,
+                ),
+                'corpus_it_gen_instru_range': None
+            },
+        'arrangement_midiPiano_small':
+            {
+                'dataset_class_name': ArrangementMidipianoDataset,
                 'corpus_it_gen': ArrangementIteratorGenerator(
                     arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                     subsets=[

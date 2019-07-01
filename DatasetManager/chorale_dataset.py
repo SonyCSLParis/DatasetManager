@@ -47,6 +47,7 @@ class ChoraleDataset(MusicDataset):
         self.voice_ranges = None  # in midi pitch
         self.metadatas = metadatas
         self.subdivision = subdivision
+        self.list_symbol_except_notes = [SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL]
 
     def __repr__(self):
         return f'ChoraleDataset(' \

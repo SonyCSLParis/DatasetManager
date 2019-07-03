@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
     # Arrangement
     subdivision = 8
-    sequence_size = 3
+    sequence_size = 7
     arrangement_dataset: ArrangementMidipianoDataset = dataset_manager.get_dataset(
         name='arrangement_midiPiano',
         transpose_to_sounding_pitch=True,
@@ -91,7 +91,7 @@ if __name__ == '__main__':
         sequence_size=sequence_size,
         max_transposition=12,
         compute_statistics_flag=False,
-        mean_number_messages_per_time_frame=10
+        mean_number_messages_per_time_frame=14
     )
 
     (train_dataloader,
@@ -106,13 +106,13 @@ if __name__ == '__main__':
     print('Num Test Batches: ', len(test_dataloader))
 
     # Visualise a few examples
-    number_dump = 20
+    number_dump = 100
     writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
     for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch, orchestra_batch = sample_batched
+        piano_batch, orchestra_batch, instrumentation_batch = sample_batched
         # Flatten matrices
         # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
         # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
@@ -120,7 +120,7 @@ if __name__ == '__main__':
         # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
         if i_batch > number_dump:
             break
-        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}_seq")
+        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
         # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
 
     # BACH

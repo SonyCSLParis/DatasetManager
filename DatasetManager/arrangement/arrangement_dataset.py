@@ -630,8 +630,8 @@ class ArrangementDataset(MusicDataset):
         return list_pc
 
     def align_score(self, piano_score, orchestra_score):
-        list_pc_piano = self.score_to_list_pc(piano_score)
-        list_pc_orchestra = self.score_to_list_pc(orchestra_score)
+        list_pc_piano = self.score_to_list_pc(piano_score, 'piano')
+        list_pc_orchestra = self.score_to_list_pc(orchestra_score, 'orchestra')
 
         only_pc_piano = [e[1] for e in list_pc_piano]
         only_pc_orchestra = [e[1] for e in list_pc_orchestra]

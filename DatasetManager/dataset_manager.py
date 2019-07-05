@@ -84,6 +84,7 @@ if __name__ == '__main__':
     # Arrangement
     subdivision = 8
     sequence_size = 7
+    mean_number_messages_per_time_frame = 14
     arrangement_dataset: ArrangementMidipianoDataset = dataset_manager.get_dataset(
         name='arrangement_midiPiano',
         transpose_to_sounding_pitch=True,
@@ -91,7 +92,7 @@ if __name__ == '__main__':
         sequence_size=sequence_size,
         max_transposition=12,
         compute_statistics_flag=False,
-        mean_number_messages_per_time_frame=14
+        mean_number_messages_per_time_frame=mean_number_messages_per_time_frame
     )
 
     (train_dataloader,

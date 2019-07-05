@@ -24,7 +24,7 @@ from DatasetManager.config import get_config
 
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
     quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis, OrchestraIteratorGenerator, \
-    note_to_midiPitch
+    note_to_midiPitch, flatten_dict_pr, new_events
 
 
 class ArrangementDataset(MusicDataset):
@@ -568,40 +568,65 @@ class ArrangementDataset(MusicDataset):
     def get_metadata_tensor(self, score):
         return None
 
-    def score_to_list_pc(self, score):
+    def score_to_list_pc(self, score, datatype):
+        # list_pc = []
+        # current_frame_index = 0
+        # current_set_pc = set()
+        #
+        # if self.transpose_to_sounding_pitch:
+        #     if score.atSoundingPitch != 'unknown':
+        #         score_soundingPitch = score.toSoundingPitch()
+        # else:
+        #     score_soundingPitch = score
+        #
+        # # TODO Filter out the parts associated to remove ?? Did not raise issue yet, but could be some day
+        # elements_iterator = score_soundingPitch.flat.notes
+        #
+        # for elem in elements_iterator:
+        #     # Don't consider elements which are not on a subdivision of the beat
+        #     note_start, note_end = quantize_and_filter_music21_element(elem, self.subdivision)
+        #     if note_start is None:
+        #         continue
+        #     assert (note_start >= current_frame_index), "Elements are not sorted by increasing time ?"
+        #     if note_start > current_frame_index:
+        #         # Write in list_pc and move to next
+        #         if len(current_set_pc) > 0:  # Check on length is only for the first iteration
+        #             list_pc.append((current_frame_index, current_set_pc))
+        #         current_set_pc = set()
+        #         current_frame_index = note_start
+        #
+        #     if elem.isNote:
+        #         current_set_pc.add(elem.pitch.pitchClass)
+        #     else:
+        #         current_set_pc = current_set_pc.union(set(elem.pitchClasses))
+        # # Don't forget last event !
+        # list_pc.append((current_frame_index, current_set_pc))
+
+        #  Get pianorolls
+        if datatype == 'piano':
+            simplify_instrumentation = None
+        elif datatype == 'orchestra':
+            simplify_instrumentation = self.simplify_instrumentation
+        pianoroll, onsets, _ = score_to_pianoroll(score, self.subdivision,
+                                                  simplify_instrumentation,
+                                                  self.instrument_grouping,
+                                                  self.transpose_to_sounding_pitch)
+        flat_pr = flatten_dict_pr(pianoroll)
+
+        #  Get new events indices (diff matrices)
+        events = new_events(pianoroll, onsets)
+        #  Pad at the end of the pitch axis to get a multiple of 12 (number of pitch classes)
+        pr_event = np.pad(flat_pr[events], pad_width=[(0, 0), (0, 4)], mode='constant', constant_values=0)
+
+        # Reduce on 12 pitch-classes
+        length = len(events)
+        # test = np.repeat(np.expand_dims(np.arange(0, 132), 0), length, axis=0)
+        pcs = np.sum(np.reshape(pr_event, (length, 11, 12)), axis=1)
 
         list_pc = []
-        current_frame_index = 0
-        current_set_pc = set()
+        for frame_index in range(len(events)):
+            list_pc.append((events[frame_index], set(np.where(pcs[frame_index] > 0)[0])))
 
-        if self.transpose_to_sounding_pitch:
-            if score.atSoundingPitch != 'unknown':
-                score_soundingPitch = score.toSoundingPitch()
-        else:
-            score_soundingPitch = score
-
-        # TODO Filter out the parts associated to remove ?? Did not raise issue yet, but could be some day
-        elements_iterator = score_soundingPitch.flat.notes
-
-        for elem in elements_iterator:
-            # Don't consider elements which are not on a subdivision of the beat
-            note_start, note_end = quantize_and_filter_music21_element(elem, self.subdivision)
-            if note_start is None:
-                continue
-            assert (note_start >= current_frame_index), "Elements are not sorted by increasing time ?"
-            if note_start > current_frame_index:
-                # Write in list_pc and move to next
-                if len(current_set_pc) > 0:  # Check on length is only for the first iteration
-                    list_pc.append((current_frame_index, current_set_pc))
-                current_set_pc = set()
-                current_frame_index = note_start
-
-            if elem.isNote:
-                current_set_pc.add(elem.pitch.pitchClass)
-            else:
-                current_set_pc = current_set_pc.union(set(elem.pitchClasses))
-        # Don't forget last event !
-        list_pc.append((current_frame_index, current_set_pc))
         return list_pc
 
     def align_score(self, piano_score, orchestra_score):

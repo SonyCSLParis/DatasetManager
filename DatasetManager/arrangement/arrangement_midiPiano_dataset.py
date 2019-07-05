@@ -555,11 +555,11 @@ class ArrangementMidipianoDataset(MusicDataset):
     def get_metadata_tensor(self, score):
         return None
 
-    def score_to_list_pc(self, score, type):
+    def score_to_list_pc(self, score, datatype):
         #  Get pianorolls
-        if type == 'piano':
+        if datatype == 'piano':
             simplify_instrumentation = None
-        elif type == 'orchestra':
+        elif datatype == 'orchestra':
             simplify_instrumentation = self.simplify_instrumentation
         pianoroll, onsets, _ = score_to_pianoroll(score, self.subdivision,
                                                   simplify_instrumentation,

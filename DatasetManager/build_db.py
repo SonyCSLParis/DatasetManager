@@ -51,15 +51,9 @@ if __name__ == '__main__':
         os.makedirs(writing_dir)
         for i_batch, sample_batched in enumerate(train_dataloader):
             piano_batch, orchestra_batch, instrumentation_batch = sample_batched
-            # Flatten matrices
-            # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
-            # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
-            # orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
-            # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
             if i_batch > number_dump:
                 break
             arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
-            # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
 
     ###########################################################
     # Arrangement Midi piano
@@ -89,21 +83,15 @@ if __name__ == '__main__':
         print('Num Test Batches: ', len(test_dataloader))
 
         # Visualise a few examples
-        writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
+        writing_dir = f"{arrangement_dataset.dump_folder}/{database_to_run}/writing"
         if os.path.isdir(writing_dir):
             shutil.rmtree(writing_dir)
         os.makedirs(writing_dir)
         for i_batch, sample_batched in enumerate(train_dataloader):
             piano_batch, orchestra_batch, instrumentation_batch = sample_batched
-            # Flatten matrices
-            # piano_flat = piano_batch.view(-1, dataset.number_pitch_piano)
-            # piano_flat_t = piano_flat[dataset.sequence_size - 1::dataset.sequence_size]
-            # orchestra_flat = orchestra_batch.view(-1, dataset.number_instruments)
-            # orchestra_flat_t = orchestra_flat[dataset.sequence_size - 1::dataset.sequence_size]
             if i_batch > number_dump:
                 break
             arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
-            # dataset.visualise_batch(piano_flat_t, orchestra_flat_t, writing_dir, filepath=f"{i_batch}_t")
 
     ###########################################################
     # BACH

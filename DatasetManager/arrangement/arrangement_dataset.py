@@ -947,7 +947,7 @@ class ArrangementDataset(MusicDataset):
                     #  Write previous frame if it was not a silence
                     if velocity is not None:
                         # if velocity not in [MASK_SYMBOL, REST_SYMBOL]:
-                        if velocity not in [REST_SYMBOL]:
+                        if velocity not in [REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                             f = music21.note.Note(pitch)
                             f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                             f.quarterLength = duration / subdivision
@@ -975,9 +975,9 @@ class ArrangementDataset(MusicDataset):
                 this_part.insert((offset / subdivision), f)
 
         # Very important, if not spread the note of the chord
-        this_part_chordified = this_part.chordify()
+        # this_part_chordified = this_part.chordify()
 
-        return this_part_chordified
+        return this_part
 
     def orchestra_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
         """
@@ -1096,9 +1096,9 @@ class ArrangementDataset(MusicDataset):
                     f.quarterLength = duration / subdivision
                     this_part.insert((offset / subdivision), f)
 
-            this_part_chordified = this_part.chordify()
-            this_part_chordified.atSoundingPitch = self.transpose_to_sounding_pitch
-            stream.append(this_part_chordified)
+            # this_part_chordified = this_part.chordify()
+            this_part.atSoundingPitch = self.transpose_to_sounding_pitch
+            stream.append(this_part)
 
         return stream
 
@@ -1139,11 +1139,11 @@ class ArrangementDataset(MusicDataset):
         orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano, writing_tempo=writing_tempo,
                                                           subdivision=subdivision)
 
-        piano_part.write(fp=f"{writing_dir}/{filepath}_piano.xml", fmt='musicxml')
-        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.xml", fmt='musicxml')
+        piano_part.write(fp=f"{writing_dir}/{filepath}_piano.mid", fmt='midi')
+        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.mid", fmt='midi')
         # Both in the same score
         orchestra_stream.append(piano_part)
-        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.xml", fmt='musicxml')
+        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
 
 
 if __name__ == '__main__':

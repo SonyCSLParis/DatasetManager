@@ -11,7 +11,8 @@ from the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement"
+    database_to_run = "arrangement_midi"
+    number_dump = 100
 
     dataset_manager = DatasetManager()
 
@@ -23,7 +24,7 @@ if __name__ == '__main__':
         mean_number_messages_per_time_frame = 14
 
         arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
-            name='arrangement_small',
+            name='arrangement',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
@@ -44,8 +45,7 @@ if __name__ == '__main__':
         print('Num Test Batches: ', len(test_dataloader))
 
         # Visualise a few examples
-        number_dump = 100
-        writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
+        writing_dir = f"{arrangement_dataset.dump_folder}/{database_to_run}/writing"
         if os.path.isdir(writing_dir):
             shutil.rmtree(writing_dir)
         os.makedirs(writing_dir)
@@ -89,7 +89,6 @@ if __name__ == '__main__':
         print('Num Test Batches: ', len(test_dataloader))
 
         # Visualise a few examples
-        number_dump = 100
         writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
         if os.path.isdir(writing_dir):
             shutil.rmtree(writing_dir)

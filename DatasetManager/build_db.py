@@ -76,7 +76,7 @@ if __name__ == '__main__':
          test_dataloader) = arrangement_dataset.data_loaders(
             batch_size=16,
             split=(0.85, 0.10),
-            DEBUG_BOOL_SHUFFLE=True
+            DEBUG_BOOL_SHUFFLE=False
         )
         print('Num Train Batches: ', len(train_dataloader))
         print('Num Valid Batches: ', len(val_dataloader))

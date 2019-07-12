@@ -28,10 +28,10 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, sh
 
 """
 Typical piano sequence:
-p0 p1 TS p0 p1 p2 TS p0 X X X X
+p0 p1 TS p0 p1 p2 TS p0 STOP X X X X
 
 If beginning: 
-START p0 p1 TS p0 p1 p2 TS p0 X X X
+START p0 p1 TS p0 p1 p2 TS p0 STOP X X X
 
 If end: 
 p0 p1 TS p0 p1 p2 TS p0 END X X X
@@ -569,7 +569,7 @@ class ArrangementMidipianoDataset(MusicDataset):
 
         #  Get new events indices (diff matrices)
         events = new_events(pianoroll, onsets)
-        # Pad at the end of the pitch axis to get a multiple of 12 (number of pitch classes)
+        #  Pad at the end of the pitch axis to get a multiple of 12 (number of pitch classes)
         pr_event = np.pad(flat_pr[events], pad_width=[(0, 0), (0, 4)], mode='constant', constant_values=0)
 
         # Reduce on 12 pitch-classes
@@ -766,10 +766,12 @@ class ArrangementMidipianoDataset(MusicDataset):
 
                 if frame_orchestra in [START_SYMBOL, PAD_SYMBOL, END_SYMBOL]:
                     if frame_piano == END_SYMBOL:
+                        #  Remove TS (after asserting there is one...)
                         assert local_piano_tensor[-1] == self.symbol2index_piano[TIME_SHIFT], "Weirdness"
                         local_piano_tensor.pop()
-                        local_piano_tensor.append(self.symbol2index_piano[STOP_SYMBOL])
+                        # Add end symbol, then the stop symbol
                         local_piano_tensor.append(self.symbol2index_piano[frame_piano])
+                        local_piano_tensor.append(self.symbol2index_piano[STOP_SYMBOL])
                     else:
                         local_piano_tensor.append(self.symbol2index_piano[frame_piano])
                     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
@@ -808,7 +810,8 @@ class ArrangementMidipianoDataset(MusicDataset):
             #  Pad piano vector to max length
             padding_length = self.max_number_messages_piano - len(local_piano_tensor)
             if padding_length < 0:
-                raise Exception(f"Padding length is equal to {padding_length}, consider increasing the max length of the encoding vector")
+                raise Exception(
+                    f"Padding length is equal to {padding_length}, consider increasing the max length of the encoding vector")
             self.smallest_padding_length = min(self.smallest_padding_length, padding_length)
             for _ in range(padding_length):
                 local_piano_tensor.append(self.symbol2index_piano[PAD_SYMBOL])
@@ -857,7 +860,10 @@ class ArrangementMidipianoDataset(MusicDataset):
                 symbol = str(note) + '_on'
             else:
                 symbol = str(note) + '_off'
-            index = self.symbol2index_piano[symbol]
+            try:
+                index = self.symbol2index_piano[symbol]
+            except:
+                print('yoyo')
             piano_vector.append(index)
             previous_note = note
         return piano_vector
@@ -884,12 +890,14 @@ class ArrangementMidipianoDataset(MusicDataset):
                     slur_bool = (onsets[instrument_name][frame_index, this_note] == 0)
 
                 if slur_bool and (previous_frame is not None):
-                    # After alignement,  it is possible that some frames have been removed, leading to inconsistent slurs symbols
+                    #  After alignement,  it is possible that some frames have been removed, leading to inconsistent slurs symbols
                     # (like slur after a rest)
                     if previous_frame[this_instrument_index] == self.midi_pitch2index[this_instrument_index][this_note]:
-                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
+                            SLUR_SYMBOL]
                     else:
-                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
+                            this_note]
                 else:
                     if this_note not in self.midi_pitch2index[this_instrument_index].keys():
                         this_note = REST_SYMBOL
@@ -919,6 +927,137 @@ class ArrangementMidipianoDataset(MusicDataset):
 
     def random_score_tensor(self, score_length):
         return None
+
+    def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
+                                 unknown_instruments=[],
+                                 subdivision=None):
+
+        ts_ind = self.symbol2index_piano[TIME_SHIFT]
+        start_ind = self.symbol2index_piano[START_SYMBOL]
+        pad_ind = self.symbol2index_piano[PAD_SYMBOL]
+        end_ind = self.symbol2index_piano[END_SYMBOL]
+        meta_inds = [ts_ind, start_ind, end_ind, pad_ind]
+        stop_ind = self.symbol2index_piano[STOP_SYMBOL]
+
+        # Get pianorolls
+        score_piano = music21.converter.parse(filepath)
+
+        if subdivision is None:
+            subdivision = self.subdivision
+        pianoroll_piano, onsets_piano, _ = score_to_pianoroll(score_piano,
+                                                              subdivision,
+                                                              simplify_instrumentation=None,
+                                                              instrument_grouping=self.instrument_grouping,
+                                                              transpose_to_sounding_pitch=self.transpose_to_sounding_pitch)
+
+        rhythm_piano = new_events(pianoroll_piano, onsets_piano)
+        onsets_piano = onsets_piano["Piano"]
+        piano_init_list = []
+        previous_frame_index = None
+        for frame_index in rhythm_piano:
+            piano_init_list = self.pianoroll_to_piano_tensor(
+                pr=pianoroll_piano["Piano"],
+                onsets=onsets_piano,
+                previous_frame_index=previous_frame_index,
+                frame_index=frame_index,
+                piano_vector=piano_init_list)
+            previous_frame_index = frame_index
+
+            #  Time shift piano
+            piano_init_list.append(ts_ind)
+
+        #  Remove the last time shift added
+        piano_init_list.pop()
+
+        # Prepend rests frames at the beginning and end of the piano score
+        piano_init_list = [pad_ind] * (context_length - 1) + \
+                          [start_ind] + \
+                          piano_init_list + \
+                          [end_ind] + \
+                          [pad_ind] * (context_length - 1)
+
+        # Use a non-sliced version for writing back the piano file
+        piano_write = torch.tensor(piano_init_list).unsqueeze(0).repeat(batch_size, 1)
+
+        #  Prepare chunks with padding for piano input
+        def write_piano_chunk(piano_init, this_chunk, chunk_index, writing_stop_flag):
+            piano_init[chunk_index, :len(this_chunk)] = torch.tensor(this_chunk)
+            if writing_stop_flag:
+                piano_init[chunk_index, len(this_chunk)] = stop_ind
+                piano_init[chunk_index, len(this_chunk) + 1:] = pad_ind
+            else:
+                piano_init[chunk_index, len(this_chunk):] = pad_ind
+            return piano_init
+
+        piano_init = torch.zeros(len(rhythm_piano), self.max_number_messages_piano)
+        this_chunk = []
+        chunk_index = 0
+        frame_counter = 0
+        writing_stop_flag = True
+
+        for piano_symbol in piano_init_list:
+            if piano_symbol in meta_inds:
+                if frame_counter >= self.sequence_size - 1:
+                    #  Write in piano_init
+                    piano_init = write_piano_chunk(piano_init, this_chunk, chunk_index, writing_stop_flag)
+                    #  Clean this_chunk
+                    while this_chunk[0] not in meta_inds:
+                        this_chunk.pop(0)
+                    this_chunk.pop(0)
+                    chunk_index += 1
+                frame_counter += 1
+
+            if piano_symbol == end_ind:
+                this_chunk.append(end_ind)
+                this_chunk.append(stop_ind)
+                writing_stop_flag = False
+            else:
+                this_chunk.append(piano_symbol)
+
+        #  Don't forget last chunk
+        piano_init = write_piano_chunk(piano_init, this_chunk, chunk_index, writing_stop_flag)
+
+        # Orchestra
+        padding_length = context_length * 2
+        num_frames = len(rhythm_piano) + padding_length
+        orchestra_silences, orchestra_unknown, orchestra_init = self.init_orchestra(num_frames, context_length,
+                                                                                    banned_instruments,
+                                                                                    unknown_instruments)
+
+        # Repeat along batch dimension to generate several orchestation of the same piano score
+        piano_init = piano_init.unsqueeze(0).repeat(batch_size, 1, 1)
+        orchestra_init = orchestra_init.unsqueeze(0).repeat(batch_size, 1, 1)
+
+        return piano_init.long().cuda(), piano_write.long(), rhythm_piano, \
+               orchestra_init.long().cuda(), orchestra_silences, orchestra_unknown
+
+    def init_orchestra(self, num_frames, context_length, banned_instruments, unknown_instruments):
+        # Set orchestra constraints in the form of banned instruments
+        orchestra_silences = []
+        orchestra_unknown = []
+        orchestra_init = torch.zeros(num_frames, self.number_instruments)
+        for instrument_name, instrument_indices in self.instrument2index.items():
+            for instrument_index in instrument_indices:
+                if instrument_name in banned_instruments:
+                    # -1 is a silence
+                    orchestra_silences.append(1)
+                    orchestra_init[:, instrument_index] = self.midi_pitch2index[instrument_index][REST_SYMBOL]
+                elif instrument_name in unknown_instruments:
+                    # Note that an instrument can't be both banned and unknown
+                    orchestra_unknown.append(1)
+                else:
+                    orchestra_silences.append(0)
+                    orchestra_unknown.append(0)
+                    #  Initialise with last
+                    masking_value = len(self.midi_pitch2index[instrument_index])
+                    orchestra_init[:, instrument_index] = masking_value
+
+        # Start and end symbol at the beginning and end
+        orchestra_init[:context_length - 1] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
+        orchestra_init[context_length - 1] = self.precomputed_vectors_orchestra[START_SYMBOL]
+        orchestra_init[-context_length] = self.precomputed_vectors_orchestra[END_SYMBOL]
+        orchestra_init[-context_length:] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
+        return orchestra_silences, orchestra_unknown, orchestra_init
 
     def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
         """
@@ -962,7 +1101,7 @@ class ArrangementMidipianoDataset(MusicDataset):
 
             if symbol in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                 global_offset += durations[frame_index]
-                frame_index += 1
+                # frame_index += 1
             elif symbol in [TIME_SHIFT, STOP_SYMBOL]:
                 # print(f'TS')
                 # Increment duration in notes_on_duration
@@ -1059,7 +1198,10 @@ class ArrangementMidipianoDataset(MusicDataset):
             this_offset = 0
             pitch = None
             for frame_index, this_duration in enumerate(durations):
-                this_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+                try:
+                    this_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+                except:
+                    print('yo')
 
                 if this_pitch == SLUR_SYMBOL:
                     duration += this_duration
@@ -1179,10 +1321,11 @@ class ArrangementMidipianoDataset(MusicDataset):
         num_batches = len(piano_pianoroll)
 
         for batch_ind in range(num_batches):
-
-            piano_part = self.piano_tensor_to_score(piano_pianoroll[batch_ind], durations_piano, writing_tempo=writing_tempo,
+            piano_part = self.piano_tensor_to_score(piano_pianoroll[batch_ind], durations_piano,
+                                                    writing_tempo=writing_tempo,
                                                     subdivision=subdivision)
-            orchestra_stream = self.orchestra_tensor_to_score(orchestra_pianoroll[batch_ind], durations_piano, writing_tempo=writing_tempo,
+            orchestra_stream = self.orchestra_tensor_to_score(orchestra_pianoroll[batch_ind], durations_piano,
+                                                              writing_tempo=writing_tempo,
                                                               subdivision=subdivision)
 
             piano_part.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_piano.mid", fmt='midi')
@@ -1190,3 +1333,5 @@ class ArrangementMidipianoDataset(MusicDataset):
             # Both in the same score
             orchestra_stream.append(piano_part)
             orchestra_stream.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_both.mid", fmt='midi')
+
+

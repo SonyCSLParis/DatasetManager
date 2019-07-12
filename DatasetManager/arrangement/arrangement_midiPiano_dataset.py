@@ -156,7 +156,9 @@ class ArrangementMidipianoDataset(MusicDataset):
             ############################################################
             ############################################################
             #  Mapping midi_pitch to token for each instrument
-            set_midiPitch_per_instrument = {'Piano': set()}
+
+            # Hardcoded real life piano tessitura, so that we are not fucked at generation time if we see a score with out of range notes
+            set_midiPitch_per_instrument = {'Piano': set(range(21, 108))}
 
             ############################################################
             # First pass over the database to create the mapping pitch <-> index for each instrument
@@ -166,13 +168,13 @@ class ArrangementMidipianoDataset(MusicDataset):
                     continue
 
                 # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-                pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                                      None,
-                                                                      self.instrument_grouping,
-                                                                      self.transpose_to_sounding_pitch)
-                pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
-                set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
-                    pitch_set_this_track)
+                # pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
+                #                                                       None,
+                #                                                       self.instrument_grouping,
+                #                                                       self.transpose_to_sounding_pitch)
+                # pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
+                # set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
+                #     pitch_set_this_track)
 
                 pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                                               self.simplify_instrumentation,
@@ -860,10 +862,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                 symbol = str(note) + '_on'
             else:
                 symbol = str(note) + '_off'
-            try:
-                index = self.symbol2index_piano[symbol]
-            except:
-                print('yoyo')
+            index = self.symbol2index_piano[symbol]
             piano_vector.append(index)
             previous_note = note
         return piano_vector

@@ -11,20 +11,20 @@ from the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement_midi"
+    database_to_run = "arrangement"
     number_dump = 100
+    batch_size = 16
 
     dataset_manager = DatasetManager()
 
     ###########################################################
     # Arrangement
     if database_to_run == 'arrangement':
-        subdivision = 8
-        sequence_size = 7
-        mean_number_messages_per_time_frame = 14
+        subdivision = 4
+        sequence_size = 5
 
         arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
-            name='arrangement',
+            name='arrangement_small',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         (train_dataloader,
          val_dataloader,
          test_dataloader) = arrangement_dataset.data_loaders(
-            batch_size=16,
+            batch_size=batch_size,
             split=(0.85, 0.10),
             DEBUG_BOOL_SHUFFLE=True
         )
@@ -74,9 +74,9 @@ if __name__ == '__main__':
         (train_dataloader,
          val_dataloader,
          test_dataloader) = arrangement_dataset.data_loaders(
-            batch_size=16,
+            batch_size=batch_size,
             split=(0.85, 0.10),
-            DEBUG_BOOL_SHUFFLE=False
+            DEBUG_BOOL_SHUFFLE=True
         )
         print('Num Train Batches: ', len(train_dataloader))
         print('Num Valid Batches: ', len(val_dataloader))
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         (train_dataloader,
          val_dataloader,
          test_dataloader) = bach_chorales_dataset.data_loaders(
-            batch_size=128,
+            batch_size=batch_size,
             split=(0.85, 0.10)
         )
         print('Num Train Batches: ', len(train_dataloader))
@@ -129,7 +129,7 @@ if __name__ == '__main__':
         (train_dataloader,
          val_dataloader,
          test_dataloader) = lsdb_dataset.data_loaders(
-            batch_size=128,
+            batch_size=batch_size,
             split=(0.85, 0.10)
         )
         print('Num Train Batches: ', len(train_dataloader))
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         (train_dataloader,
          val_dataloader,
          test_dataloader) = folk_dataset.data_loaders(
-            batch_size=256,
+            batch_size=batch_size,
             split=(0.7, 0.2)
         )
         print('Num Train Batches: ', len(train_dataloader))

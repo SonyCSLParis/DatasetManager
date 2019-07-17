@@ -6,7 +6,7 @@ mpl.use('Agg')
 from DatasetManager.music_dataset import MusicDataset
 
 
-class ArrangementDataset(MusicDataset):
+class MnistDataset(MusicDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
@@ -23,7 +23,7 @@ class ArrangementDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ArrangementDataset, self).__init__(cache_dir=cache_dir)
+        super(MnistDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         return
 

@@ -2,7 +2,7 @@ import music21
 from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
 
 from DatasetManager.config import get_config
-from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementCategoricalDataset
+from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementCategoricalDataset, ArrangementVoiceDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
@@ -100,9 +100,9 @@ def get_all_datasets():
                     num_elements=None,
                 )
             },
-        'arrangement_categorical':
+        'arrangement_voice':
             {
-                'dataset_class_name': ArrangementCategoricalDataset,
+                'dataset_class_name': ArrangementVoiceDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
                     arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                     subsets=[
@@ -112,9 +112,9 @@ def get_all_datasets():
                 ),
                 'corpus_it_gen_instru_range': None
             },
-        'arrangement_categorical_small':
+        'arrangement_voice_small':
             {
-                'dataset_class_name': ArrangementCategoricalDataset,
+                'dataset_class_name': ArrangementVoiceDataset,
                 'corpus_it_gen': ArrangementIteratorGenerator(
                     arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
                     subsets=[

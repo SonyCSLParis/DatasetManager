@@ -1,17 +1,18 @@
 import os
 import shutil
 
-from dataset_manager import DatasetManager
-from lsdb.lsdb_dataset import LsdbDataset
-from arrangement.arrangement_dataset import ArrangementDataset
+from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
+from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementVoiceDataset
+from DatasetManager.dataset_manager import DatasetManager
 from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
+from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.metadata import FermataMetadata, TickMetadata, KeyMetadata, BeatMarkerMetadata
 from DatasetManager.chorale_dataset import ChoraleBeatsDataset
-from the_session.folk_dataset import FolkDataset
+from DatasetManager.the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement"
+    database_to_run = "arrangement_voice"
     number_dump = 100
     batch_size = 16
 
@@ -57,12 +58,12 @@ if __name__ == '__main__':
 
     ###########################################################
     # Arrangement voice piano
-    elif database_to_run == 'arrangement':
+    elif database_to_run == 'arrangement_voice':
         subdivision = 16
         sequence_size = 5
 
-        arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
-            name='arrangement',
+        arrangement_dataset: ArrangementVoiceDataset = dataset_manager.get_dataset(
+            name='arrangement_voice',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,

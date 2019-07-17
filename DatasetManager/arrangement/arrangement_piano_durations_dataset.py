@@ -23,7 +23,7 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, qu
     quantize_velocity_pianoroll_frame, unquantize_velocity
 
 
-class ArrangementDataset(MusicDataset):
+class ArrangementPianoDurationDataset(MusicDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
@@ -49,7 +49,7 @@ class ArrangementDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ArrangementDataset, self).__init__(cache_dir=cache_dir)
+        super(ArrangementPianoDurationDataset, self).__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.subdivision = subdivision  # We use only on beats notes so far

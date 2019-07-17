@@ -43,7 +43,7 @@ Voices are ordered from lowest to highest.
 """
 
 
-class ArrangementCategoricalDataset(MusicDataset):
+class ArrangementVoiceDataset(MusicDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database

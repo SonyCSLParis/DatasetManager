@@ -17,7 +17,7 @@ from DatasetManager.arrangement.instrumentation import get_instrumentation, get_
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping, get_instrument_grouping_section
 
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL, MASK_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
@@ -34,7 +34,7 @@ If beginning:
 START p0 p1 TS p0 p1 p2 TS p0 STOP X X X
 
 If end: 
-p0 p1 TS p0 p1 p2 TS p0 END X X X
+p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
 
 """
 
@@ -256,6 +256,10 @@ class ArrangementMidipianoDataset(MusicDataset):
             index += 1
             midi_pitch2index_per_instrument[instrument_name][SLUR_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = SLUR_SYMBOL
+            # Mask
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
             # Pad
             index += 1
             midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
@@ -324,6 +328,10 @@ class ArrangementMidipianoDataset(MusicDataset):
         self.symbol2index_piano[STOP_SYMBOL] = index
         self.index2symbol_piano[index] = STOP_SYMBOL
         index += 1
+        # Masking
+        self.symbol2index_piano[MASK_SYMBOL] = index
+        self.index2symbol_piano[index] = MASK_SYMBOL
+        index += 1
         # Padding
         self.symbol2index_piano[PAD_SYMBOL] = index
         self.index2symbol_piano[index] = PAD_SYMBOL
@@ -366,15 +374,18 @@ class ArrangementMidipianoDataset(MusicDataset):
         orchestra_end_vector = []
         orchestra_pad_vector = []
         orchestra_rest_vector = []
+        orchestra_mask_vector = []
         for instru_ind, mapping in self.midi_pitch2index.items():
             orchestra_start_vector.append(mapping[START_SYMBOL])
             orchestra_pad_vector.append(mapping[PAD_SYMBOL])
+            orchestra_mask_vector.append(mapping[MASK_SYMBOL])
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
+        self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
         unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = torch.from_numpy(
@@ -603,7 +614,7 @@ class ArrangementMidipianoDataset(MusicDataset):
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
         pr_frames = np.asarray(
-            [pr[frame] for frame in frames if frame not in [PAD_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL]])
+            [pr[frame] for frame in frames if frame not in [MASK_SYMBOL, PAD_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL]])
         # [pr[frame] for frame in frames if frame not in [REST_SYMBOL, MASK_SYMBOL, START_SYMBOL, END_SYMBOL]])
         flat_pr = pr_frames.sum(axis=0)
         non_zeros_pitches = list(np.where(flat_pr > 0)[0])
@@ -766,7 +777,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                 frame_piano = this_chunk_piano_indices[index_frame]
                 frame_orchestra = this_chunk_orchestra_indices[index_frame]
 
-                if frame_orchestra in [START_SYMBOL, PAD_SYMBOL, END_SYMBOL]:
+                if frame_orchestra in [START_SYMBOL, MASK_SYMBOL, PAD_SYMBOL, END_SYMBOL]:
                     if frame_piano == END_SYMBOL:
                         #  Remove TS (after asserting there is one...)
                         assert local_piano_tensor[-1] == self.symbol2index_piano[TIME_SHIFT], "Weirdness"
@@ -862,7 +873,11 @@ class ArrangementMidipianoDataset(MusicDataset):
                 symbol = str(note) + '_on'
             else:
                 symbol = str(note) + '_off'
-            index = self.symbol2index_piano[symbol]
+            try:
+                index = self.symbol2index_piano[symbol]
+            except:
+                print(f'{symbol} out of range. Skipped')
+                continue
             piano_vector.append(index)
             previous_note = note
         return piano_vector
@@ -889,7 +904,8 @@ class ArrangementMidipianoDataset(MusicDataset):
                     slur_bool = (onsets[instrument_name][frame_index, this_note] == 0)
 
                 if slur_bool and (previous_frame is not None):
-                    #  After alignement,  it is possible that some frames have been removed, leading to inconsistent slurs symbols
+                    #  After alignement,  it is possible that some frames have been removed,
+                    # leading to inconsistent slurs symbols
                     # (like slur after a rest)
                     if previous_frame[this_instrument_index] == self.midi_pitch2index[this_instrument_index][this_note]:
                         orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
@@ -928,8 +944,7 @@ class ArrangementMidipianoDataset(MusicDataset):
         return None
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
-                                 unknown_instruments=[],
-                                 subdivision=None):
+                                 unknown_instruments=[], subdivision=None):
 
         ts_ind = self.symbol2index_piano[TIME_SHIFT]
         start_ind = self.symbol2index_piano[START_SYMBOL]
@@ -1098,7 +1113,7 @@ class ArrangementMidipianoDataset(MusicDataset):
             #  Get symbol corresponding to one-hot encoding
             symbol = self.index2symbol_piano[elem]
 
-            if symbol in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
+            if symbol in [START_SYMBOL, END_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
                 global_offset += durations[frame_index]
                 # frame_index += 1
             elif symbol in [TIME_SHIFT, STOP_SYMBOL]:
@@ -1197,10 +1212,9 @@ class ArrangementMidipianoDataset(MusicDataset):
             this_offset = 0
             pitch = None
             for frame_index, this_duration in enumerate(durations):
-                try:
-                    this_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
-                except:
-                    print('yo')
+
+                this_pitch = self.index2midi_pitch[instrument_index][
+                    orchestra_matrix[frame_index, instrument_index]]
 
                 if this_pitch == SLUR_SYMBOL:
                     duration += this_duration
@@ -1224,7 +1238,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                         #     #  Write previous event
                         #     score_dict[instrument_name].append((pitch, offset, duration))
 
-                        if pitch not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, PAD_SYMBOL]:
+                        if pitch not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
                             # if pitch not in [MASK_SYMBOL, START_SYMBOL, END_SYMBOL, REST_SYMBOL]:
                             #  Write previous event
                             score_dict[instrument_name].append((pitch, offset, duration))
@@ -1252,7 +1266,7 @@ class ArrangementMidipianoDataset(MusicDataset):
                 # elif pitch != REST_SYMBOL:
 
                 # if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL, MASK_SYMBOL]:
-                if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL, PAD_SYMBOL]:
+                if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL, PAD_SYMBOL, MASK_SYMBOL]:
                     score_dict[instrument_name].append((pitch, offset, duration))
 
         #  Batch is used as time in the score
@@ -1333,4 +1347,184 @@ class ArrangementMidipianoDataset(MusicDataset):
             orchestra_stream.append(piano_part)
             orchestra_stream.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_both.mid", fmt='midi')
 
+
+if __name__ == '__main__':
+    #  Read
+    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, score_to_pianoroll, \
+        new_events, flatten_dict_pr
+
+    config = get_config()
+
+    # parameters
+    subdivision = 4
+    sequence_size = 3
+    max_transposition = 3
+
+    corpus_it_gen = ArrangementIteratorGenerator(
+        arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
+        subsets=[
+            # 'bouliane',
+            # 'imslp',
+            # 'liszt_classical_archives',
+            # 'hand_picked_Spotify',
+            'debug',
+        ],
+        num_elements=None
+    )
+
+    dataset = ArrangementMidipianoDataset(corpus_it_gen,
+                                          corpus_it_gen_instru_range=None,
+                                          name="shit",
+                                          mean_number_messages_per_time_frame=10,
+                                          subdivision=subdivision,
+                                          sequence_size=sequence_size,
+                                          max_transposition=max_transposition,
+                                          transpose_to_sounding_pitch=True,
+                                          cache_dir=None,
+                                          compute_statistics_flag=None)
+
+    dataset.compute_index_dicts()
+
+    writing_dir = f'{config["dump_folder"]}/reconstruction_midi'
+
+    num_frames = 500
+
+    for arr_pair in dataset.iterator_gen():
+        ######################################################################
+        # Piano
+        # Tensor
+        arr_id = arr_pair['name']
+
+        pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'],
+                                                              subdivision,
+                                                              simplify_instrumentation=None,
+                                                              instrument_grouping=dataset.instrument_grouping,
+                                                              transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch)
+        events_piano = new_events(pianoroll_piano, onsets_piano)
+        events_piano = events_piano[:num_frames]
+        onsets_piano = onsets_piano["Piano"]
+        piano_tensor = []
+        previous_frame_index = None
+        for frame_index in events_piano:
+            piano_tensor = dataset.pianoroll_to_piano_tensor(
+                pr=pianoroll_piano["Piano"],
+                onsets=onsets_piano,
+                previous_frame_index=previous_frame_index,
+                frame_index=frame_index,
+                piano_vector=piano_tensor)
+            previous_frame_index = frame_index
+
+            #  Time shift piano
+            piano_tensor.append(dataset.symbol2index_piano[TIME_SHIFT])
+
+        #  Remove the last time shift added
+        piano_tensor.pop()
+
+        piano_tensor = torch.LongTensor(piano_tensor)
+
+        # Reconstruct
+        piano_cpu = piano_tensor.cpu()
+        duration_piano = list(np.asarray(events_piano)[1:] - np.asarray(events_piano)[:-1]) + [subdivision]
+
+        piano_part = dataset.piano_tensor_to_score(piano_cpu, duration_piano, subdivision=subdivision)
+        # piano_part.write(fp=f"{writing_dir}/{arr_id}_piano.xml", fmt='musicxml')
+        piano_part.write(fp=f"{writing_dir}/{arr_id}_piano.mid", fmt='midi')
+
+        ######################################################################
+        #  Orchestra
+        pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair["Orchestra"],
+                                                                      subdivision,
+                                                                      dataset.simplify_instrumentation,
+                                                                      dataset.instrument_grouping,
+                                                                      dataset.transpose_to_sounding_pitch)
+        events_orchestra = new_events(pianoroll_orchestra, onsets_orchestra)
+        flat_pr_orch = np.where(flatten_dict_pr(pianoroll_orchestra) > 1, 1, 0)
+        events_orchestra = events_orchestra[:num_frames]
+        orchestra_tensor = []
+        previous_frame_orchestra = None
+        for frame_counter, frame_index in enumerate(events_orchestra):
+            orchestra_t_encoded, _ = dataset.pianoroll_to_orchestral_tensor(
+                pianoroll_orchestra,
+                onsets_orchestra,
+                previous_frame=previous_frame_orchestra,
+                frame_index=frame_index)
+            if orchestra_t_encoded is None:
+                orchestra_t_encoded = dataset.precomputed_vectors_orchestra[REST_SYMBOL]
+            orchestra_tensor.append(orchestra_t_encoded)
+            previous_frame_orchestra = orchestra_t_encoded
+
+        orchestra_tensor = torch.stack(orchestra_tensor)
+
+        # Reconstruct
+        orchestra_cpu = orchestra_tensor.cpu()
+        duration_orchestra = list(np.asarray(events_orchestra)[1:] - np.asarray(events_orchestra)[:-1]) + [
+            subdivision]
+        orchestra_part = dataset.orchestra_tensor_to_score(orchestra_cpu, duration_orchestra,
+                                                           subdivision=subdivision)
+        # orchestra_part.write(fp=f"{writing_dir}/{arr_id}_orchestra.xml", fmt='musicxml')
+        orchestra_part.write(fp=f"{writing_dir}/{arr_id}_orchestra.mid", fmt='midi')
+
+        ######################################################################
+        # Original
+        try:
+            arr_pair["Orchestra"].write(fp=f"{writing_dir}/{arr_id}_original.mid", fmt='midi')
+            arr_pair["Piano"].write(fp=f"{writing_dir}/{arr_id}_original_piano.mid", fmt='midi')
+        except:
+            print("Can't write original")
+
+        ######################################################################
+        # Aligned version
+        corresponding_frames, this_scores = dataset.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+        corresponding_frames = corresponding_frames[:num_frames]
+
+        piano_frames = [e[0][0] for e in corresponding_frames]
+        orchestra_frames = [e[1][0] for e in corresponding_frames]
+
+        piano_tensor_event = []
+        orchestra_tensor_event = []
+        previous_frame_index = None
+        previous_frame_orchestra = None
+        for frame_counter, (frame_piano, frame_orchestra) in enumerate(zip(piano_frames, orchestra_frames)):
+
+            #  IMPORTANT:
+            #  Compute orchestra first to know if the frame has to be skipped or not
+            #  (typically if too many instruments are played in one section)
+
+            #######
+            # Orchestra
+            orchestra_t_encoded, orchestra_instruments_presence_t_encoded = dataset.pianoroll_to_orchestral_tensor(
+                pianoroll_orchestra,
+                onsets_orchestra,
+                previous_frame=previous_frame_orchestra,
+                frame_index=frame_orchestra)
+            if orchestra_t_encoded is None:
+                avoid_this_chunk = True
+                continue
+            orchestra_tensor_event.append(orchestra_t_encoded)
+            previous_frame_orchestra = orchestra_t_encoded
+
+            #######
+            # Piano
+            piano_tensor_event = dataset.pianoroll_to_piano_tensor(
+                pr=pianoroll_piano["Piano"],
+                onsets=onsets_piano,
+                previous_frame_index=previous_frame_index,
+                frame_index=frame_piano,
+                piano_vector=piano_tensor_event)
+            previous_frame_index = frame_piano
+            #  Time shift piano
+            piano_tensor_event.append(dataset.symbol2index_piano[TIME_SHIFT])
+
+        #  Remove the last time shift added
+        piano_tensor_event.pop()
+
+        piano_tensor_event = torch.LongTensor(piano_tensor_event)
+        orchestra_tensor_event = torch.stack(orchestra_tensor_event)
+        # Reconstruct
+        orchestra_cpu = orchestra_tensor_event.cpu()
+        orchestra_part = dataset.orchestra_tensor_to_score(orchestra_cpu, durations=None, subdivision=subdivision)
+        piano_cpu = piano_tensor_event.cpu()
+        piano_part = dataset.piano_tensor_to_score(piano_cpu, durations=None, subdivision=subdivision)
+        orchestra_part.append(piano_part)
+        orchestra_part.write(fp=f"{writing_dir}/{arr_id}_both_aligned.mid", fmt='midi')
 

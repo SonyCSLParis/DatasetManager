@@ -18,6 +18,14 @@ def get_all_datasets():
 
     config = get_config()
 
+    annex_dataset = OrchestraIteratorGenerator(
+        folder_path=f"{config['database_path']}/Orchestration/orchestral",
+        subsets=[
+            "kunstderfuge"
+        ],
+        process_file=True,
+    )
+
     return {
         'arrangement':
             {
@@ -29,13 +37,7 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': OrchestraIteratorGenerator(
-                    folder_path=f"{config['database_path']}/Orchestration/orchestral",
-                    subsets=[
-                        "kunstderfuge"
-                    ],
-                    process_file=True,
-                )
+                'corpus_it_gen_instru_range': None
             },
         'arrangement_large':
             {
@@ -51,14 +53,7 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': OrchestraIteratorGenerator(
-                    folder_path=f"{config['database_path']}/Orchestration/orchestral",
-                    subsets=[
-                        # "debug",
-                        "kunstderfuge"
-                    ],
-                    process_file=True,
-                )
+                'corpus_it_gen_instru_range': annex_dataset
             },
         'arrangement_test':
             {

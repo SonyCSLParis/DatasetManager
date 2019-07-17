@@ -20,11 +20,11 @@ if __name__ == '__main__':
     ###########################################################
     # Arrangement
     if database_to_run == 'arrangement':
-        subdivision = 4
+        subdivision = 16
         sequence_size = 5
 
         arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
-            name='arrangement_small',
+            name='arrangement',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,

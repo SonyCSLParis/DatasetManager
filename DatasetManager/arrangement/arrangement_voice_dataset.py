@@ -4,8 +4,6 @@ import re
 import shutil
 
 import torch
-import matplotlib as mpl
-mpl.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
@@ -16,26 +14,34 @@ from DatasetManager.arrangement.instrumentation import get_instrumentation, get_
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping, get_instrument_grouping_section
 
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, MASK_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
 
 from DatasetManager.config import get_config
 
-from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, shift_pr_along_pitch_axis, note_to_midiPitch, new_events, flatten_dict_pr
-
-
+from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, shift_pr_along_pitch_axis, \
+    note_to_midiPitch, new_events, flatten_dict_pr
 
 """
-SLUR symbol for piano makes absolutely no sense... consider the case of [Do,Sol blanche] on beat 1, 
-then on 2nd beat [Re noir]
+Piano is encoded like orchestra.
+It has a fixed number of voices V, and each temporal frame is a vector
+[v_1, ..., v_V-1]
+where v_i is a categorical variable whose labels are {p_on_i, s_i, START, END, REST, PAD, MASK}, 
+where p_i represent pitch and s_i represents a slured pitch.
+We use a different slur symbol for each pitch to avoid ambiguous situations where the position in the voices are shifted,
+like for instance if the lowest note at time t is slured, but at time t+1 a new note starts plaing at a lower pitch.
+With a single slur symbol, encoding would be:
+@t : [p_low, X, ..., X]
+@t+1 : [p_lower, slur, X, ..., X]
+and the slur seems to be on the X symbol
 
-G -
-  D
-C -
+Hence a chunk is represented as the concatentation of frames 
+[v_0^0, ..., v_(V-1)^0, v_0^1, ..., v_(V-1)^1, ...]
 
-... how to encode that ?
+Voices are ordered from lowest to highest.
 """
+
 
 class ArrangementCategoricalDataset(MusicDataset):
     """
@@ -50,6 +56,7 @@ class ArrangementCategoricalDataset(MusicDataset):
                  subdivision=2,
                  sequence_size=3,
                  max_transposition=3,
+                 max_number_voices=10,
                  transpose_to_sounding_pitch=True,
                  cache_dir=None,
                  compute_statistics_flag=None,
@@ -72,6 +79,7 @@ class ArrangementCategoricalDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
         self.group_instrument_per_section = group_instrument_per_section
+        self.max_number_vocies = max_number_voices
 
         #  Tessitura computed on data or use the reference tessitura ?
         self.compute_tessitura = True
@@ -128,11 +136,19 @@ class ArrangementCategoricalDataset(MusicDataset):
         # Often used vectors, computed in compute_index_dicts
         self.precomputed_vectors_piano = {
             REST_SYMBOL: None,
-        }
-        self.precomputed_vectors_orchestra = {
+            SLUR_SYMBOL: None,
             START_SYMBOL: None,
             END_SYMBOL: None,
+            MASK_SYMBOL: None,
+            PAD_SYMBOL: None,
+        }
+        self.precomputed_vectors_orchestra = {
             REST_SYMBOL: None,
+            SLUR_SYMBOL: None,
+            START_SYMBOL: None,
+            END_SYMBOL: None,
+            MASK_SYMBOL: None,
+            PAD_SYMBOL: None,
         }
 
         self.precomputed_vectors_orchestra_instruments_presence = {
@@ -168,7 +184,7 @@ class ArrangementCategoricalDataset(MusicDataset):
             ############################################################
             ############################################################
             #  Mapping midi_pitch to token for each instrument
-            set_midiPitch_per_instrument = {'Piano': set()}
+            set_midiPitch_per_instrument = {'Piano': set(range(21, 108))}
 
             ############################################################
             # First pass over the database to create the mapping pitch <-> index for each instrument
@@ -178,13 +194,13 @@ class ArrangementCategoricalDataset(MusicDataset):
                     continue
 
                 # Compute pianoroll representations of score (more efficient than manipulating the music21 streams)
-                pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
-                                                                      None,
-                                                                      self.instrument_grouping,
-                                                                      self.transpose_to_sounding_pitch)
-                pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
-                set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
-                    pitch_set_this_track)
+                # pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
+                #                                                       None,
+                #                                                       self.instrument_grouping,
+                #                                                       self.transpose_to_sounding_pitch)
+                # pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
+                # set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
+                #     pitch_set_this_track)
 
                 pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                                               self.simplify_instrumentation,
@@ -266,10 +282,14 @@ class ArrangementCategoricalDataset(MusicDataset):
             index += 1
             midi_pitch2index_per_instrument[instrument_name][SLUR_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = SLUR_SYMBOL
-            # Pad (for nade like inference schemes)
-            # index += 1
-            # midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
-            # index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
+            #  Pad
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
+            # Mask (for nade like inference schemes)
+            index += 1
+            midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
+            index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
             # Start
             index += 1
             midi_pitch2index_per_instrument[instrument_name][START_SYMBOL] = index
@@ -322,9 +342,15 @@ class ArrangementCategoricalDataset(MusicDataset):
             self.voice_piano2index[voice_index] = voice_index
             self.index2midi_pitch_piano[voice_index] = {}
             self.midi_pitch_piano2index[voice_index] = {}
-            for index, pitch_name in enumerate(range(min_pitch_piano, max_pitch_piano)):
-                self.index2midi_pitch_piano[voice_index][index] = pitch_name
-                self.midi_pitch_piano2index[voice_index][pitch_name] = index
+            index = 0
+            for pitch_name in range(min_pitch_piano, max_pitch_piano):
+                self.index2midi_pitch_piano[voice_index][index] = f'p_{pitch_name}'
+                self.midi_pitch_piano2index[voice_index][f'p_{pitch_name}'] = index
+                index += 1
+            for pitch_name in range(min_pitch_piano, max_pitch_piano):
+                self.index2midi_pitch_piano[voice_index][index] = f's_{pitch_name}'
+                self.midi_pitch_piano2index[voice_index][f's_{pitch_name}'] = index
+                index += 1
             # Silence
             index += 1
             self.midi_pitch_piano2index[voice_index][REST_SYMBOL] = index
@@ -333,6 +359,14 @@ class ArrangementCategoricalDataset(MusicDataset):
             index += 1
             self.midi_pitch_piano2index[voice_index][SLUR_SYMBOL] = index
             self.index2midi_pitch_piano[voice_index][index] = SLUR_SYMBOL
+            # Pad
+            index += 1
+            self.midi_pitch_piano2index[voice_index][PAD_SYMBOL] = index
+            self.index2midi_pitch_piano[voice_index][index] = PAD_SYMBOL
+            #  Mask
+            index += 1
+            self.midi_pitch_piano2index[voice_index][MASK_SYMBOL] = index
+            self.index2midi_pitch_piano[voice_index][index] = MASK_SYMBOL
             # Start
             index += 1
             self.midi_pitch_piano2index[voice_index][START_SYMBOL] = index
@@ -368,29 +402,37 @@ class ArrangementCategoricalDataset(MusicDataset):
         ############################################################
         ############################################################
         # These are the one-hot representation of several useful (especially during generation) vectors
-        # piano_start_vector = []
-        # piano_end_vector = []
-        # piano_padding_vector = []
+        piano_start_vector = []
+        piano_end_vector = []
+        piano_pad_vector = []
         piano_rest_vector = []
         for voice_index, mid2index in self.midi_pitch_piano2index.items():
             piano_rest_vector.append(mid2index[REST_SYMBOL])
+            piano_start_vector.append(mid2index[START_SYMBOL])
+            piano_end_vector.append(mid2index[END_SYMBOL])
+            piano_pad_vector.append(mid2index[PAD_SYMBOL])
         self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
+        self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
+        self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
+        self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_pad_vector)).long()
 
         orchestra_start_vector = []
         orchestra_end_vector = []
         orchestra_rest_vector = []
+        orchestra_pad_vector = []
         for instru_ind, mapping in self.midi_pitch2index.items():
             orchestra_start_vector.append(mapping[START_SYMBOL])
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
+            orchestra_pad_vector.append(mapping[PAD_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
+        self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
         #
         unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
-        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = torch.from_numpy(
-            unknown_vector).long()
-
+        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = \
+            torch.from_numpy(unknown_vector).long()
         ############################################################
         ############################################################
         return
@@ -632,7 +674,8 @@ class ArrangementCategoricalDataset(MusicDataset):
         chunks_orchestra_indices = []
         number_corresponding_frames = len(corresponding_frames)
         for index_frame in range(0, number_corresponding_frames):
-            # if we consider the time in the middle is the one of interest, we must pad half of seq size at the beginning and half at the end
+            # if we consider the time in the middle is the one of interest,
+            # we must pad half of seq size at the beginning and half at the end
             start_index = index_frame - (self.sequence_size - 1) // 2
             start_index_truncated = max(0, start_index)
             #  Always add at least one None frame at the beginning (instead of a the real previous frame)
@@ -649,9 +692,18 @@ class ArrangementCategoricalDataset(MusicDataset):
                                     corresponding_frames[start_index_truncated:end_index_truncated + 1]]
 
             # Padding
-            this_piano_chunk = [REST_SYMBOL] * padding_beginning + this_piano_chunk + [REST_SYMBOL] * padding_end
-            this_orchestra_chunk = [START_SYMBOL] * padding_beginning + this_orchestra_chunk + [
-                END_SYMBOL] * padding_end
+            if padding_beginning == 0:
+                prepend_vector = []
+            else:
+                prepend_vector = (padding_beginning - 1) * [PAD_SYMBOL] + [START_SYMBOL]
+
+            if padding_end == 0:
+                append_vector = []
+            else:
+                append_vector = [END_SYMBOL] + (padding_end - 1) * [PAD_SYMBOL]
+
+            this_piano_chunk = prepend_vector + this_piano_chunk + append_vector
+            this_orchestra_chunk = prepend_vector + this_orchestra_chunk + append_vector
             chunks_piano_indices.append(this_piano_chunk)
             chunks_orchestra_indices.append(this_orchestra_chunk)
         return chunks_piano_indices, chunks_orchestra_indices
@@ -810,7 +862,7 @@ class ArrangementCategoricalDataset(MusicDataset):
         piano_encoded = np.zeros((self.number_voices_piano))
         notes_played = list(np.where(pr[frame_index])[0])
         if len(notes_played) > self.number_voices_piano:
-             return None
+            return None
 
         # Sort notes from lower to higher, so that voice 1 always see lowest register
         #  Todo check register individually for each voice for smaller categorical representations
@@ -833,7 +885,7 @@ class ArrangementCategoricalDataset(MusicDataset):
 
         return piano_tensor
 
-    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, frame_index):
+    def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, previous_frame, frame_index):
         orchestra_encoded = np.zeros((self.number_instruments))
         orchestra_instruments_presence = np.zeros((self.number_instruments))
         for instrument_name, indices_instruments in self.instrument2index.items():
@@ -853,8 +905,17 @@ class ArrangementCategoricalDataset(MusicDataset):
                 slur_bool = False
                 if this_note != REST_SYMBOL:
                     slur_bool = (onsets[instrument_name][frame_index, this_note] == 0)
-                if slur_bool:
-                    orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][SLUR_SYMBOL]
+
+                if slur_bool and (previous_frame is not None):
+                    #  After alignement,  it is possible that some frames have been removed,
+                    # leading to inconsistent slurs symbols
+                    # (like slur after a rest)
+                    if previous_frame[this_instrument_index] == self.midi_pitch2index[this_instrument_index][this_note]:
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
+                            SLUR_SYMBOL]
+                    else:
+                        orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][
+                            this_note]
                 else:
                     if this_note not in self.midi_pitch2index[this_instrument_index].keys():
                         this_note = REST_SYMBOL

@@ -56,6 +56,45 @@ if __name__ == '__main__':
             arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
 
     ###########################################################
+    # Arrangement voice piano
+    elif database_to_run == 'arrangement':
+        subdivision = 16
+        sequence_size = 5
+
+        arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
+            name='arrangement',
+            transpose_to_sounding_pitch=True,
+            subdivision=subdivision,
+            sequence_size=sequence_size,
+            max_transposition=12,
+            velocity_quantization=2,
+            compute_statistics_flag=False,
+        )
+
+        (train_dataloader,
+         val_dataloader,
+         test_dataloader) = arrangement_dataset.data_loaders(
+            batch_size=batch_size,
+            split=(0.85, 0.10),
+            DEBUG_BOOL_SHUFFLE=True
+        )
+        print('Num Train Batches: ', len(train_dataloader))
+        print('Num Valid Batches: ', len(val_dataloader))
+        print('Num Test Batches: ', len(test_dataloader))
+
+        # Visualise a few examples
+        writing_dir = f"{arrangement_dataset.dump_folder}/{database_to_run}/writing"
+        if os.path.isdir(writing_dir):
+            shutil.rmtree(writing_dir)
+        os.makedirs(writing_dir)
+        for i_batch, sample_batched in enumerate(train_dataloader):
+            piano_batch, orchestra_batch, instrumentation_batch = sample_batched
+            if i_batch > number_dump:
+                break
+            arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir,
+                                                filepath=f"{i_batch}")
+
+    ###########################################################
     # Arrangement Midi piano
     elif database_to_run == 'arrangement_midi':
         subdivision = 8

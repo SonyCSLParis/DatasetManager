@@ -8,7 +8,7 @@ def get_instrumentation():
         "Clarinet": 2,
         "Bassoon": 2,
         "Horn": 3,
-        "Piano": 9,
+        "Piano": 15,
         "Trumpet": 2,
         "Trombone": 2,
         "Tuba": 1,

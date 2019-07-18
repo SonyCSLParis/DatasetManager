@@ -35,16 +35,17 @@ def orchestral_tensor_to_pianoroll(tensor):
     return pianoroll_frame
 
 
-def quantize_and_filter_music21_element(element, subdivision):
+def quantize_and_filter_music21_element(element, subdivision, integrate_discretization):
     frame_start = int(round(element.offset * subdivision))
-    # Todo perhaps we should keep them !!
-    # if abs((element.offset * subdivision) - frame_start) > 0.1:
-    #     # Avoid elements not on fixed subdivision of quarter notes
-    #     return None, None
+    if not integrate_discretization:
+        if abs((element.offset * subdivision) - frame_start) > 0.1:
+            # Avoid elements not on fixed subdivision of quarter notes
+            return None, None
+
     frame_end = int(round((element.offset + element.duration.quarterLength) * subdivision))
+
     if frame_start == frame_end:
-        # TODO What do we do with very short events ?
-        # Perhaps keep them...
+        # Very short events
         return frame_start, frame_end + 1
     return frame_start, frame_end
 
@@ -101,7 +102,6 @@ def new_events(pr_dict, onsets_dict):
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation,
                        instrument_grouping, transpose_to_sounding_pitch):
-    # TODO COmpute also duration matrix
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
@@ -138,7 +138,8 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
 
         for element in elements_iterator:
             # Start at stop at previous frame. Problem: we loose too short events
-            note_start, note_end = quantize_and_filter_music21_element(element, subdivision)
+            note_start, note_end = quantize_and_filter_music21_element(element, subdivision,
+                                                                       integrate_discretization=True)
 
             if note_start is None:
                 continue

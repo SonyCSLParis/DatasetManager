@@ -5,16 +5,14 @@ import shutil
 
 import torch
 import matplotlib as mpl
-
-mpl.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
 import numpy as np
 
-from DatasetManager.arrangement.instrumentation import get_instrumentation, get_instrumentation_grouped
-from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping, get_instrument_grouping_section
+from DatasetManager.arrangement.instrumentation import get_instrumentation
+from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL, MASK_SYMBOL
@@ -23,8 +21,8 @@ import DatasetManager.arrangement.nw_align as nw_align
 
 from DatasetManager.config import get_config
 
-from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, shift_pr_along_pitch_axis, \
-    note_to_midiPitch, new_events, flatten_dict_pr
+from DatasetManager.arrangement.arrangement_helper import shift_pr_along_pitch_axis, note_to_midiPitch, \
+    score_to_pianoroll, new_events, flatten_dict_pr
 
 """
 Typical piano sequence:
@@ -1350,8 +1348,7 @@ class ArrangementMidipianoDataset(MusicDataset):
 
 if __name__ == '__main__':
     #  Read
-    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, score_to_pianoroll, \
-        new_events, flatten_dict_pr
+    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
     config = get_config()
 

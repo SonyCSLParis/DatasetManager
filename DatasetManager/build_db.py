@@ -12,7 +12,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement_voice"
+    database_to_run = "arrangement"
     number_dump = 100
     batch_size = 16
 
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     ###########################################################
     # Arrangement
     if database_to_run == 'arrangement':
-        subdivision = 16
+        subdivision = 4
         sequence_size = 5
 
         arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
@@ -63,12 +63,11 @@ if __name__ == '__main__':
         sequence_size = 5
 
         arrangement_dataset: ArrangementVoiceDataset = dataset_manager.get_dataset(
-            name='arrangement_voice',
+            name='arrangement_voice_small',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
             max_transposition=12,
-            velocity_quantization=2,
             compute_statistics_flag=False,
         )
 

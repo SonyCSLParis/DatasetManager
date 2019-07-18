@@ -37,11 +37,12 @@ class ArrangementDataset(MusicDataset):
                  corpus_it_gen,
                  corpus_it_gen_instru_range,
                  name,
-                 subdivision=2,
-                 sequence_size=3,
-                 velocity_quantization=8,
-                 max_transposition=3,
-                 transpose_to_sounding_pitch=True,
+                 subdivision,
+                 sequence_size,
+                 velocity_quantization,
+                 max_transposition,
+                 integrate_discretization,
+                 transpose_to_sounding_pitch,
                  cache_dir=None,
                  compute_statistics_flag=None):
         """
@@ -52,7 +53,7 @@ class ArrangementDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ArrangementDataset, self).__init__(cache_dir=cache_dir)
+        super().__init__(cache_dir=cache_dir)
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.corpus_it_gen_instru_range = corpus_it_gen_instru_range
@@ -62,6 +63,7 @@ class ArrangementDataset(MusicDataset):
         self.velocity_quantization = velocity_quantization
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
+        self.integrate_discretization = integrate_discretization
 
         #  Tessitura computed on data or use the reference tessitura ?
         self.compute_tessitura = True
@@ -169,7 +171,8 @@ class ArrangementDataset(MusicDataset):
                 pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'], self.subdivision,
                                                                       None,
                                                                       self.instrument_grouping,
-                                                                      self.transpose_to_sounding_pitch)
+                                                                      self.transpose_to_sounding_pitch,
+                                                                      self.integrate_discretization)
                 pitch_set_this_track = set(np.where(np.sum(pianoroll_piano['Piano'], axis=0) > 0)[0])
                 set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
                     pitch_set_this_track)
@@ -177,7 +180,8 @@ class ArrangementDataset(MusicDataset):
                 pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                                               self.simplify_instrumentation,
                                                                               self.instrument_grouping,
-                                                                              self.transpose_to_sounding_pitch)
+                                                                              self.transpose_to_sounding_pitch,
+                                                                              self.integrate_discretization)
                 for instrument_name in pianoroll_orchestra:
                     if instrument_name not in set_midiPitch_per_instrument.keys():
                         set_midiPitch_per_instrument[instrument_name] = set()
@@ -196,7 +200,8 @@ class ArrangementDataset(MusicDataset):
                     pianoroll_orchestra, _, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
                                                                    self.simplify_instrumentation,
                                                                    self.instrument_grouping,
-                                                                   self.transpose_to_sounding_pitch)
+                                                                   self.transpose_to_sounding_pitch,
+                                                                   self.integrate_discretization)
                     for instrument_name in pianoroll_orchestra:
                         if instrument_name not in set_midiPitch_per_instrument.keys():
                             set_midiPitch_per_instrument[instrument_name] = set()
@@ -468,7 +473,8 @@ class ArrangementDataset(MusicDataset):
                 self.subdivision,
                 None,
                 self.instrument_grouping,
-                self.transpose_to_sounding_pitch)
+                self.transpose_to_sounding_pitch,
+                self.integrate_discretization)
 
             # Quantize piano
             pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
@@ -480,7 +486,8 @@ class ArrangementDataset(MusicDataset):
                 self.subdivision,
                 self.simplify_instrumentation,
                 self.instrument_grouping,
-                self.transpose_to_sounding_pitch)
+                self.transpose_to_sounding_pitch,
+                self.integrate_discretization)
 
             pr_pair = {"Piano": pr_piano, "Orchestra": pr_orchestra}
             onsets_pair = {"Piano": onsets_piano, "Orchestra": onsets_orchestra}
@@ -1180,7 +1187,8 @@ class ArrangementDataset(MusicDataset):
                                                               subdivision,
                                                               simplify_instrumentation=None,
                                                               instrument_grouping=self.instrument_grouping,
-                                                              transpose_to_sounding_pitch=self.transpose_to_sounding_pitch)
+                                                              transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
+                                                              integrate_discretization=self.integrate_discretization)
 
         quantized_pianoroll_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
                                                                       self.velocity_quantization)
@@ -1253,42 +1261,45 @@ if __name__ == '__main__':
     config = get_config()
 
     # parameters
-    subdivision = 16
     sequence_size = 5
     max_transposition = 12
     velocity_quantization = 2
+    subdivision = 4
+    integrate_discretization = False
 
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            # 'liszt_classical_archives',
-            'debug',
+            'liszt_classical_archives',
+            # 'debug',
         ],
         num_elements=None
     )
 
-    corpus_it_gen_instru_range = OrchestraIteratorGenerator(
-        folder_path=f"{config['database_path']}/Orchestration/orchestral",
-        subsets=[
-            "kunstderfuge"
-        ],
-        process_file=True,
-    )
+    # corpus_it_gen_instru_range = OrchestraIteratorGenerator(
+    #     folder_path=f"{config['database_path']}/Orchestration/orchestral",
+    #     subsets=[
+    #         "kunstderfuge"
+    #     ],
+    #     process_file=True,
+    # )
+    corpus_it_gen_instru_range = None
 
     dataset = ArrangementDataset(corpus_it_gen=corpus_it_gen,
-                                 corpus_it_gen_instru_range=None,
+                                 corpus_it_gen_instru_range=corpus_it_gen_instru_range,
                                  name="shit",
                                  subdivision=subdivision,
                                  sequence_size=sequence_size,
                                  velocity_quantization=velocity_quantization,
                                  max_transposition=max_transposition,
+                                 integrate_discretization=integrate_discretization,
                                  transpose_to_sounding_pitch=True,
                                  cache_dir=None,
                                  compute_statistics_flag=None)
 
     dataset.compute_index_dicts()
 
-    writing_dir = f'{config["dump_folder"]}/arrangement/reconstruction_midi'
+    writing_dir = f'{config["dump_folder"]}/arrangement_{integrate_discretization}_{subdivision}/reconstruction_midi'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
@@ -1305,7 +1316,8 @@ if __name__ == '__main__':
                                                               subdivision,
                                                               simplify_instrumentation=None,
                                                               instrument_grouping=dataset.instrument_grouping,
-                                                              transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch)
+                                                              transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch,
+                                                              integrate_discretization=dataset.integrate_discretization)
         # Quantize piano
         pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
                                                      velocity_quantization)
@@ -1338,7 +1350,8 @@ if __name__ == '__main__':
                                                                       subdivision,
                                                                       dataset.simplify_instrumentation,
                                                                       dataset.instrument_grouping,
-                                                                      dataset.transpose_to_sounding_pitch)
+                                                                      dataset.transpose_to_sounding_pitch,
+                                                                      dataset.integrate_discretization)
         events_orchestra = new_events(pianoroll_orchestra, onsets_orchestra)
         events_orchestra = events_orchestra[:num_frames]
         orchestra_tensor = []

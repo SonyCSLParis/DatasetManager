@@ -101,7 +101,7 @@ def new_events(pr_dict, onsets_dict):
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation,
-                       instrument_grouping, transpose_to_sounding_pitch):
+                       instrument_grouping, transpose_to_sounding_pitch, integrate_discretization):
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
@@ -139,7 +139,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
         for element in elements_iterator:
             # Start at stop at previous frame. Problem: we loose too short events
             note_start, note_end = quantize_and_filter_music21_element(element, subdivision,
-                                                                       integrate_discretization=True)
+                                                                       integrate_discretization=integrate_discretization)
 
             if note_start is None:
                 continue

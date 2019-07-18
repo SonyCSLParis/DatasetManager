@@ -156,7 +156,7 @@ class ArrangementVoiceDataset(MusicDataset):
         return
 
     def __repr__(self):
-        name = f'ArrangementCategoricalDataset-' \
+        name = f'ArrangementVoiceDataset-' \
             f'{self.name}-' \
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
@@ -955,7 +955,25 @@ class ArrangementVoiceDataset(MusicDataset):
     def random_score_tensor(self, score_length):
         return None
 
-    def matrix_to_part(self, matrix, durations):
+    def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
+        """
+
+        :param durations:
+        :param tensor_score: one-hot encoding with dimensions (time, instrument)
+        :return:
+        """
+        # (batch, num_parts, notes_encoding)
+        piano_matrix = tensor_score.numpy()
+        length = len(piano_matrix)
+
+        if subdivision is None:
+            subdivision = self.subdivision
+
+        if durations is None:
+            durations = np.ones((length)) * subdivision
+        else:
+            assert length == len(durations), "Rhythm vector must be the same length as tensor[0]"
+
         # First store every in a dict {instrus : [time [notes]]}
         score_set = set()
         offset = 0
@@ -964,7 +982,7 @@ class ArrangementVoiceDataset(MusicDataset):
             previous_pitches = dict(current_pitches)
             current_pitches = {}
             for voice_index in range(self.number_voices_piano):
-                symbol = self.index2midi_pitch_piano[matrix[frame_index, voice_index]]
+                symbol = self.index2midi_pitch_piano[piano_matrix[frame_index, voice_index]]
                 if symbol in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
                     continue
                 else:
@@ -985,28 +1003,6 @@ class ArrangementVoiceDataset(MusicDataset):
                         score_set.add((pitch, offset, duration))
                         current_pitches[pitch] = offset, duration
             offset += duration
-        return score_set
-
-    def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
-        """
-
-        :param durations:
-        :param tensor_score: one-hot encoding with dimensions (time, instrument)
-        :return:
-        """
-        # (batch, num_parts, notes_encoding)
-        piano_matrix = tensor_score.numpy()
-        length = len(piano_matrix)
-
-        if subdivision is None:
-            subdivision = self.subdivision
-
-        if durations is None:
-            durations = np.ones((length)) * subdivision
-        else:
-            assert length == len(durations), "Rhythm vector must be the same length as tensor[0]"
-
-        score_set = self.matrix_to_part(matrix=piano_matrix, durations=durations)
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()
@@ -1055,74 +1051,44 @@ class ArrangementVoiceDataset(MusicDataset):
             # Get instrument name
             instrument_name = self.index2instrument[instrument_index]
             if instrument_name not in score_dict:
-                score_dict[instrument_name] = []
+                score_dict[instrument_name] = set()
 
-
-
-            duration = 0
+            # First store every in a dict {instrus : [time [notes]]}
+            score_set = set()
             offset = 0
-            this_offset = 0
-            pitch = None
-            for frame_index, this_duration in enumerate(durations):
-                this_pitch = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+            current_pitches = {}
+            for frame_index, duration in enumerate(durations):
+                previous_pitches = dict(current_pitches)
+                current_pitches = {}
+                for voice_index in range(self.number_voices_piano):
+                    symbol = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
+                    if symbol in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
+                        continue
+                    else:
+                        split_note = re.split('_', symbol)
+                        note_type = split_note[0]
+                        pitch = int(split_note[1])
+                        if note_type == 's':
+                            #  check note was on in previous frame
+                            if pitch not in previous_pitches.keys():
+                                raise Exception('Badly structured file: slur from a note which was off')
+                            #  Find latest occurence in score_set, remove it, write the new one
+                            old_offset, old_duration = previous_pitches[pitch]
+                            score_set.remove((pitch, old_offset, old_duration))
+                            new_duration = old_duration + duration
+                            score_set.add((pitch, old_offset, new_duration))
+                            current_pitches[pitch] = old_offset, new_duration
+                        else:
+                            score_set.add((pitch, offset, duration))
+                            current_pitches[pitch] = offset, duration
+                offset += duration
 
-                if this_pitch == SLUR_SYMBOL:
-                    duration += this_duration
-                else:
-                    if pitch is not None:
-                        #  Write previous pitch
-
-                        #  For debugging
-                        # if pitch == MASK_SYMBOL:
-                        #     # Special treatment for PADDING frames
-                        #     score_dict[instrument_name].append((0, offset, subdivision))  # In fact, pitch 0 = C4
-                        # elif pitch == START_SYMBOL:
-                        #     # Special treatment for PADDING frames
-                        #     score_dict[instrument_name].append((0, offset, subdivision))
-                        #     score_dict[instrument_name].append((6, offset, subdivision))
-                        # elif pitch == END_SYMBOL:
-                        #     # Special treatment for PADDING frames
-                        #     score_dict[instrument_name].append((6, offset, subdivision))
-                        #     score_dict[instrument_name].append((7, offset, subdivision))
-                        # elif pitch != REST_SYMBOL:
-                        #     #  Write previous event
-                        #     score_dict[instrument_name].append((pitch, offset, duration))
-
-                        if pitch not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL]:
-                            # if pitch not in [MASK_SYMBOL, START_SYMBOL, END_SYMBOL, REST_SYMBOL]:
-                            #  Write previous event
-                            score_dict[instrument_name].append((pitch, offset, duration))
-
-                    # Reset values
-                    duration = this_duration
-                    pitch = this_pitch
-                    offset = this_offset
-
-                this_offset += this_duration
-
-            # Last note
-            if pitch != REST_SYMBOL:
-                #  Todo DEBUG
-                # if pitch == MASK_SYMBOL:
-                #     score_dict[instrument_name].append((0, offset, duration))
-                # elif pitch == START_SYMBOL:
-                #     # Special treatment for PADDING frames
-                #     score_dict[instrument_name].append((0, offset, subdivision))
-                #     score_dict[instrument_name].append((6, offset, subdivision))
-                # elif pitch == END_SYMBOL:
-                #     # Special treatment for PADDING frames
-                #     score_dict[instrument_name].append((6, offset, subdivision))
-                #     score_dict[instrument_name].append((7, offset, subdivision))
-                # elif pitch != REST_SYMBOL:
-
-                # if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL, MASK_SYMBOL]:
-                if pitch not in [REST_SYMBOL, END_SYMBOL, START_SYMBOL]:
-                    score_dict[instrument_name].append((pitch, offset, duration))
+            score_dict[instrument_name].add(score_set)
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()
 
-        for instrument_name, elems in score_dict.items():
+        for instrument_name, score_set in score_dict.items():
             this_part = music21.stream.Part(id=instrument_name)
             #  re is for removing underscores in instrument names which raise errors in music21
             if instrument_name == "Cymbal":
@@ -1141,11 +1107,15 @@ class ArrangementVoiceDataset(MusicDataset):
             # t = music21.tempo.MetronomeMark(writing_tempo)
             # this_part.insert(0, t)
 
+            elems = list(score_set)
+
             if elems == []:
                 f = music21.note.Rest()
                 f.quarterLength = total_duration_ql
                 this_part.insert(0, f)
             else:
+                #  Sort by offset time (not sure it's very useful, more for debugging purposes)
+                elems = sorted(elems, key=lambda e: e[1])
                 for elem in elems:
                     pitch, offset, duration = elem
                     f = music21.note.Note(pitch)

@@ -15,6 +15,7 @@ if __name__ == '__main__':
     database_to_run = "arrangement_voice"
     number_dump = 100
     batch_size = 16
+    integrate_discretization = True
 
     dataset_manager = DatasetManager()
 
@@ -67,6 +68,7 @@ if __name__ == '__main__':
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
+            integrate_discretization=integrate_discretization,
             max_transposition=12,
             compute_statistics_flag=False,
         )

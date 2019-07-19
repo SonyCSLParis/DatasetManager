@@ -1034,9 +1034,6 @@ class ArrangementDataset(MusicDataset):
                 f.quarterLength = duration / subdivision
                 this_part.insert((offset / subdivision), f)
 
-        # Very important, if not spread the note of the chord
-        # this_part_chordified = this_part.chordify()
-
         return this_part
 
     def orchestra_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):

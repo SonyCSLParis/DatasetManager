@@ -11,7 +11,7 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, sh
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, MASK_SYMBOL, PAD_SYMBOL
-from arrangement.arrangement_dataset import ArrangementDataset
+from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from tqdm import tqdm
 
 """
@@ -97,8 +97,6 @@ class ArrangementVoiceDataset(ArrangementDataset):
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
             f'{self.max_transposition}'
-        if self.group_instrument_per_section:
-            name += '-sectionGrouped'
         return name
 
     # def iterator_gen(self)
@@ -553,7 +551,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         current_notes = {}
 
         # Get list of notes at frame_index
-        if previous_notes_piano is None:
+        if previous_notes is None:
             notes_onsets = [e for e in list(np.where(pr[frame_index])[0])]
             notes_slurs = []
         else:

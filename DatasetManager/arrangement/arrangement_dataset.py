@@ -599,39 +599,6 @@ class ArrangementDataset(MusicDataset):
         return None
 
     def score_to_list_pc(self, score, datatype):
-        # list_pc = []
-        # current_frame_index = 0
-        # current_set_pc = set()
-        #
-        # if self.transpose_to_sounding_pitch:
-        #     if score.atSoundingPitch != 'unknown':
-        #         score_soundingPitch = score.toSoundingPitch()
-        # else:
-        #     score_soundingPitch = score
-        #
-        # # TODO Filter out the parts associated to remove ?? Did not raise issue yet, but could be some day
-        # elements_iterator = score_soundingPitch.flat.notes
-        #
-        # for elem in elements_iterator:
-        #     # Don't consider elements which are not on a subdivision of the beat
-        #     note_start, note_end = quantize_and_filter_music21_element(elem, self.subdivision)
-        #     if note_start is None:
-        #         continue
-        #     assert (note_start >= current_frame_index), "Elements are not sorted by increasing time ?"
-        #     if note_start > current_frame_index:
-        #         # Write in list_pc and move to next
-        #         if len(current_set_pc) > 0:  # Check on length is only for the first iteration
-        #             list_pc.append((current_frame_index, current_set_pc))
-        #         current_set_pc = set()
-        #         current_frame_index = note_start
-        #
-        #     if elem.isNote:
-        #         current_set_pc.add(elem.pitch.pitchClass)
-        #     else:
-        #         current_set_pc = current_set_pc.union(set(elem.pitchClasses))
-        # # Don't forget last event !
-        # list_pc.append((current_frame_index, current_set_pc))
-
         #  Get pianorolls
         if datatype == 'piano':
             simplify_instrumentation = None
@@ -640,7 +607,8 @@ class ArrangementDataset(MusicDataset):
         pianoroll, onsets, _ = score_to_pianoroll(score, self.subdivision,
                                                   simplify_instrumentation,
                                                   self.instrument_grouping,
-                                                  self.transpose_to_sounding_pitch)
+                                                  self.transpose_to_sounding_pitch,
+                                                  self.integrate_discretization)
         flat_pr = flatten_dict_pr(pianoroll)
 
         #  Get new events indices (diff matrices)
@@ -1264,14 +1232,14 @@ if __name__ == '__main__':
     sequence_size = 5
     max_transposition = 12
     velocity_quantization = 2
-    subdivision = 4
-    integrate_discretization = False
+    subdivision = 16
+    integrate_discretization = True
 
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            'liszt_classical_archives',
-            # 'debug',
+            # 'liszt_classical_archives',
+            'debug',
         ],
         num_elements=None
     )
@@ -1299,7 +1267,7 @@ if __name__ == '__main__':
 
     dataset.compute_index_dicts()
 
-    writing_dir = f'{config["dump_folder"]}/arrangement_{integrate_discretization}_{subdivision}/reconstruction_midi'
+    writing_dir = f'{config["dump_folder"]}/arrangement/reconstruction_midi'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)

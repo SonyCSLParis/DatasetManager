@@ -12,7 +12,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement"
+    database_to_run = "arrangement_voice"
     number_dump = 100
     batch_size = 16
 

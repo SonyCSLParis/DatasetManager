@@ -598,6 +598,59 @@ class ArrangementDataset(MusicDataset):
     def get_metadata_tensor(self, score):
         return None
 
+    def score_to_list_notes(self, score, datatype):
+        """
+        [[(pitch, value), ..., ], ..., ]
+        List of lists
+        Each sublist is the list of notes played at this time
+        Value indicate if the note is either off, onset, sustained
+        Note that for the orchestra, no need to keep the instrument information, as it is not used for aligning
+        :param score:
+        :param datatype:
+        :return:
+        """
+        #  Get pianorolls
+        if datatype == 'piano':
+            simplify_instrumentation = None
+        elif datatype == 'orchestra':
+            simplify_instrumentation = self.simplify_instrumentation
+        pianoroll, onsets, number_frames = score_to_pianoroll(score, self.subdivision,
+                                                              simplify_instrumentation,
+                                                              self.instrument_grouping,
+                                                              self.transpose_to_sounding_pitch,
+                                                              self.integrate_discretization)
+
+        #  Event representation
+        events = new_events(pianoroll, onsets)
+        pr_event = {}
+        onsets_event = {}
+        for instrument_name, matrix in pianoroll.items():
+            pr_event[instrument_name] = matrix[events]
+        for instrument_name, matrix in onsets.items():
+            onsets_event[instrument_name] = matrix[events]
+
+        output = []
+        for frame_index in range(len(events)):
+            this_frame = []
+            for instrument_name in pr_event.keys():
+                this_pr = pr_event[instrument_name]
+                this_onsets = onsets_event[instrument_name]
+                if frame_index == 0:
+                    notes_onsets = [(e, 'onset') for e in list(np.where(this_pr[frame_index])[0])]
+                    notes_slurs = []
+                else:
+                    notes_onsets = [(e, 'onset') for e in list(np.where(this_onsets[frame_index])[0])]
+                    notes_slurs = [(e, 'slur') for e in list(np.where(this_pr[frame_index])[0])
+                                   if (e, 'onset') not in notes_onsets]
+                #  sort notes by pitch (allow faster score function computation)
+                notes_onsets = sorted(notes_onsets, key=lambda e: e[0])
+                notes_slurs = sorted(notes_slurs, key=lambda e: e[0])
+
+                this_frame += notes_onsets + notes_slurs
+            output.append((events[frame_index], this_frame))
+
+        return output
+
     def score_to_list_pc(self, score, datatype):
         #  Get pianorolls
         if datatype == 'piano':
@@ -628,14 +681,21 @@ class ArrangementDataset(MusicDataset):
         return list_pc
 
     def align_score(self, piano_score, orchestra_score):
+
+        #  1/ Pitch-class representation
         list_pc_piano = self.score_to_list_pc(piano_score, 'piano')
         list_pc_orchestra = self.score_to_list_pc(orchestra_score, 'orchestra')
+        alignement_input_piano = [e[1] for e in list_pc_piano]
+        alignement_input_orchestra = [e[1] for e in list_pc_orchestra]
 
-        only_pc_piano = [e[1] for e in list_pc_piano]
-        only_pc_orchestra = [e[1] for e in list_pc_orchestra]
+        # 2/ All-pitch, slurs and onsets
+        # list_notes_piano = self.score_to_list_notes(piano_score, 'piano')
+        # list_notes_orchestra = self.score_to_list_notes(orchestra_score, 'orchestra')
+        # alignement_input_piano = [e[1] for e in list_notes_piano]
+        # alignement_input_orchestra = [e[1] for e in list_notes_orchestra]
 
-        corresponding_indices, score_matrix = nw_align.nwalign(only_pc_piano, only_pc_orchestra, gapOpen=-3,
-                                                               gapExtend=-1)
+        corresponding_indices, score_matrix = nw_align.nwalign(alignement_input_piano, alignement_input_orchestra,
+                                                               gapOpen=-3, gapExtend=-1)
 
         corresponding_frames = [(list_pc_piano[ind_piano], list_pc_orchestra[ind_orchestra])
                                 for ind_piano, ind_orchestra in corresponding_indices]
@@ -645,7 +705,8 @@ class ArrangementDataset(MusicDataset):
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
         pr_frames = np.asarray(
-            [pr[frame] for frame in frames if frame not in [MASK_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]])
+            [pr[frame] for frame in frames if
+             frame not in [MASK_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]])
         flat_pr = pr_frames.sum(axis=0)
         non_zeros_pitches = list(np.where(flat_pr > 0)[0])
         if len(non_zeros_pitches) > 0:
@@ -1144,7 +1205,8 @@ class ArrangementDataset(MusicDataset):
         orchestra_stream.append(piano_part)
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
 
-    def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[], unknown_instruments=[],
+    def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
+                                 unknown_instruments=[],
                                  subdivision=None):
         # Get pianorolls
         score_piano = music21.converter.parse(filepath)

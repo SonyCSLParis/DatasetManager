@@ -3,11 +3,12 @@ import math
 
 
 def score_function(A, B):
-    # ci and cj are ensembles
-    # set(
-    #     (pc(12), octave(11), intensity(128), instru_integer, repeat_flag(1))
-    #     (pc(12), octave(11), intensity(128), instru_integer, repeat_flag(1))
-    #     )
+    """
+    A and B are pitch-class representations
+    :param A:
+    :param B:
+    :return:
+    """
     denominator = len(A | B)
     if denominator == 0:
         # Means both are silence
@@ -20,7 +21,25 @@ def score_function(A, B):
     return 3 * score
 
 
-def nwalign(seqj, seqi, gapOpen=-3, gapExtend=-1):
+# def score_function(orchestra, piano):
+#     score = 0
+#     for (pitch_b, type_b) in piano:
+#         for pitch_a, type_a in orchestra:
+#             #  Same notes
+#             if pitch_a == pitch_b:
+#                 if
+#             number_same_notes = len([_ for e in B if (e[0] == pitch) and (e[1] == type)])
+#             number_same_notes_diff_type = len([_ for e in B if (e[0] == pitch) and (e[1] == type)])
+#             # Octave
+#             number_same_notes = len([_ for e in B if (e[0] == pitch) and (e[1] == type)])
+#             number_same_notes_diff_type = len([_ for e in B if (e[0] == pitch) and (e[1] == type)])
+#
+#             #  Different note
+#
+#     return
+
+
+def nwalign(seqj, seqi, gapOpen, gapExtend):
     """
     >>> global_align('COELANCANTH', 'PELICAN')
     ('COELANCANTH', '-PEL-ICAN--')

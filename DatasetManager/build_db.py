@@ -14,7 +14,9 @@ if __name__ == '__main__':
 
     database_to_run = "arrangement_voice"
     number_dump = 100
-    batch_size = 16
+    batch_size = 32
+    subdivision = 16
+    sequence_size = 7
     integrate_discretization = True
 
     dataset_manager = DatasetManager()
@@ -22,8 +24,6 @@ if __name__ == '__main__':
     ###########################################################
     # Arrangement
     if database_to_run == 'arrangement':
-        subdivision = 4
-        sequence_size = 5
 
         arrangement_dataset: ArrangementDataset = dataset_manager.get_dataset(
             name='arrangement',
@@ -60,11 +60,8 @@ if __name__ == '__main__':
     ###########################################################
     # Arrangement voice piano
     elif database_to_run == 'arrangement_voice':
-        subdivision = 16
-        sequence_size = 5
-
         arrangement_dataset: ArrangementVoiceDataset = dataset_manager.get_dataset(
-            name='arrangement_voice_small',
+            name='arrangement_voice',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
@@ -99,8 +96,6 @@ if __name__ == '__main__':
     ###########################################################
     # Arrangement Midi piano
     elif database_to_run == 'arrangement_midi':
-        subdivision = 8
-        sequence_size = 7
         mean_number_messages_per_time_frame = 14
         arrangement_dataset: ArrangementMidipianoDataset = dataset_manager.get_dataset(
             name='arrangement_midiPiano',

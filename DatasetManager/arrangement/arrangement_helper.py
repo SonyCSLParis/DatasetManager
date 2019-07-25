@@ -29,6 +29,16 @@ def midiPitch_to_octave_pc(number):
     return octave, pitch_class
 
 
+def pitch_class_matrix(matrix, binarize):
+    #  Pad at the end of the pitch axis to get a multiple of 12 (number of pitch classes)
+    matrix_padded = np.pad(matrix, pad_width=[(0, 0), (0, 4)], mode='constant', constant_values=0)
+    length = len(matrix_padded)
+    pcs = np.sum(np.reshape(matrix_padded, (length, 11, 12)), axis=1)
+    if binarize:
+        pcs = np.where(pcs > 0, 1, 0)
+    return pcs
+
+
 def orchestral_tensor_to_pianoroll(tensor):
     # Not used...
     pianoroll_frame = {}
@@ -101,12 +111,12 @@ def new_events(pr_dict, onsets_dict):
 
 
 def score_to_pianoroll(score, subdivision, simplify_instrumentation,
-                       instrument_grouping, transpose_to_sounding_pitch, integrate_discretization):
+                       instrument_grouping, transpose_to_sounding_pitch, integrate_discretization, binarize):
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
+    score_soundingPitch = score
     if transpose_to_sounding_pitch:
         score_soundingPitch = score.toSoundingPitch()
-    else:
-        score_soundingPitch = score
+
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
     end_offset = 1 + int(score.flat.highestTime)
@@ -171,7 +181,19 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
                 pianoroll[instrument_name] = this_pr
                 onsets[instrument_name] = this_onsets
 
+    if binarize is not None:
+        pianoroll = binarize_pianoroll(pianoroll)
+        onsets = binarize_pianoroll(onsets)
+
     return pianoroll, onsets, number_frames
+
+
+def binarize_pianoroll(pr):
+    new_pr = {}
+    for name, matrix in pr.items():
+        new_pr[name] = np.where(matrix > 0, 1, 0)
+    return new_pr
+
 
 
 def pianoroll_to_score(pianoroll):

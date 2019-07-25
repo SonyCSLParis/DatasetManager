@@ -9,7 +9,7 @@ import music21
 import numpy as np
 import torch
 from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pianoroll_frame, unquantize_velocity, \
-    shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events
+    shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.config import get_config
@@ -42,6 +42,7 @@ class ArrangementDataset(MusicDataset):
                  velocity_quantization,
                  max_transposition,
                  integrate_discretization,
+                 alignement_type,
                  transpose_to_sounding_pitch,
                  cache_dir=None,
                  compute_statistics_flag=None):
@@ -64,6 +65,7 @@ class ArrangementDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
         self.integrate_discretization = integrate_discretization
+        self.alignement_type = alignement_type
 
         #  Tessitura computed on data or use the reference tessitura ?
         self.compute_tessitura = True
@@ -451,22 +453,6 @@ class ArrangementDataset(MusicDataset):
         for arr_id, arr_pair in tqdm(enumerate(self.iterator_gen())):
 
             ############################################################
-            #  Align (we can use non transposed scores, changes nothing to the alignement
-            if arr_pair is None:
-                continue
-
-            corresponding_frames, this_scores = self.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
-            if self.compute_statistics_flag:
-                scores.extend(this_scores)
-            # Get corresponding pitch_classes (for statistics)
-            pc_piano_list = [e[0][1] for e in corresponding_frames]
-            pc_orchestra_list = [e[1][1] for e in corresponding_frames]
-            ############################################################
-
-            # Prepare chunks of indices
-            chunks_piano_indices, chunks_orchestra_indices = self.prepare_chunk_from_corresponding_frames(
-                corresponding_frames)
-
             # Compute original pianorolls
             pianoroll_piano, onsets_piano, _ = score_to_pianoroll(
                 arr_pair['Piano'],
@@ -476,11 +462,6 @@ class ArrangementDataset(MusicDataset):
                 self.transpose_to_sounding_pitch,
                 self.integrate_discretization)
 
-            # Quantize piano
-            pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
-                                                         self.velocity_quantization)
-            onsets_piano = onsets_piano["Piano"]
-
             pr_orchestra, onsets_orchestra, _ = score_to_pianoroll(
                 arr_pair['Orchestra'],
                 self.subdivision,
@@ -488,6 +469,31 @@ class ArrangementDataset(MusicDataset):
                 self.instrument_grouping,
                 self.transpose_to_sounding_pitch,
                 self.integrate_discretization)
+
+            ############################################################
+            #  Align (we can use non transposed scores, changes nothing to the alignement
+            if arr_pair is None:
+                continue
+
+            corresponding_frames, this_scores = self.align_score(piano_pr=pianoroll_piano,
+                                                                 piano_onsets=onsets_piano,
+                                                                 orchestra_pr=pianoroll_orchestra,
+                                                                 orchestra_onsets=onsets_orchestra)
+            if self.compute_statistics_flag:
+                scores.extend(this_scores)
+            # Get corresponding pitch_classes (for statistics)
+            pc_piano_list = [e[0][1] for e in corresponding_frames]
+            pc_orchestra_list = [e[1][1] for e in corresponding_frames]
+
+            ############################################################
+            # Prepare chunks of indices
+            chunks_piano_indices, chunks_orchestra_indices = self.prepare_chunk_from_corresponding_frames(
+                corresponding_frames)
+
+            # Quantize piano
+            pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
+                                                         self.velocity_quantization)
+            onsets_piano = onsets_piano["Piano"]
 
             pr_pair = {"Piano": pr_piano, "Orchestra": pr_orchestra}
             onsets_pair = {"Piano": onsets_piano, "Orchestra": onsets_orchestra}
@@ -598,7 +604,60 @@ class ArrangementDataset(MusicDataset):
     def get_metadata_tensor(self, score):
         return None
 
-    def score_to_list_notes(self, score, datatype):
+    # def score_to_list_notes(self, score, datatype):
+    #     """
+    #     [[(pitch, value), ..., ], ..., ]
+    #     List of lists
+    #     Each sublist is the list of notes played at this time
+    #     Value indicate if the note is either off, onset, sustained
+    #     Note that for the orchestra, no need to keep the instrument information, as it is not used for aligning
+    #     :param score:
+    #     :param datatype:
+    #     :return:
+    #     """
+    #     #  Get pianorolls
+    #     if datatype == 'piano':
+    #         simplify_instrumentation = None
+    #     elif datatype == 'orchestra':
+    #         simplify_instrumentation = self.simplify_instrumentation
+    #     pianoroll, onsets, number_frames = score_to_pianoroll(score, self.subdivision,
+    #                                                           simplify_instrumentation,
+    #                                                           self.instrument_grouping,
+    #                                                           self.transpose_to_sounding_pitch,
+    #                                                           self.integrate_discretization)
+    #
+    #     #  Event representation
+    #     events = new_events(pianoroll, onsets)
+    #     pr_event = {}
+    #     onsets_event = {}
+    #     for instrument_name, matrix in pianoroll.items():
+    #         pr_event[instrument_name] = matrix[events]
+    #     for instrument_name, matrix in onsets.items():
+    #         onsets_event[instrument_name] = matrix[events]
+    #
+    #     output = []
+    #     for frame_index in range(len(events)):
+    #         this_frame = []
+    #         for instrument_name in pr_event.keys():
+    #             this_pr = pr_event[instrument_name]
+    #             this_onsets = onsets_event[instrument_name]
+    #             if frame_index == 0:
+    #                 notes_onsets = [(e, 'onset') for e in list(np.where(this_pr[frame_index])[0])]
+    #                 notes_slurs = []
+    #             else:
+    #                 notes_onsets = [(e, 'onset') for e in list(np.where(this_onsets[frame_index])[0])]
+    #                 notes_slurs = [(e, 'slur') for e in list(np.where(this_pr[frame_index])[0])
+    #                                if (e, 'onset') not in notes_onsets]
+    #             #  sort notes by pitch (allow faster score function computation)
+    #             notes_onsets = sorted(notes_onsets, key=lambda e: e[0])
+    #             notes_slurs = sorted(notes_slurs, key=lambda e: e[0])
+    #
+    #             this_frame += notes_onsets + notes_slurs
+    #         output.append((events[frame_index], this_frame))
+    #
+    #     return output
+
+    def score_to_list_notes_2(self, pianoroll, onsets):
         """
         [[(pitch, value), ..., ], ..., ]
         List of lists
@@ -609,59 +668,24 @@ class ArrangementDataset(MusicDataset):
         :param datatype:
         :return:
         """
-        #  Get pianorolls
-        if datatype == 'piano':
-            simplify_instrumentation = None
-        elif datatype == 'orchestra':
-            simplify_instrumentation = self.simplify_instrumentation
-        pianoroll, onsets, number_frames = score_to_pianoroll(score, self.subdivision,
-                                                              simplify_instrumentation,
-                                                              self.instrument_grouping,
-                                                              self.transpose_to_sounding_pitch,
-                                                              self.integrate_discretization)
-
         #  Event representation
         events = new_events(pianoroll, onsets)
-        pr_event = {}
-        onsets_event = {}
-        for instrument_name, matrix in pianoroll.items():
-            pr_event[instrument_name] = matrix[events]
-        for instrument_name, matrix in onsets.items():
-            onsets_event[instrument_name] = matrix[events]
+        pr_event = None
+        onsets_event = None
+        for _, matrix in pianoroll.items():
+            if pr_event is None:
+                pr_event = matrix[events]
+            else:
+                pr_event += matrix[events]
+        for _, matrix in onsets.items():
+            if onsets_event is None:
+                onsets_event = matrix[events]
+            else:
+                onsets_event += matrix[events]
 
-        output = []
-        for frame_index in range(len(events)):
-            this_frame = []
-            for instrument_name in pr_event.keys():
-                this_pr = pr_event[instrument_name]
-                this_onsets = onsets_event[instrument_name]
-                if frame_index == 0:
-                    notes_onsets = [(e, 'onset') for e in list(np.where(this_pr[frame_index])[0])]
-                    notes_slurs = []
-                else:
-                    notes_onsets = [(e, 'onset') for e in list(np.where(this_onsets[frame_index])[0])]
-                    notes_slurs = [(e, 'slur') for e in list(np.where(this_pr[frame_index])[0])
-                                   if (e, 'onset') not in notes_onsets]
-                #  sort notes by pitch (allow faster score function computation)
-                notes_onsets = sorted(notes_onsets, key=lambda e: e[0])
-                notes_slurs = sorted(notes_slurs, key=lambda e: e[0])
+        return pr_event, onsets_event, events
 
-                this_frame += notes_onsets + notes_slurs
-            output.append((events[frame_index], this_frame))
-
-        return output
-
-    def score_to_list_pc(self, score, datatype):
-        #  Get pianorolls
-        if datatype == 'piano':
-            simplify_instrumentation = None
-        elif datatype == 'orchestra':
-            simplify_instrumentation = self.simplify_instrumentation
-        pianoroll, onsets, _ = score_to_pianoroll(score, self.subdivision,
-                                                  simplify_instrumentation,
-                                                  self.instrument_grouping,
-                                                  self.transpose_to_sounding_pitch,
-                                                  self.integrate_discretization)
+    def score_to_list_pc(self, pianoroll, onsets):
         flat_pr = flatten_dict_pr(pianoroll)
 
         #  Get new events indices (diff matrices)
@@ -680,27 +704,91 @@ class ArrangementDataset(MusicDataset):
 
         return list_pc
 
-    def align_score(self, piano_score, orchestra_score):
+    def compute_frames_distances(self, pr_piano, onsets_piano,
+                                 pr_orchestra, onsets_orchestra):
+        """
+        Simultaneous notes = count
+        +1 if its simultaneous onsets
+
+        pitch class = count
+
+        :param pr_piano:
+        :param onsets_piano:
+        :param pr_orchestra:
+        :param onsets_orchestra:
+        :return:
+        """
+        eps = 1e-10
+        pr_orchestra_norm = pr_orchestra / (np.sum(pr_orchestra, axis=1, keepdims=True) + eps)
+        onsets_orchestra_norm = onsets_orchestra / (np.sum(onsets_orchestra, axis=1, keepdims=True) + eps)
+
+        pr_piano_pc = pitch_class_matrix(pr_piano, binarize=True)
+        onsets_piano_pc = pitch_class_matrix(onsets_piano, binarize=True)
+        pr_orchestra_pc = pitch_class_matrix(pr_orchestra, binarize=True)
+        onsets_orchestra_pc = pitch_class_matrix(onsets_orchestra, binarize=True)
+        pr_orchestra_pc_norm = pr_orchestra_pc / (np.sum(pr_orchestra_pc, axis=1, keepdims=True) + eps)
+        onsets_orchestra_pc_norm = onsets_orchestra_pc / (np.sum(onsets_orchestra_pc, axis=1, keepdims=True) + eps)
+
+        simultaneous_notes = np.matmul(pr_piano, pr_orchestra_norm.T)
+        simultaneous_onsets = np.matmul(onsets_piano, onsets_orchestra_norm.T)
+        simultaneous_notes_pc = np.matmul(pr_piano_pc, pr_orchestra_pc_norm.T)
+        simultaneous_onsets_pc = np.matmul(onsets_piano_pc, onsets_orchestra_pc_norm.T)
+
+        #  Silences
+        silences_indices_piano = np.where(np.sum(pr_piano, axis=1) == 0)
+        silences_indices_orchestra = np.where(np.sum(pr_orchestra, axis=1) == 0)
+        silences_piano = np.zeros((len(pr_piano), 1))
+        silences_orchestra = np.zeros((len(pr_orchestra), 1))
+        silences_piano[silences_indices_piano] = 1
+        silences_orchestra[silences_indices_orchestra] = 1
+        silence_score = np.matmul(silences_piano, silences_orchestra.T)
+
+        score = simultaneous_notes + simultaneous_onsets + \
+                simultaneous_notes_pc + simultaneous_onsets_pc + \
+                silence_score
+
+        return score
+
+    def align_score(self, piano_pr, piano_onsets, orchestra_pr, orchestra_onsets):
 
         #  1/ Pitch-class representation
-        list_pc_piano = self.score_to_list_pc(piano_score, 'piano')
-        list_pc_orchestra = self.score_to_list_pc(orchestra_score, 'orchestra')
-        alignement_input_piano = [e[1] for e in list_pc_piano]
-        alignement_input_orchestra = [e[1] for e in list_pc_orchestra]
+        if self.alignement_type == 'pitch_class':
+            list_pc_piano = self.score_to_list_pc(piano_pr, piano_onsets)
+            list_pc_orchestra = self.score_to_list_pc(orchestra_pr, orchestra_onsets)
+            alignement_input_piano = [e[1] for e in list_pc_piano]
+            alignement_input_orchestra = [e[1] for e in list_pc_orchestra]
 
-        # 2/ All-pitch, slurs and onsets
-        # list_notes_piano = self.score_to_list_notes(piano_score, 'piano')
-        # list_notes_orchestra = self.score_to_list_notes(orchestra_score, 'orchestra')
-        # alignement_input_piano = [e[1] for e in list_notes_piano]
-        # alignement_input_orchestra = [e[1] for e in list_notes_orchestra]
+            corresponding_indices, score_matrix = nw_align.nwalign(alignement_input_piano, alignement_input_orchestra,
+                                                                   score_matrix=None, gapOpen=-3, gapExtend=-1)
+            corresponding_frames = [(list_pc_piano[ind_piano], list_pc_orchestra[ind_orchestra])
+                                    for ind_piano, ind_orchestra in corresponding_indices]
 
-        corresponding_indices, score_matrix = nw_align.nwalign(alignement_input_piano, alignement_input_orchestra,
-                                                               gapOpen=-3, gapExtend=-1)
+            return corresponding_frames
 
-        corresponding_frames = [(list_pc_piano[ind_piano], list_pc_orchestra[ind_orchestra])
-                                for ind_piano, ind_orchestra in corresponding_indices]
+        elif self.alignement_type == 'complete':
+            #  2/ All-pitch, slurs and onsets
 
-        return corresponding_frames, score_matrix
+            # list_notes_piano = self.score_to_list_notes(piano_score, 'piano')
+            # list_notes_orchestra = self.score_to_list_notes(orchestra_score, 'orchestra')
+            # alignement_input_piano = [e[1] for e in list_notes_piano]
+            # alignement_input_orchestra = [e[1] for e in list_notes_orchestra]
+
+            pr_piano_event, onsets_piano_event, events_piano = self.score_to_list_notes_2(piano_pr, piano_onsets)
+            pr_orchestra_event, onsets_orchestra_event, events_orchestra = self.score_to_list_notes_2(orchestra_pr, orchestra_onsets)
+            matrix_frame_distances = self.compute_frames_distances(pr_piano_event, onsets_piano_event,
+                                                                   pr_orchestra_event, onsets_orchestra_event)
+
+            alignement_input_piano = list(range(len(pr_piano_event)))
+            alignement_input_orchestra = list(range(len(pr_orchestra_event)))
+
+            corresponding_indices, score_matrix = nw_align.nwalign(
+                seqj=alignement_input_orchestra, seqi=alignement_input_piano,
+                gapOpen=0, gapExtend=1, score_matrix=matrix_frame_distances)
+
+            corresponding_frames = [((events_piano[e[1]], {}), (events_orchestra[e[0]], {})) for e in
+                                    corresponding_indices]
+
+            return corresponding_frames
 
     def get_allowed_transpositions_from_pr(self, pr, frames, instrument_name):
         #  Get min and max pitches
@@ -727,7 +815,8 @@ class ArrangementDataset(MusicDataset):
         chunks_orchestra_indices = []
         number_corresponding_frames = len(corresponding_frames)
         for index_frame in range(0, number_corresponding_frames):
-            # if we consider the time in the middle is the one of interest, we must pad half of seq size at the beginning and half at the end
+            # if we consider the time in the middle is the one of interest, we must pad half of seq size at the
+            # beginning and half at the end
             start_index = index_frame - (self.sequence_size - 1) // 2
             start_index_truncated = max(0, start_index)
             #  Always add at least one None frame at the beginning (instead of a the real previous frame)
@@ -1297,8 +1386,8 @@ if __name__ == '__main__':
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            # 'liszt_classical_archives',
-            'debug',
+            'liszt_classical_archives',
+            # 'debug',
         ],
         num_elements=None
     )
@@ -1414,7 +1503,10 @@ if __name__ == '__main__':
 
         ######################################################################
         # Aligned version
-        corresponding_frames, this_scores = dataset.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+        corresponding_frames, this_scores = dataset.align_score(pianoroll_piano,
+                                                                onsets_piano,
+                                                                pianoroll_orchestra,
+                                                                onsets_orchestra)
         corresponding_frames = corresponding_frames[:num_frames]
 
         piano_frames = [e[0][0] for e in corresponding_frames]

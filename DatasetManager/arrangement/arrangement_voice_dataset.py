@@ -1004,15 +1004,15 @@ if __name__ == '__main__':
     max_transposition = 12
     velocity_quantization = 2
     subdivision = 16
-    integrate_discretization = False
+    integrate_discretization = True
 
     transposition_semi_tone = 0
 
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            # 'liszt_classical_archives',
-            'debug',
+            'liszt_classical_archives',
+            # 'debug',
         ],
         num_elements=None
     )
@@ -1033,6 +1033,7 @@ if __name__ == '__main__':
                                       sequence_size=sequence_size,
                                       max_transposition=max_transposition,
                                       integrate_discretization=integrate_discretization,
+                                      alignement_type='complete',
                                       transpose_to_sounding_pitch=True,
                                       cache_dir=None,
                                       compute_statistics_flag=None)
@@ -1059,6 +1060,8 @@ if __name__ == '__main__':
                                                        transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch,
                                                        integrate_discretization=dataset.integrate_discretization,
                                                        binarize=True)
+
+
         # events_piano = new_events(pr_piano, onsets_piano)
         # events_piano = events_piano[:num_frames]
         # onsets_piano = onsets_piano['Piano']
@@ -1131,7 +1134,10 @@ if __name__ == '__main__':
         ######################################################################
         # Aligned version
         # corresponding_frames, this_scores = dataset.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
-        corresponding_frames = dataset.align_score(arr_pair['Piano'], arr_pair['Orchestra'])
+        corresponding_frames = dataset.align_score(piano_pr=pr_piano,
+                                                   piano_onsets=onsets_piano,
+                                                   orchestra_pr=pr_orchestra,
+                                                   orchestra_onsets=onsets_orchestra)
 
         corresponding_frames = corresponding_frames[:num_frames]
 
@@ -1156,8 +1162,8 @@ if __name__ == '__main__':
                 shifted_onsets = shift_pr_along_pitch_axis(onsets, transposition_semi_tone)
                 onsets_orchestra_transp[instrument_name] = shifted_onsets
         else:
-            pr_piano_transp = pr_piano
-            onsets_piano_transp = onsets_piano
+            pr_piano_transp = pr_piano['Piano']
+            onsets_piano_transp = onsets_piano['Piano']
             pr_orchestra_transp = pr_orchestra
             onsets_orchestra_transp = onsets_orchestra
         ###################################

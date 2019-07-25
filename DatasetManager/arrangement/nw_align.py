@@ -39,7 +39,7 @@ def score_function(A, B):
 #     return
 
 
-def nwalign(seqj, seqi, gapOpen, gapExtend):
+def nwalign(seqj, seqi, gapOpen, gapExtend, score_matrix):
     """
     >>> global_align('COELANCANTH', 'PELICAN')
     ('COELANCANTH', '-PEL-ICAN--')
@@ -87,7 +87,10 @@ def nwalign(seqj, seqi, gapOpen, gapExtend):
             # for j in range(1, max_j + 1):
             cj = seqj[j - 1]
 
-            termScore = score_function(ci, cj)
+            if score_matrix is not None:
+                termScore = score_matrix[ci, cj]
+            else:
+                termScore = score_function(ci, cj)
             termScores.append(termScore)
             diag_score = score[i - 1, j - 1] + termScore
 
@@ -148,4 +151,4 @@ def nwalign(seqj, seqi, gapOpen, gapExtend):
     # pairs.append(previous_coord)
 
     # return (align_j[::-1], align_i[::-1]), (skip_j[::-1], skip_i[::-1])
-    return pairs[::-1], termScores
+    return pairs[::-1], score

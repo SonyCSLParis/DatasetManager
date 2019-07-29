@@ -340,24 +340,29 @@ class ArrangementVoiceDataset(ArrangementDataset):
         piano_start_vector = [self.midi_pitch_piano2index[START_SYMBOL]] * self.number_voices_piano
         piano_end_vector = [self.midi_pitch_piano2index[END_SYMBOL]] * self.number_voices_piano
         piano_pad_vector = [self.midi_pitch_piano2index[PAD_SYMBOL]] * self.number_voices_piano
+        piano_mask_vector = [self.midi_pitch_piano2index[MASK_SYMBOL]] * self.number_voices_piano
         self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
         self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
         self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
         self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_pad_vector)).long()
+        self.precomputed_vectors_piano[MASK_SYMBOL] = torch.from_numpy(np.asarray(piano_mask_vector)).long()
 
         orchestra_start_vector = []
         orchestra_end_vector = []
         orchestra_rest_vector = []
         orchestra_pad_vector = []
+        orchestra_mask_vector = []
         for instru_ind, mapping in self.midi_pitch2index.items():
             orchestra_start_vector.append(mapping[START_SYMBOL])
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
             orchestra_pad_vector.append(mapping[PAD_SYMBOL])
+            orchestra_mask_vector.append(mapping[MASK_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
+        self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
         unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = \
@@ -1011,11 +1016,13 @@ if __name__ == '__main__':
     corpus_it_gen = ArrangementIteratorGenerator(
         arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
         subsets=[
-            'liszt_classical_archives',
-            # 'debug',
+            # 'liszt_classical_archives',
+            'debug',
         ],
         num_elements=None
     )
+
+
 
     # corpus_it_gen_instru_range = OrchestraIteratorGenerator(
     #     folder_path=f"{config['database_path']}/Orchestration/orchestral",

@@ -61,12 +61,13 @@ if __name__ == '__main__':
     # Arrangement voice piano
     elif database_to_run == 'arrangement_voice':
         arrangement_dataset: ArrangementVoiceDataset = dataset_manager.get_dataset(
-            name='arrangement_voice',
+            name='arrangement_voice_small',
             transpose_to_sounding_pitch=True,
             subdivision=subdivision,
             sequence_size=sequence_size,
             integrate_discretization=integrate_discretization,
             max_transposition=12,
+            alignement_type='complete',
             compute_statistics_flag=False,
         )
 

@@ -455,30 +455,34 @@ class ArrangementDataset(MusicDataset):
             ############################################################
             # Compute original pianorolls
             pianoroll_piano, onsets_piano, _ = score_to_pianoroll(
-                arr_pair['Piano'],
-                self.subdivision,
-                None,
-                self.instrument_grouping,
-                self.transpose_to_sounding_pitch,
-                self.integrate_discretization)
+                score=arr_pair['Piano'],
+                subdivision=self.subdivision,
+                simplify_instrumentation=None,
+                instrument_grouping=self.instrument_grouping,
+                transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
+                integrate_discretization=self.integrate_discretization,
+                binarize=False,
+            )
 
-            pr_orchestra, onsets_orchestra, _ = score_to_pianoroll(
-                arr_pair['Orchestra'],
-                self.subdivision,
-                self.simplify_instrumentation,
-                self.instrument_grouping,
-                self.transpose_to_sounding_pitch,
-                self.integrate_discretization)
+            pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(
+                score=arr_pair['Orchestra'],
+                subdivision=self.subdivision,
+                simplify_instrumentation=self.simplify_instrumentation,
+                instrument_grouping=self.instrument_grouping,
+                transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
+                integrate_discretization=self.integrate_discretization,
+                binarize=False,
+            )
 
             ############################################################
             #  Align (we can use non transposed scores, changes nothing to the alignement
             if arr_pair is None:
                 continue
 
-            corresponding_frames, this_scores = self.align_score(piano_pr=pianoroll_piano,
-                                                                 piano_onsets=onsets_piano,
-                                                                 orchestra_pr=pianoroll_orchestra,
-                                                                 orchestra_onsets=onsets_orchestra)
+            corresponding_frames = self.align_score(piano_pr=pianoroll_piano,
+                                                    piano_onsets=onsets_piano,
+                                                    orchestra_pr=pianoroll_orchestra,
+                                                    orchestra_onsets=onsets_orchestra)
             if self.compute_statistics_flag:
                 scores.extend(this_scores)
             # Get corresponding pitch_classes (for statistics)
@@ -495,7 +499,7 @@ class ArrangementDataset(MusicDataset):
                                                          self.velocity_quantization)
             onsets_piano = onsets_piano["Piano"]
 
-            pr_pair = {"Piano": pr_piano, "Orchestra": pr_orchestra}
+            pr_pair = {"Piano": pr_piano, "Orchestra": pianoroll_orchestra}
             onsets_pair = {"Piano": onsets_piano, "Orchestra": onsets_orchestra}
 
             # First get non transposed score
@@ -774,7 +778,8 @@ class ArrangementDataset(MusicDataset):
             # alignement_input_orchestra = [e[1] for e in list_notes_orchestra]
 
             pr_piano_event, onsets_piano_event, events_piano = self.score_to_list_notes_2(piano_pr, piano_onsets)
-            pr_orchestra_event, onsets_orchestra_event, events_orchestra = self.score_to_list_notes_2(orchestra_pr, orchestra_onsets)
+            pr_orchestra_event, onsets_orchestra_event, events_orchestra = self.score_to_list_notes_2(orchestra_pr,
+                                                                                                      orchestra_onsets)
             matrix_frame_distances = self.compute_frames_distances(pr_piano_event, onsets_piano_event,
                                                                    pr_orchestra_event, onsets_orchestra_event)
 

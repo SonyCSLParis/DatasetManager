@@ -359,6 +359,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         ############################################################
 
         self.number_instruments = len(self.midi_pitch2index)
+        self.instrument_presence_dim = len(self.instrument_presence_index2name)
 
         ############################################################
         ############################################################
@@ -391,7 +392,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
         self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
-        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[PAD_SYMBOL]
+        unknown_vector = np.ones((self.instrument_presence_dim)) * self.instruments_presence2index[PAD_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = \
             torch.from_numpy(unknown_vector).long()
         ############################################################

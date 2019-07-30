@@ -10,7 +10,7 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, sh
     note_to_midiPitch, new_events
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, MASK_SYMBOL, PAD_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, MASK_SYMBOL, PAD_SYMBOL
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from tqdm import tqdm
 
@@ -85,6 +85,8 @@ class ArrangementVoiceDataset(ArrangementDataset):
         # Instruments presence
         self.instruments_presence2index = {}
         self.index2instruments_presence = {}
+        self.instrument_presence_name2index = {}
+        self.instrument_presence_index2name = {}
         #  Piano
         self.index2midi_pitch_piano = {}
         self.midi_pitch_piano2index = {}
@@ -108,7 +110,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         }
 
         self.precomputed_vectors_orchestra_instruments_presence = {
-            UNKNOWN_SYMBOL: None
+            PAD_SYMBOL: None
         }
 
         return
@@ -265,6 +267,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
 
         # Mapping instruments <-> indices
         index_counter = 0
+        counter_instrument_presence = 0
         for instrument_name, number_instruments in self.instrumentation.items():
             if instrument_name == "Piano":
                 continue
@@ -280,6 +283,10 @@ class ArrangementVoiceDataset(ArrangementDataset):
             for ind in range(index_counter, index_counter + number_instruments):
                 self.index2instrument[ind] = instrument_name
             index_counter += number_instruments
+
+            self.instrument_presence_name2index[instrument_name] = counter_instrument_presence
+            self.instrument_presence_index2name[counter_instrument_presence] = instrument_name
+            counter_instrument_presence += 1
 
         # Mapping pitch <-> index per voice (that's the one we'll use, easier to manipulate when training)
         for instrument_name, instrument_indices in self.instrument2index.items():
@@ -341,12 +348,12 @@ class ArrangementVoiceDataset(ArrangementDataset):
         self.instruments_presence2index = {
             YES_SYMBOL: 0,
             NO_SYMBOL: 1,
-            UNKNOWN_SYMBOL: 2
+            PAD_SYMBOL: 2
         }
         self.index2instruments_presence = {
             0: YES_SYMBOL,
             1: NO_SYMBOL,
-            2: UNKNOWN_SYMBOL
+            2: PAD_SYMBOL
         }
         ############################################################
         ############################################################
@@ -384,8 +391,8 @@ class ArrangementVoiceDataset(ArrangementDataset):
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
         self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
-        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
-        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = \
+        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[PAD_SYMBOL]
+        self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = \
             torch.from_numpy(unknown_vector).long()
         ############################################################
         ############################################################
@@ -525,7 +532,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
                     piano_t_encoded = self.precomputed_vectors_piano[frame_piano].clone().detach()
                     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
                     orchestra_instruments_presence_t_encoded = \
-                        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL].clone().detach()
+                        self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL].clone().detach()
                 else:
                     piano_t_encoded, previous_notes_piano = self.pianoroll_to_piano_tensor(
                         pr=this_pr_piano,
@@ -653,7 +660,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         """
 
         orchestra_encoded = np.zeros((self.number_instruments)) - 1
-        orchestra_instruments_presence = np.zeros((self.number_instruments))
+        orchestra_instruments_presence = np.zeros((len(self.instrument_presence_index2name)))
 
         current_notes = {}
 
@@ -681,6 +688,13 @@ class ArrangementVoiceDataset(ArrangementDataset):
             # Sort notes from lowest to highest
             notes_onsets = sorted(notes_onsets)
             notes_slurs = sorted(notes_slurs)
+
+            # Instrument_presence_vector
+            instrument_presence_index = self.instrument_presence_name2index[instrument_name]
+            if (len(notes_onsets) == 0) and (len(notes_slurs) == 0):
+                orchestra_instruments_presence[instrument_presence_index] = self.instruments_presence2index[NO_SYMBOL]
+            else:
+                orchestra_instruments_presence[instrument_presence_index] = self.instruments_presence2index[YES_SYMBOL]
 
             #  First write Slurs at same location than slured not
             for note in notes_slurs:

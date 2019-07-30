@@ -8,7 +8,7 @@ import torch
 from DatasetManager.arrangement.arrangement_helper import shift_pr_along_pitch_axis, note_to_midiPitch, \
     score_to_pianoroll, new_events, flatten_dict_pr
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL, MASK_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL, MASK_SYMBOL
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.config import get_config
 from tqdm import tqdm
@@ -73,6 +73,11 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         self.smallest_padding_length = self.max_number_messages_piano
         self.symbol2index_piano = {}
         self.index2symbol_piano = {}
+        # Instruments presence
+        self.instruments_presence2index = {}
+        self.index2instruments_presence = {}
+        self.instrument_presence_name2index = {}
+        self.instrument_presence_index2name = {}
 
         self.precomputed_vectors_piano = {
             START_SYMBOL: None,
@@ -90,7 +95,7 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         }
 
         self.precomputed_vectors_orchestra_instruments_presence = {
-            UNKNOWN_SYMBOL: None
+            PAD_SYMBOL: None
         }
 
         return
@@ -103,15 +108,12 @@ class ArrangementMidipianoDataset(ArrangementDataset):
             f'{self.max_transposition}'
         return name
 
-    def iterator_gen(self):
-        return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
+    # def iterator_gen(self):
 
-    def iterator_gen_complementary(self):
-        return (score for score in self.corpus_it_gen_instru_range())
+    # def iterator_gen_complementary(self):
 
-    @staticmethod
-    def pair2index(one_hot_0, one_hot_1):
-        return one_hot_0 * 12 + one_hot_1
+    # @staticmethod
+    # def pair2index(one_hot_0, one_hot_1):
 
     def compute_index_dicts(self):
         if self.compute_tessitura:
@@ -253,6 +255,7 @@ class ArrangementMidipianoDataset(ArrangementDataset):
 
         # Mapping instruments <-> indices
         index_counter = 0
+        counter_instrument_presence = 0
         for instrument_name, number_instruments in self.instrumentation.items():
             if instrument_name == "Piano":
                 continue
@@ -268,6 +271,10 @@ class ArrangementMidipianoDataset(ArrangementDataset):
             for ind in range(index_counter, index_counter + number_instruments):
                 self.index2instrument[ind] = instrument_name
             index_counter += number_instruments
+
+            self.instrument_presence_name2index[instrument_name] = counter_instrument_presence
+            self.instrument_presence_index2name[counter_instrument_presence] = instrument_name
+            counter_instrument_presence += 1
 
         # Mapping pitch <-> index per voice (that's the one we'll use, easier to manipulate when training)
         for instrument_name, instrument_indices in self.instrument2index.items():
@@ -327,12 +334,12 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         self.instruments_presence2index = {
             YES_SYMBOL: 0,
             NO_SYMBOL: 1,
-            UNKNOWN_SYMBOL: 2
+            PAD_SYMBOL: 2
         }
         self.index2instruments_presence = {
             0: YES_SYMBOL,
             1: NO_SYMBOL,
-            2: UNKNOWN_SYMBOL
+            2: PAD_SYMBOL
         }
         ############################################################
         ############################################################
@@ -359,8 +366,8 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
         self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
-        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
-        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = \
+        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[PAD_SYMBOL]
+        self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = \
             torch.from_numpy(unknown_vector).long()
         ############################################################
         ############################################################
@@ -501,8 +508,7 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                     else:
                         local_piano_tensor.append(self.symbol2index_piano[frame_piano])
                     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
-                    orchestra_instruments_presence_t_encoded = \
-                        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL].clone().detach()
+                    orchestra_instruments_presence_t_encoded = self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL].clone().detach()
                 else:
                     local_piano_tensor = self.pianoroll_to_piano_tensor(
                         pr=this_pr_piano,
@@ -596,8 +602,17 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         return piano_vector
 
     def pianoroll_to_orchestral_tensor(self, pianoroll, onsets, previous_frame, frame_index):
+        """
+
+        :param pianoroll:
+        :param onsets:
+        :param previous_frame:
+        :param frame_index:
+        :return:
+        """
         orchestra_encoded = np.zeros((self.number_instruments))
-        orchestra_instruments_presence = np.zeros((self.number_instruments))
+        orchestra_instruments_presence = np.zeros((len(self.instrument_presence_index2name)))
+
         for instrument_name, indices_instruments in self.instrument2index.items():
             number_of_parts = len(indices_instruments)
             if instrument_name not in pianoroll:
@@ -608,6 +623,13 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                 return None, None
 
             notes_played = sorted(notes_played)
+
+            # Keep trace of instruments presence
+            instrument_presence_index = self.instrument_presence_name2index[instrument_name]
+            if len(notes_played) == 0:
+                orchestra_instruments_presence[instrument_presence_index] = self.instruments_presence2index[NO_SYMBOL]
+            else:
+                orchestra_instruments_presence[instrument_presence_index] = self.instruments_presence2index[YES_SYMBOL]
 
             # Pad with silences
             notes_played.extend([REST_SYMBOL] * (number_of_parts - len(notes_played)))
@@ -630,13 +652,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                     if this_note not in self.midi_pitch2index[this_instrument_index].keys():
                         this_note = REST_SYMBOL
                     orchestra_encoded[this_instrument_index] = self.midi_pitch2index[this_instrument_index][this_note]
-
-                # Keep trace of instruments presence
-                if this_note in [REST_SYMBOL, START_SYMBOL, END_SYMBOL]:
-                    orchestra_instruments_presence[this_instrument_index] = self.instruments_presence2index[NO_SYMBOL]
-                else:
-                    orchestra_instruments_presence[this_instrument_index] = self.instruments_presence2index[
-                        YES_SYMBOL]
 
         orchestra_tensor = torch.from_numpy(orchestra_encoded).long()
         orchestra_instruments_presence_tensor = torch.from_numpy(orchestra_instruments_presence).long()

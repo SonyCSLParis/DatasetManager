@@ -14,7 +14,7 @@ from DatasetManager.arrangement.instrument_grouping import get_instrument_groupi
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, UNKNOWN_SYMBOL, PAD_SYMBOL, MASK_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL, MASK_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
@@ -130,7 +130,7 @@ class ArrangementDataset(MusicDataset):
         }
 
         self.precomputed_vectors_orchestra_instruments_presence = {
-            UNKNOWN_SYMBOL: None
+            PAD_SYMBOL: None
         }
 
         # Compute statistics slows down the construction of the dataset
@@ -367,12 +367,12 @@ class ArrangementDataset(MusicDataset):
         self.instruments_presence2index = {
             YES_SYMBOL: 0,
             NO_SYMBOL: 1,
-            UNKNOWN_SYMBOL: 2
+            PAD_SYMBOL: 2
         }
         self.index2instruments_presence = {
             0: YES_SYMBOL,
             1: NO_SYMBOL,
-            2: UNKNOWN_SYMBOL
+            2: PAD_SYMBOL
         }
         ############################################################
         ############################################################
@@ -417,8 +417,8 @@ class ArrangementDataset(MusicDataset):
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
         self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
-        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[UNKNOWN_SYMBOL]
-        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL] = torch.from_numpy(
+        unknown_vector = np.ones((self.number_instruments)) * self.instruments_presence2index[PAD_SYMBOL]
+        self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = torch.from_numpy(
             unknown_vector).long()
 
         ############################################################
@@ -594,9 +594,12 @@ class ArrangementDataset(MusicDataset):
         #######################
 
         print(
-            f'Sizes: \n Piano: {piano_tensor_dataset.size()}\n Orchestra: {orchestra_tensor_dataset.size()}\n')
-        print(
-            f'Chunks: {total_chunk_counter}\nToo many instru chunks: {too_many_instruments_frame}\nImpossible transpo: {impossible_transposition}')
+            f'### Sizes: \n'
+            f'Piano: {piano_tensor_dataset.size()}\n'
+            f'Orchestra: {orchestra_tensor_dataset.size()}\n'
+            f'Chunks: {total_chunk_counter}\n'
+            f'Too many instru chunks: {too_many_instruments_frame}\n'
+            f'Impossible transpo: {impossible_transposition}')
         return dataset
 
     def get_score_tensor(self, scores, offsets):
@@ -947,7 +950,7 @@ class ArrangementDataset(MusicDataset):
                     piano_t_encoded = self.precomputed_vectors_piano[frame_piano].clone().detach()
                     orchestra_t_encoded = self.precomputed_vectors_orchestra[frame_orchestra].clone().detach()
                     orchestra_instruments_presence_t_encoded = \
-                        self.precomputed_vectors_orchestra_instruments_presence[UNKNOWN_SYMBOL].clone().detach()
+                        self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL].clone().detach()
                 else:
                     piano_t_encoded = self.pianoroll_to_piano_tensor(
                         this_pr_piano,

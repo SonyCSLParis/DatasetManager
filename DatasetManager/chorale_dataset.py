@@ -1,3 +1,6 @@
+import os
+import pickle
+
 import music21
 import torch
 import numpy as np
@@ -6,6 +9,7 @@ from music21 import interval, stream
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
+import DatasetManager
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
     standard_note, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL
 from DatasetManager.metadata import FermataMetadata
@@ -69,8 +73,41 @@ class ChoraleDataset(MusicDataset):
         """
         # todo check on chorale with Chord
         print('Making tensor dataset')
-        self.compute_index_dicts()
-        self.compute_voice_ranges()
+
+        dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
+        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
+        if not os.path.isfile(index_dict_path):
+            print('Building index dictionnary. Might take some time')
+            answer = None
+            while answer not in ['y', 'n']:
+                answer = input('Continue? Type y or n\n')
+            if answer == 'y':
+                smallest_bach_dataset = ChoraleBeatsDataset(
+                    corpus_it_gen=self.corpus_it_gen,
+                    name='TEMP',
+                    voice_ids=self.voice_ids,
+                    metadatas=None,
+                    sequences_size=1,
+                    subdivision=4,
+                    cache_dir=None)
+                smallest_bach_dataset.compute_index_dicts()
+                smallest_bach_dataset.compute_voice_ranges()
+                index_dicts = {
+                    'index2note_dicts': smallest_bach_dataset.index2note_dicts,
+                    'note2index_dicts': smallest_bach_dataset.note2index_dicts,
+                    'voice_ranges': smallest_bach_dataset.voice_ranges
+                }
+                with open(index_dict_path, 'wb') as ff:
+                    pickle.dump(index_dicts, ff)
+            else:
+                return
+
+        with open(index_dict_path, 'rb') as ff:
+            index_dicts = pickle.load(ff)
+        self.index2note_dicts = index_dicts['index2note_dicts']
+        self.note2index_dicts = index_dicts['note2index_dicts']
+        self.voice_ranges = index_dicts['voice_ranges']
+
         one_tick = 1 / self.subdivision
         chorale_tensor_dataset = []
         metadata_tensor_dataset = []
@@ -426,7 +463,7 @@ class ChoraleDataset(MusicDataset):
             if start_tick == -1:
                 padding_sequence_start = start_symbols.repeat(-start_tick, 1).transpose(0, 1)
             else:
-                pad_symbols = pad_symbols.repeat(-start_tick-1, 1).transpose(0, 1)
+                pad_symbols = pad_symbols.repeat(-start_tick - 1, 1).transpose(0, 1)
                 start_symbols = start_symbols.repeat(1, 1).transpose(0, 1)
                 padding_sequence_start = torch.cat([pad_symbols, start_symbols], dim=1)
             padded_chorale.append(padding_sequence_start)
@@ -543,8 +580,7 @@ class ChoraleDataset(MusicDataset):
         return score
 
 
-# TODO should go in ChoraleDataset
-# TODO all subsequences start on a beat
+# notes: all subsequences start on a beat
 class ChoraleBeatsDataset(ChoraleDataset):
     def __repr__(self):
         return f'ChoraleBeatsDataset(' \
@@ -560,8 +596,41 @@ class ChoraleBeatsDataset(ChoraleDataset):
         """
         # todo check on chorale with Chord
         print('Making tensor dataset')
-        self.compute_index_dicts()
-        self.compute_voice_ranges()
+
+        dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
+        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
+        if not os.path.isfile(index_dict_path):
+            print('Building index dictionnary. Might take some time')
+            answer = None
+            while answer not in ['y', 'n']:
+                answer = input('Continue? Type y or n\n')
+            if answer == 'y':
+                smallest_bach_dataset = ChoraleBeatsDataset(
+                    corpus_it_gen=self.corpus_it_gen,
+                    name='TEMP',
+                    voice_ids=self.voice_ids,
+                    metadatas=None,
+                    sequences_size=1,
+                    subdivision=4,
+                    cache_dir=None)
+                smallest_bach_dataset.compute_index_dicts()
+                smallest_bach_dataset.compute_voice_ranges()
+                index_dicts = {
+                    'index2note_dicts': smallest_bach_dataset.index2note_dicts,
+                    'note2index_dicts': smallest_bach_dataset.note2index_dicts,
+                    'voice_ranges': smallest_bach_dataset.voice_ranges
+                }
+                with open(index_dict_path, 'wb') as ff:
+                    pickle.dump(index_dicts, ff)
+            else:
+                return
+
+        with open(index_dict_path, 'rb') as ff:
+            index_dicts = pickle.load(ff)
+        self.index2note_dicts = index_dicts['index2note_dicts']
+        self.note2index_dicts = index_dicts['note2index_dicts']
+        self.voice_ranges = index_dicts['voice_ranges']
+
         one_beat = 1.
         chorale_tensor_dataset = []
         metadata_tensor_dataset = []

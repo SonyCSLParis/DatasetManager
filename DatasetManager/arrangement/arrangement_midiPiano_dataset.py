@@ -1,7 +1,6 @@
 import os
 import re
 import shutil
-
 import music21
 import numpy as np
 import torch

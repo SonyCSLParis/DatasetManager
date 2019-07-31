@@ -12,7 +12,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 
 if __name__ == '__main__':
 
-    database_to_run = "arrangement_voice"
+    database_to_run = "bach_beat"
     number_dump = 100
     batch_size = 32
     subdivision = 16
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     ###########################################################
     # BACH
-    elif database_to_run == 'bach':
+    elif database_to_run == 'bach_beat':
         subdivision = 4
         metadatas = [
             TickMetadata(subdivision=subdivision),

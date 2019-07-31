@@ -1,6 +1,4 @@
 import os
-import shutil
-
 import torch
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.all_datasets as all_datasets

@@ -12,6 +12,15 @@ OUT_OF_RANGE = 'OOR'
 PAD_SYMBOL = 'XX'
 BEAT_SYMBOL = 'b'
 DOWNBEAT_SYMBOL = 'B'
+DURATION_SYMBOL = 'DUR'
+YES_SYMBOL = 'YES'
+NO_SYMBOL = 'NO'
+MASK_SYMBOL = 'MASK'
+UNKNOWN_SYMBOL = 'UKN'
+TIME_SHIFT = 'TS'
+STOP_SYMBOL = 'STOP'
+MAX_VELOCITY = 128
+
 
 def standard_name(note_or_rest, voice_range=None):
     """
@@ -72,6 +81,6 @@ class ShortChoraleIteratorGen:
         it = (
             chorale
             for chorale in
-            islice(music21.corpus.chorales.Iterator(), 3)
+            islice(music21.corpus.chorales.Iterator(), 10)
         )
         return it.__iter__()

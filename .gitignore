@@ -115,3 +115,6 @@ raw_data/
 passwords.json
 stub.py
 .DS_Store
+
+# Config files
+DatasetManager/config.py

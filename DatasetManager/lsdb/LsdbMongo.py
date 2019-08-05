@@ -1,7 +1,5 @@
 import json
 import os
-from glob import glob
-
 from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
 

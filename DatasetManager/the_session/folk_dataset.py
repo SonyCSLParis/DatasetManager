@@ -1,24 +1,20 @@
-import music21
-import torch
-import numpy as np
-from scipy import stats
 import os
 import sys
 
-from glob2 import glob
-from music21.abcFormat import ABCHandlerException
-
-from music21 import interval, stream, meter
+import music21
+import numpy as np
+import torch
+from music21 import interval
+from scipy import stats
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
-from fractions import Fraction
 
-from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
     standard_name, standard_note, OUT_OF_RANGE
 from DatasetManager.lsdb.lsdb_exceptions import *
+from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.the_session.folk_data_helpers import score_range, \
-     tick_values, score_on_ticks, notes_and_chords
+    tick_values, score_on_ticks, notes_and_chords
 
 
 class FolkDataset(MusicDataset):

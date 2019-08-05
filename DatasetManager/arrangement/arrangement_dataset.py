@@ -162,7 +162,7 @@ class ArrangementDataset(MusicDataset):
 
     def load_index_dicts(self):
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
-        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
+        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{type(self).__name__}.pkl'
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None
@@ -194,6 +194,7 @@ class ArrangementDataset(MusicDataset):
         # Dimensions
         self.number_instruments = index_dicts['number_instruments']
         self.number_pitch_piano = index_dicts['number_pitch_piano']
+        self.instrument_presence_dim = index_dicts['instrument_presence_dim']
         # Misc
         self.observed_tessitura = index_dicts['observed_tessitura']
 
@@ -1511,17 +1512,18 @@ if __name__ == '__main__':
 
     dataset = ArrangementDataset(corpus_it_gen=corpus_it_gen,
                                  corpus_it_gen_instru_range=corpus_it_gen_instru_range,
-                                 name="shit",
+                                 name='shit',
                                  subdivision=subdivision,
                                  sequence_size=sequence_size,
                                  velocity_quantization=velocity_quantization,
                                  max_transposition=max_transposition,
                                  integrate_discretization=integrate_discretization,
+                                 alignement_type='complete',
                                  transpose_to_sounding_pitch=True,
                                  cache_dir=None,
                                  compute_statistics_flag=None)
 
-    dataset.compute_index_dicts()
+    dataset.load_index_dicts()
 
     writing_dir = f'{config["dump_folder"]}/arrangement/reconstruction_midi'
     if os.path.isdir(writing_dir):
@@ -1536,12 +1538,14 @@ if __name__ == '__main__':
         # Tensor
         arr_id = arr_pair['name']
 
-        pianoroll_piano, onsets_piano, _ = score_to_pianoroll(arr_pair['Piano'],
-                                                              subdivision,
-                                                              simplify_instrumentation=None,
-                                                              instrument_grouping=dataset.instrument_grouping,
-                                                              transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch,
-                                                              integrate_discretization=dataset.integrate_discretization)
+        pianoroll_piano, onsets_piano, _ = \
+            score_to_pianoroll(arr_pair['Piano'],
+                               subdivision,
+                               simplify_instrumentation=None,
+                               instrument_grouping=dataset.instrument_grouping,
+                               transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch,
+                               integrate_discretization=dataset.integrate_discretization,
+                               binarize=False)
         # Quantize piano
         pr_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
                                                      velocity_quantization)
@@ -1570,26 +1574,28 @@ if __name__ == '__main__':
 
         ######################################################################
         #  Orchestra
-        pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair["Orchestra"],
-                                                                      subdivision,
-                                                                      dataset.simplify_instrumentation,
-                                                                      dataset.instrument_grouping,
-                                                                      dataset.transpose_to_sounding_pitch,
-                                                                      dataset.integrate_discretization)
+        pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(
+            score=arr_pair["Orchestra"],
+            subdivision=subdivision,
+            simplify_instrumentation=dataset.simplify_instrumentation,
+            instrument_grouping=dataset.instrument_grouping,
+            transpose_to_sounding_pitch=dataset.transpose_to_sounding_pitch,
+            integrate_discretization=dataset.integrate_discretization,
+            binarize=False)
+
         events_orchestra = new_events(pianoroll_orchestra, onsets_orchestra)
         events_orchestra = events_orchestra[:num_frames]
         orchestra_tensor = []
-        previous_frame_orchestra = None
+        previous_notes_orchestra = None
         for frame_counter, frame_index in enumerate(events_orchestra):
-            orchestra_t_encoded, _ = dataset.pianoroll_to_orchestral_tensor(
-                pianoroll=pianoroll_orchestra,
+            orchestra_t_encoded, previous_notes_orchestra, _ = dataset.pianoroll_to_orchestral_tensor(
+                pr=pianoroll_orchestra,
                 onsets=onsets_orchestra,
-                previous_frame=previous_frame_orchestra,
+                previous_notes=previous_notes_orchestra,
                 frame_index=frame_index)
             if orchestra_t_encoded is None:
                 orchestra_t_encoded = dataset.precomputed_vectors_orchestra[REST_SYMBOL]
             orchestra_tensor.append(orchestra_t_encoded)
-            previous_frame_orchestra = orchestra_t_encoded
 
         orchestra_tensor = torch.stack(orchestra_tensor)
 
@@ -1640,7 +1646,7 @@ if __name__ == '__main__':
         piano_tensor_event = []
         orchestra_tensor_event = []
         previous_frame_index = None
-        previous_frame_orchestra = None
+        previous_notes_orchestra = None
         for frame_counter, (frame_piano, frame_orchestra) in enumerate(zip(piano_frames, orchestra_frames)):
 
             #  IMPORTANT:
@@ -1649,18 +1655,18 @@ if __name__ == '__main__':
 
             #######
             # Orchestra
-
-            orchestra_t_encoded, previous_notes_orchestra, orchestra_instruments_presence_t_encoded = dataset.pianoroll_to_orchestral_tensor(
-                pianoroll=pr_orchestra_transp,
-                onsets=onsets_orchestra_transp,
-                previous_frame=previous_frame_orchestra,
-                frame_index=frame_orchestra)
+            orchestra_t_encoded, previous_notes_orchestra, orchestra_instruments_presence_t_encoded = \
+                dataset.pianoroll_to_orchestral_tensor(
+                    pr=pr_orchestra_transp,
+                    onsets=onsets_orchestra_transp,
+                    previous_notes=previous_notes_orchestra,
+                    frame_index=frame_orchestra
+                )
 
             if orchestra_t_encoded is None:
                 avoid_this_chunk = True
                 continue
             orchestra_tensor_event.append(orchestra_t_encoded)
-            previous_frame_orchestra = orchestra_t_encoded
 
             #######
             # Piano

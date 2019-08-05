@@ -114,7 +114,6 @@ class ArrangementVoiceDataset(ArrangementDataset):
         self.precomputed_vectors_orchestra_instruments_presence = {
             PAD_SYMBOL: None
         }
-
         return
 
     def __repr__(self):
@@ -126,6 +125,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         return name
 
     # def iterator_gen(self)
+    # def iterator_gen(self)
 
     # def iterator_gen_complementary(self):
 
@@ -134,7 +134,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
 
     def load_index_dicts(self):
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
-        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
+        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{type(self).__name__}.pkl'
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None
@@ -229,12 +229,14 @@ class ArrangementVoiceDataset(ArrangementDataset):
                 # set_midiPitch_per_instrument['Piano'] = set_midiPitch_per_instrument['Piano'].union(
                 #     pitch_set_this_track)
 
-                pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(arr_pair['Orchestra'], self.subdivision,
-                                                                              self.simplify_instrumentation,
-                                                                              self.instrument_grouping,
-                                                                              self.transpose_to_sounding_pitch,
-                                                                              self.integrate_discretization,
-                                                                              binarize=True)
+                pianoroll_orchestra, onsets_orchestra, _ = score_to_pianoroll(
+                    score=arr_pair['Orchestra'],
+                    subdivision=self.subdivision,
+                    simplify_instrumentation=self.simplify_instrumentation,
+                    instrument_grouping=self.instrument_grouping,
+                    transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
+                    integrate_discretization=self.integrate_discretization,
+                    binarize=True)
                 for instrument_name in pianoroll_orchestra:
                     if instrument_name not in set_midiPitch_per_instrument.keys():
                         set_midiPitch_per_instrument[instrument_name] = set()
@@ -878,17 +880,8 @@ if __name__ == '__main__':
         num_elements=None
     )
 
-    # corpus_it_gen_instru_range = OrchestraIteratorGenerator(
-    #     folder_path=f"{config['database_path']}/Orchestration/orchestral",
-    #     subsets=[
-    #         "kunstderfuge"
-    #     ],
-    #     process_file=True,
-    # )
-    corpus_it_gen_instru_range = None
-
     dataset = ArrangementVoiceDataset(corpus_it_gen=corpus_it_gen,
-                                      corpus_it_gen_instru_range=corpus_it_gen_instru_range,
+                                      corpus_it_gen_instru_range=None,
                                       name="shit",
                                       subdivision=subdivision,
                                       sequence_size=sequence_size,
@@ -899,7 +892,7 @@ if __name__ == '__main__':
                                       cache_dir=None,
                                       compute_statistics_flag=None)
 
-    dataset.compute_index_dicts()
+    dataset.load_index_dicts()
 
     writing_dir = f'{config["dump_folder"]}/arrangement_voice/reconstruction_midi'
     if os.path.isdir(writing_dir):

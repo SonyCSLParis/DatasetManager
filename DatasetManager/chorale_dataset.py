@@ -595,8 +595,6 @@ class ChoraleBeatsDataset(ChoraleDataset):
         Implementation of the make_tensor_dataset abstract base class
         """
         # todo check on chorale with Chord
-        print('Making tensor dataset')
-
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
         index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
         if not os.path.isfile(index_dict_path):
@@ -631,6 +629,8 @@ class ChoraleBeatsDataset(ChoraleDataset):
         self.note2index_dicts = index_dicts['note2index_dicts']
         self.voice_ranges = index_dicts['voice_ranges']
 
+
+        print('Making tensor dataset')
         one_beat = 1.
         chorale_tensor_dataset = []
         metadata_tensor_dataset = []

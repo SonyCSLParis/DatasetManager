@@ -93,6 +93,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         # Dimensions
         self.number_instruments = None
         self.number_voices_piano = self.instrumentation["Piano"]
+        self.instrument_presence_dim = None
 
         self.precomputed_vectors_piano = {
             START_SYMBOL: None,

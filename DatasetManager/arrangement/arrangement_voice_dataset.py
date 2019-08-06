@@ -124,14 +124,6 @@ class ArrangementVoiceDataset(ArrangementDataset):
             f'{self.max_transposition}'
         return name
 
-    # def iterator_gen(self)
-    # def iterator_gen(self)
-
-    # def iterator_gen_complementary(self):
-
-    # @staticmethod
-    # def pair2index(one_hot_0, one_hot_1)
-
     def load_index_dicts(self):
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
         index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{type(self).__name__}.pkl'
@@ -424,15 +416,13 @@ class ArrangementVoiceDataset(ArrangementDataset):
         #  Unknown symbol is used for dropout during training, and also when generating if you don't want to
         # hard constrain the presence/absence of a note
         self.instruments_presence2index = {
-            YES_SYMBOL: 0,
-            NO_SYMBOL: 1,
+            NO_SYMBOL: 0,
+            YES_SYMBOL: 1,
             PAD_SYMBOL: 2
         }
-        self.index2instruments_presence = {
-            0: YES_SYMBOL,
-            1: NO_SYMBOL,
-            2: PAD_SYMBOL
-        }
+        self.index2instruments_presence = {}
+        for k, v in self.instruments_presence2index.items():
+            self.index2instruments_presence[v] = k
         ############################################################
         ############################################################
 
@@ -576,11 +566,13 @@ class ArrangementVoiceDataset(ArrangementDataset):
                         previous_notes=previous_notes_piano,
                         frame_index=frame_piano)
 
-                    orchestra_t_encoded, previous_notes_orchestra, orchestra_instruments_presence_t_encoded = self.pianoroll_to_orchestral_tensor(
-                        pr=this_pr_orchestra,
-                        onsets=this_onsets_orchestra,
-                        previous_notes=previous_notes_orchestra,
-                        frame_index=frame_orchestra)
+                    orchestra_t_encoded, previous_notes_orchestra, orchestra_instruments_presence_t_encoded = \
+                        self.pianoroll_to_orchestral_tensor(
+                            pr=this_pr_orchestra,
+                            onsets=this_onsets_orchestra,
+                            previous_notes=previous_notes_orchestra,
+                            frame_index=frame_orchestra
+                        )
 
                 if orchestra_t_encoded is None:
                     avoid_this_chunk = True
@@ -864,8 +856,7 @@ if __name__ == '__main__':
 
     # parameters
     sequence_size = 5
-    max_transposition = 12
-    velocity_quantization = 2
+    max_transposition = 3
     subdivision = 16
     integrate_discretization = True
 
@@ -953,9 +944,10 @@ if __name__ == '__main__':
         events_orchestra = new_events(pr_orchestra, onsets_orchestra)
         events_orchestra = events_orchestra[:num_frames]
         orchestra_tensor = []
+        instruments_presence_tensor = []
         previous_notes_orchestra = None
         for frame_counter, frame_index in enumerate(events_orchestra):
-            orchestra_t_encoded, previous_notes_orchestra, _ = dataset.pianoroll_to_orchestral_tensor(
+            orchestra_t_encoded, previous_notes_orchestra, orchestra_instruments_presence_t_encoded = dataset.pianoroll_to_orchestral_tensor(
                 pr=pr_orchestra,
                 onsets=onsets_orchestra,
                 previous_notes=previous_notes_orchestra,
@@ -963,8 +955,10 @@ if __name__ == '__main__':
             if orchestra_t_encoded is None:
                 orchestra_t_encoded = dataset.precomputed_vectors_orchestra[REST_SYMBOL]
             orchestra_tensor.append(orchestra_t_encoded)
+            instruments_presence_tensor.append(orchestra_instruments_presence_t_encoded)
 
         orchestra_tensor = torch.stack(orchestra_tensor)
+        instruments_presence_tensor = torch.stack(instruments_presence_tensor)
 
         # Reconstruct
         orchestra_cpu = orchestra_tensor.cpu()

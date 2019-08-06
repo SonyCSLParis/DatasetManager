@@ -395,15 +395,13 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         #  Unknown symbol is used for dropout during training, and also when generating if you don't want to
         # hard constrain the presence/absence of a note
         self.instruments_presence2index = {
-            YES_SYMBOL: 0,
-            NO_SYMBOL: 1,
+            NO_SYMBOL: 0,
+            YES_SYMBOL: 1,
             PAD_SYMBOL: 2
         }
-        self.index2instruments_presence = {
-            0: YES_SYMBOL,
-            1: NO_SYMBOL,
-            2: PAD_SYMBOL
-        }
+        self.index2instruments_presence = {}
+        for k, v in self.instruments_presence2index.items():
+            self.index2instruments_presence[v] = k
         ############################################################
         ############################################################
 

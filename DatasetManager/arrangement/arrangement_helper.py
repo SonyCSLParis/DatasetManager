@@ -49,7 +49,7 @@ def quantize_and_filter_music21_element(element, subdivision, integrate_discreti
     frame_start = int(round(element.offset * subdivision))
     if not integrate_discretization:
         if abs((element.offset * subdivision) - frame_start) > 0.1:
-            # Avoid elements not on fixed subdivision of quarter notes
+            #  Avoid elements not on fixed subdivision of quarter notes
             return None, None
 
     frame_end = int(round((element.offset + element.duration.quarterLength) * subdivision))
@@ -69,7 +69,7 @@ def quantize_velocity_pianoroll_frame(frame, velocity_quantization):
 
 
 def unquantize_velocity(q_vel, velocity_quantization):
-    u_vel = (q_vel / (velocity_quantization-1)) * (MAX_VELOCITY - 1)
+    u_vel = (q_vel / (velocity_quantization - 1)) * (MAX_VELOCITY - 1)
     return int(u_vel)
 
 
@@ -102,7 +102,8 @@ def new_events(pr_dict, onsets_dict):
     #  Get new events indices (diff matrices)
     delta_flat = (np.abs(pr[1:] - pr[:-1])).sum(1)
     new_events_indices = list(np.where(delta_flat != 0)[0] + 1)
-    # Note that this actually gives us the end of events, which is okay (miss first event and add a last note_off event)
+    #  Note that this actually gives us the end of events,
+    # which is okay (miss first event and add a last note_off event)
     onsets_flat = onsets.sum(1)
     repeated_event_indices = list(np.where(onsets_flat > 0)[0])
 
@@ -171,7 +172,8 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
         if simplify_instrumentation is None:
             instrument_names = ["Piano"]
         else:
-            instrument_names = [instrument_grouping[e] for e in separate_instruments_names(simplify_instrumentation[part.partName])]
+            instrument_names = [instrument_grouping[e] for e in
+                                separate_instruments_names(simplify_instrumentation[part.partName])]
 
         for instrument_name in instrument_names:
             if instrument_name in pianoroll.keys():
@@ -193,7 +195,6 @@ def binarize_pianoroll(pr):
     for name, matrix in pr.items():
         new_pr[name] = np.where(matrix > 0, 1, 0)
     return new_pr
-
 
 
 def pianoroll_to_score(pianoroll):

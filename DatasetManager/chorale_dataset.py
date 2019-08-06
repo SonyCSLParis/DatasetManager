@@ -598,6 +598,8 @@ class ChoraleBeatsDataset(ChoraleDataset):
 
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
         index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
+        if not os.path.exists(f'{dataset_manager_path}/dataset_cache/index_dicts/'):
+            os.mkdir(f'{dataset_manager_path}/dataset_cache/index_dicts/')
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None

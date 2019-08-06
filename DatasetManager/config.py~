@@ -1,0 +1,7 @@
+def get_config():
+   return {
+       "database_path": "/home/leo/Recherche/Databases",
+       "transformer_path": "/home/leo/Recherche/Code/Transformer",
+       "arrangement_path": "/home/leo/Recherche/Code/DatasetManager/DatasetManager/arrangement/",
+       "dump_folder": "/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump"
+   }

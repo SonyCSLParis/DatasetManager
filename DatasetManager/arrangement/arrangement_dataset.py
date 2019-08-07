@@ -1452,8 +1452,14 @@ class ArrangementDataset(MusicDataset):
         # Set orchestra constraints in the form of banned instruments
         orchestra_silences = []
         orchestra_unknown = []
+        instruments_presence = torch.zeros(num_frames, self.instrument_presence_dim)
         orchestra_init = torch.zeros(num_frames, self.number_instruments)
         for instrument_name, instrument_indices in self.instrument2index.items():
+            if instrument_name in banned_instruments:
+                instrument_presence_value = self.instruments_presence2index[NO_SYMBOL]
+            else:
+                instrument_presence_value = self.instruments_presence2index[YES_SYMBOL]
+            instruments_presence[:, self.instrument_presence_name2index[instrument_name]] = instrument_presence_value
             for instrument_index in instrument_indices:
                 if instrument_name in banned_instruments:
                     # -1 is a silence
@@ -1466,15 +1472,14 @@ class ArrangementDataset(MusicDataset):
                     orchestra_silences.append(0)
                     orchestra_unknown.append(0)
                     #  Initialise with last
-                    masking_value = len(self.midi_pitch2index[instrument_index])
-                    orchestra_init[:, instrument_index] = masking_value
+                    orchestra_init[:, instrument_index] = self.midi_pitch2index[instrument_index][MASK_SYMBOL]
 
         # Start and end symbol at the beginning and end
         orchestra_init[:context_length - 1] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
         orchestra_init[context_length - 1] = self.precomputed_vectors_orchestra[START_SYMBOL]
         orchestra_init[-context_length] = self.precomputed_vectors_orchestra[END_SYMBOL]
         orchestra_init[-context_length:] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
-        return orchestra_silences, orchestra_unknown, orchestra_init
+        return orchestra_silences, orchestra_unknown, instruments_presence, orchestra_init
 
 
 if __name__ == '__main__':

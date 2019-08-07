@@ -28,7 +28,7 @@ class DatasetManager:
                 **dataset_kwargs
             )
         else:
-            print('Dataset with name {name} is not registered in all_datasets variable')
+            print(f'Dataset with name {name} is not registered in all_datasets variable')
             raise ValueError
 
     def load_if_exists_or_initialize_and_save(self,

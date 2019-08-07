@@ -808,44 +808,18 @@ class ArrangementVoiceDataset(ArrangementDataset):
 
         # Orchestra
         num_frames = piano_init.shape[0]  #  Here batch size is time dimensions (each batch index is a piano event)
-        orchestra_silences, orchestra_unknown, orchestra_init = \
+        orchestra_silences, orchestra_unknown, instruments_presence, orchestra_init = \
             self.init_orchestra(num_frames, context_length, banned_instruments, unknown_instruments)
 
         # Repeat along batch dimension to generate several orchestation of the same piano score
         piano_init = piano_init.unsqueeze(0).repeat(batch_size, 1, 1)
         orchestra_init = orchestra_init.unsqueeze(0).repeat(batch_size, 1, 1)
+        instruments_presence_init = instruments_presence.unsqueeze(0).repeat(batch_size, 1, 1)
         piano_write = piano_init
 
         return piano_init.long().cuda(), piano_write.long(), rhythm_piano, \
-               orchestra_init.long().cuda(), orchestra_silences, orchestra_unknown
-
-    def init_orchestra(self, num_frames, context_length, banned_instruments, unknown_instruments):
-        # Set orchestra constraints in the form of banned instruments
-        orchestra_silences = []
-        orchestra_unknown = []
-        orchestra_init = torch.zeros(num_frames, self.number_instruments)
-        for instrument_name, instrument_indices in self.instrument2index.items():
-            for instrument_index in instrument_indices:
-                if instrument_name in banned_instruments:
-                    # -1 is a silence
-                    orchestra_silences.append(1)
-                    orchestra_init[:, instrument_index] = self.midi_pitch2index[instrument_index][REST_SYMBOL]
-                elif instrument_name in unknown_instruments:
-                    # Note that an instrument can't be both banned and unknown
-                    orchestra_unknown.append(1)
-                else:
-                    orchestra_silences.append(0)
-                    orchestra_unknown.append(0)
-                    #  Initialise with last
-                    masking_value = len(self.midi_pitch2index[instrument_index])
-                    orchestra_init[:, instrument_index] = masking_value
-
-        # Start and end symbol at the beginning and end
-        orchestra_init[:context_length - 1] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
-        orchestra_init[context_length - 1] = self.precomputed_vectors_orchestra[START_SYMBOL]
-        orchestra_init[-context_length] = self.precomputed_vectors_orchestra[END_SYMBOL]
-        orchestra_init[-context_length:] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
-        return orchestra_silences, orchestra_unknown, orchestra_init
+               orchestra_init.long().cuda(), \
+               instruments_presence_init.long().cuda(), orchestra_silences, orchestra_unknown
 
 
 if __name__ == '__main__':

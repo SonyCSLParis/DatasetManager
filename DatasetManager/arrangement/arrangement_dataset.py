@@ -1411,7 +1411,8 @@ class ArrangementDataset(MusicDataset):
                                                               simplify_instrumentation=None,
                                                               instrument_grouping=self.instrument_grouping,
                                                               transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
-                                                              integrate_discretization=self.integrate_discretization)
+                                                              integrate_discretization=self.integrate_discretization,
+                                                              binarize=False)
 
         quantized_pianoroll_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
                                                                       self.velocity_quantization)
@@ -1437,16 +1438,18 @@ class ArrangementDataset(MusicDataset):
 
         # Orchestra
         num_frames = piano_init.shape[0]  #  Here batch size is time dimensions (each batch index is a piano event)
-        orchestra_silences, orchestra_unknown, orchestra_init = \
+        orchestra_silences, orchestra_unknown, instruments_presence, orchestra_init = \
             self.init_orchestra(num_frames, context_length, banned_instruments, unknown_instruments)
 
         # Repeat along batch dimension to generate several orchestation of the same piano score
         piano_init = piano_init.unsqueeze(0).repeat(batch_size, 1, 1)
         orchestra_init = orchestra_init.unsqueeze(0).repeat(batch_size, 1, 1)
+        instruments_presence_init = instruments_presence.unsqueeze(0).repeat(batch_size, 1, 1)
         piano_write = piano_init
 
         return piano_init.long().cuda(), piano_write.long(), rhythm_piano, \
-               orchestra_init.long().cuda(), orchestra_silences, orchestra_unknown
+               orchestra_init.long().cuda(), \
+               instruments_presence_init.long().cuda(), orchestra_silences, orchestra_unknown
 
     def init_orchestra(self, num_frames, context_length, banned_instruments, unknown_instruments):
         # Set orchestra constraints in the form of banned instruments

@@ -15,7 +15,6 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 # Arrangement
 def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, integrate_discretization,
                       max_transposition, number_dump, test_bool):
-
     name = 'arrangement'
     if test_bool:
         name += '_small'
@@ -56,10 +55,11 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
         arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
     return
 
+
 ###########################################################
 # Arrangement voice piano
 def build_arrangement_voice(dataset_manager, batch_size, subdivision, sequence_size, integrate_discretization,
-                      max_transposition, number_dump, test_bool):
+                            max_transposition, number_dump, test_bool):
     name = 'arrangement_voice'
     if test_bool:
         name += '_small'
@@ -78,6 +78,7 @@ def build_arrangement_voice(dataset_manager, batch_size, subdivision, sequence_s
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
+        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=True
     )
@@ -97,12 +98,19 @@ def build_arrangement_voice(dataset_manager, batch_size, subdivision, sequence_s
         arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir,
                                             filepath=f"{i_batch}")
 
+
 ###########################################################
-# Arrangement Midi piano
-def build_arrangement_midi(dataset_manager, batch_size, subdivision, sequence_size, integrate_discretization,
-                      max_transposition, number_dump, test_bool):
+#  Arrangement Midi piano
+def build_arrangement_midi(dataset_manager,
+                           batch_size,
+                           subdivision,
+                           sequence_size,
+                           integrate_discretization,
+                           max_transposition,
+                           number_dump,
+                           test_bool):
     mean_number_messages_per_time_frame = 14
-    name = 'arrangement_midi'
+    name = 'arrangement_midiPiano'
     if test_bool:
         name += '_small'
     arrangement_dataset: ArrangementMidipianoDataset = dataset_manager.get_dataset(
@@ -121,6 +129,7 @@ def build_arrangement_midi(dataset_manager, batch_size, subdivision, sequence_si
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
+        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=True
     )
@@ -142,15 +151,17 @@ def build_arrangement_midi(dataset_manager, batch_size, subdivision, sequence_si
 
 ###########################################################
 # BACH
-def build_bach_beat(dataset_manager, batch_size, subdivision, sequences_size):
+def build_bach_beat(dataset_manager, batch_size, subdivision, sequences_size, test_bool):
     metadatas = [
         TickMetadata(subdivision=subdivision),
         FermataMetadata(),
         KeyMetadata()
     ]
-
+    name = 'bach_chorales'
+    if test_bool:
+        name += '_test'
     bach_chorales_dataset: ChoraleBeatsDataset = dataset_manager.get_dataset(
-        name='bach_chorales_test',
+        name=name,
         voice_ids=[0, 1, 2, 3],
         metadatas=metadatas,
         sequences_size=sequences_size,
@@ -160,6 +171,7 @@ def build_bach_beat(dataset_manager, batch_size, subdivision, sequences_size):
      val_dataloader,
      test_dataloader) = bach_chorales_dataset.data_loaders(
         batch_size=batch_size,
+        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10)
     )
     print('Num Train Batches: ', len(train_dataloader))
@@ -191,11 +203,11 @@ def build_folk(dataset_manager, batch_size, subdivision, sequences_size):
         TickMetadata(subdivision=subdivision)
     ]
     folk_dataset_kwargs = {
-        'metadatas':        metadatas,
-        'sequences_size':   sequences_size
+        'metadatas': metadatas,
+        'sequences_size': sequences_size
     }
     folk_dataset: FolkDataset = dataset_manager.get_dataset(
-        name ='folk_4by4nbars',
+        name='folk_4by4nbars',
         **folk_dataset_kwargs
     )
     (train_dataloader,
@@ -210,8 +222,8 @@ def build_folk(dataset_manager, batch_size, subdivision, sequences_size):
 
 
 if __name__ == '__main__':
-    number_dump = 10
-    batch_size = 32
+    number_dump = 1
+    batch_size = 8
     subdivision = 16
     sequence_size = 7
     integrate_discretization = True
@@ -229,23 +241,30 @@ if __name__ == '__main__':
         number_dump=number_dump,
         test_bool=test_bool
     )
-    # build_arrangement_midi(
-    #     dataset_manager=dataset_manager,
-    #     batch_size=batch_size,
-    #     subdivision=subdivision,
-    #     sequence_size=sequence_size,
-    #     integrate_discretization=integrate_discretization,
-    #     max_transposition=max_transposition,
-    #     number_dump=number_dump,
-    #     test_bool=test_bool
-    # )
-    # build_arrangement_voice(
-    #     dataset_manager=dataset_manager,
-    #     batch_size=batch_size,
-    #     subdivision=subdivision,
-    #     sequence_size=sequence_size,
-    #     integrate_discretization=integrate_discretization,
-    #     max_transposition=max_transposition,
-    #     number_dump=number_dump,
-    #     test_bool=test_bool
-    # )
+    build_arrangement_midi(
+        dataset_manager=dataset_manager,
+        batch_size=batch_size,
+        subdivision=subdivision,
+        sequence_size=sequence_size,
+        integrate_discretization=integrate_discretization,
+        max_transposition=max_transposition,
+        number_dump=number_dump,
+        test_bool=test_bool
+    )
+    build_arrangement_voice(
+        dataset_manager=dataset_manager,
+        batch_size=batch_size,
+        subdivision=subdivision,
+        sequence_size=sequence_size,
+        integrate_discretization=integrate_discretization,
+        max_transposition=max_transposition,
+        number_dump=number_dump,
+        test_bool=test_bool
+    )
+    build_bach_beat(
+        dataset_manager=dataset_manager,
+        batch_size=batch_size,
+        subdivision=subdivision,
+        sequences_size=sequence_size,
+        test_bool=test_bool
+    )

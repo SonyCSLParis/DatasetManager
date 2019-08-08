@@ -27,8 +27,7 @@ class ChoraleDataset(MusicDataset):
                  voice_ids,
                  metadatas=None,
                  sequences_size=8,
-                 subdivision=4,
-                 cache_dir=None):
+                 subdivision=4):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -39,7 +38,7 @@ class ChoraleDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ChoraleDataset, self).__init__(cache_dir=cache_dir)
+        super(ChoraleDataset, self).__init__()
         self.voice_ids = voice_ids
         # TODO WARNING voice_ids is never used!
         self.num_voices = len(voice_ids)

@@ -56,7 +56,7 @@ class ArrangementDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super().__init__(cache_dir=cache_dir)
+        super().__init__()
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.corpus_it_gen_instru_range = corpus_it_gen_instru_range

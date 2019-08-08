@@ -51,24 +51,24 @@ class DatasetManager:
              'cache_dir': self.cache_dir
              })
         dataset = dataset_class_name(**kwargs)
-        if os.path.exists(dataset.filepath):
-            print(f'Loading {dataset.__repr__()} from {dataset.filepath}')
-            dataset = torch.load(dataset.filepath)
+        if os.path.exists(dataset.filepath(cache_dir=self.cache_dir)):
+            print(f'Loading {dataset.__repr__()} from {dataset.filepath(cache_dir=self.cache_dir)}')
+            dataset = torch.load(dataset.filepath(cache_dir=self.cache_dir))
             print(f'(the corresponding TensorDataset is not loaded)')
         else:
             print(f'Creating {dataset.__repr__()}, '
                   f'both tensor dataset and parameters')
             # initialize and force the computation of the tensor_dataset
             # first remove the cached data if it exists
-            if os.path.exists(dataset.tensor_dataset_filepath):
+            if os.path.exists(dataset.tensor_dataset_filepath(self.cache_dir)):
                 os.remove(dataset.tensor_dataset_filepath)
             # recompute dataset parameters and tensor_dataset
             # this saves the tensor_dataset in dataset.tensor_dataset_filepath
-            tensor_dataset = dataset.tensor_dataset
+            tensor_dataset = dataset.get_tensor_dataset(self.cache_dir)
             # save all dataset parameters EXCEPT the tensor dataset
             # which is stored elsewhere
             dataset.tensor_dataset = None
-            torch.save(dataset, dataset.filepath)
-            print(f'{dataset.__repr__()} saved in {dataset.filepath}')
+            torch.save(dataset, dataset.filepath(cache_dir=self.cache_dir))
+            print(f'{dataset.__repr__()} saved in {dataset.filepath(cache_dir=self.cache_dir)}')
             dataset.tensor_dataset = tensor_dataset
         return dataset

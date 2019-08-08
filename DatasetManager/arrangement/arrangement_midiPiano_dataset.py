@@ -45,7 +45,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                  integrate_discretization,
                  alignement_type,
                  transpose_to_sounding_pitch,
-                 cache_dir,
                  compute_statistics_flag):
         """
         :param corpus_it_gen: calling this function returns an iterator
@@ -53,7 +52,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         :param name:
         :param metadatas: list[Metadata], the list of used metadatas
         :param subdivision: number of sixteenth notes per beat
-        :param cache_dir: directory where tensor_dataset is stored
         """
         velocity_quantization = 2
         super().__init__(corpus_it_gen=corpus_it_gen,
@@ -66,7 +64,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                          integrate_discretization=integrate_discretization,
                          alignement_type=alignement_type,
                          transpose_to_sounding_pitch=transpose_to_sounding_pitch,
-                         cache_dir=cache_dir,
                          compute_statistics_flag=compute_statistics_flag
                          )
 
@@ -968,7 +965,6 @@ if __name__ == '__main__':
                                           integrate_discretization=True,
                                           alignement_type='complete',
                                           transpose_to_sounding_pitch=True,
-                                          cache_dir=None,
                                           compute_statistics_flag=None)
 
     dataset.load_index_dicts()

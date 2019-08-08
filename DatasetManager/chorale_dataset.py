@@ -36,7 +36,6 @@ class ChoraleDataset(MusicDataset):
         :param metadatas: list[Metadata], the list of used metadatas
         :param sequences_size: in beats
         :param subdivision: number of sixteenth notes per beat
-        :param cache_dir: directory where tensor_dataset is stored
         """
         super(ChoraleDataset, self).__init__()
         self.voice_ids = voice_ids
@@ -611,8 +610,8 @@ class ChoraleBeatsDataset(ChoraleDataset):
                     voice_ids=self.voice_ids,
                     metadatas=None,
                     sequences_size=1,
-                    subdivision=4,
-                    cache_dir=None)
+                    subdivision=4
+                )
                 smallest_bach_dataset.compute_index_dicts()
                 smallest_bach_dataset.compute_voice_ranges()
                 index_dicts = {

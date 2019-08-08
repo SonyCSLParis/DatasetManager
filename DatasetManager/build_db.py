@@ -36,6 +36,7 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
+        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=True
     )
@@ -209,14 +210,13 @@ def build_folk(dataset_manager, batch_size, subdivision, sequences_size):
 
 
 if __name__ == '__main__':
-
     number_dump = 10
     batch_size = 32
     subdivision = 16
     sequence_size = 7
     integrate_discretization = True
     max_transposition = 5
-    test_bool = False
+    test_bool = True
     dataset_manager = DatasetManager()
 
     build_arrangement(
@@ -229,23 +229,23 @@ if __name__ == '__main__':
         number_dump=number_dump,
         test_bool=test_bool
     )
-    build_arrangement_midi(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        integrate_discretization=integrate_discretization,
-        max_transposition=max_transposition,
-        number_dump=number_dump,
-        test_bool=test_bool
-    )
-    build_arrangement_voice(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        integrate_discretization=integrate_discretization,
-        max_transposition=max_transposition,
-        number_dump=number_dump,
-        test_bool=test_bool
-    )
+    # build_arrangement_midi(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
+    # build_arrangement_voice(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )

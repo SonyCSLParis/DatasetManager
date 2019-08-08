@@ -10,9 +10,8 @@ class MusicDataset(ABC):
     Must return
     """
 
-    def __init__(self, cache_dir):
-        self._tensor_dataset = None
-        self.cache_dir = cache_dir
+    def __init__(self):
+        self.tensor_dataset = None
 
     @abstractmethod
     def iterator_gen(self):
@@ -118,36 +117,30 @@ class MusicDataset(ABC):
         """
         pass
 
-    @property
-    def tensor_dataset(self):
+    def get_tensor_dataset(self, cache_dir):
         """
         Loads or computes TensorDataset
         :return: TensorDataset
         """
-        if self._tensor_dataset is None:
-            if self.tensor_dataset_is_cached():
+        if self.tensor_dataset is None:
+            if self.tensor_dataset_is_cached(cache_dir):
                 print(f'Loading TensorDataset for {self.__repr__()}')
-                self._tensor_dataset = torch.load(self.tensor_dataset_filepath)
+                self.tensor_dataset = torch.load(self.tensor_dataset_filepath(cache_dir))
             else:
                 print(f'Creating {self.__repr__()} TensorDataset'
                       f' since it is not cached')
-                self._tensor_dataset = self.make_tensor_dataset()
-                torch.save(self._tensor_dataset, self.tensor_dataset_filepath)
+                self.tensor_dataset = self.make_tensor_dataset()
+                torch.save(self.tensor_dataset, self.tensor_dataset_filepath(cache_dir))
                 print(f'TensorDataset for {self.__repr__()} '
-                      f'saved in {self.tensor_dataset_filepath}')
-        return self._tensor_dataset
+                      f'saved in {self.tensor_dataset_filepath(cache_dir)}')
+        return self.tensor_dataset
 
-    @tensor_dataset.setter
-    def tensor_dataset(self, value):
-        self._tensor_dataset = value
+    def tensor_dataset_is_cached(self, cache_dir):
+        return os.path.exists(self.tensor_dataset_filepath(cache_dir))
 
-    def tensor_dataset_is_cached(self):
-        return os.path.exists(self.tensor_dataset_filepath)
-
-    @property
-    def tensor_dataset_filepath(self):
+    def tensor_dataset_filepath(self, cache_dir):
         tensor_datasets_cache_dir = os.path.join(
-            self.cache_dir,
+            cache_dir,
             'tensor_datasets')
         if not os.path.exists(tensor_datasets_cache_dir):
             os.mkdir(tensor_datasets_cache_dir)
@@ -157,20 +150,19 @@ class MusicDataset(ABC):
         )
         return fp
 
-    @property
-    def filepath(self):
+    def filepath(self, cache_dir):
         tensor_datasets_cache_dir = os.path.join(
-            self.cache_dir,
+            cache_dir,
             'datasets')
         if not os.path.exists(tensor_datasets_cache_dir):
             os.mkdir(tensor_datasets_cache_dir)
         return os.path.join(
-            self.cache_dir,
+            cache_dir,
             'datasets',
             self.__repr__()
         )
 
-    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, cache_dir, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -180,7 +172,7 @@ class MusicDataset(ABC):
         """
         assert sum(split) < 1
 
-        dataset = self.tensor_dataset
+        dataset = self.get_tensor_dataset(cache_dir)
         num_examples = len(dataset)
         a, b = split
         train_dataset = TensorDataset(*dataset[: int(a * num_examples)])

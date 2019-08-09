@@ -86,8 +86,7 @@ class ChoraleDataset(MusicDataset):
                     voice_ids=self.voice_ids,
                     metadatas=None,
                     sequences_size=1,
-                    subdivision=4,
-                    cache_dir=None)
+                    subdivision=4)
                 smallest_bach_dataset.compute_index_dicts()
                 smallest_bach_dataset.compute_voice_ranges()
                 index_dicts = {

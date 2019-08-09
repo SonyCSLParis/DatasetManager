@@ -766,8 +766,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
-                                 unknown_instruments=[],
-                                 subdivision=None):
+                                 unknown_instruments=[], subdivision=None):
         # Get pianorolls
         score_piano = music21.converter.parse(filepath)
 

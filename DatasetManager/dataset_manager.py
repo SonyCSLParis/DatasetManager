@@ -48,7 +48,6 @@ class DatasetManager:
         kwargs.update(
             {'name':          name,
              'corpus_it_gen': corpus_it_gen,
-             'cache_dir': self.cache_dir
              })
         dataset = dataset_class_name(**kwargs)
         if os.path.exists(dataset.filepath(cache_dir=self.cache_dir)):

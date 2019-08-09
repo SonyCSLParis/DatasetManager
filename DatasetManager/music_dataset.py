@@ -1,3 +1,4 @@
+import shutil
 from abc import ABC, abstractmethod
 import os
 from torch.utils.data import TensorDataset, DataLoader
@@ -38,7 +39,7 @@ class MusicDataset(ABC):
                  as a tensor
         """
         pass
-    
+
     @abstractmethod
     def get_metadata_tensor(self, score):
         """
@@ -60,9 +61,9 @@ class MusicDataset(ABC):
         pass
 
     @abstractmethod
-    def extract_score_tensor_with_padding(self, 
-                                          tensor_score, 
-                                          start_tick, 
+    def extract_score_tensor_with_padding(self,
+                                          tensor_score,
+                                          start_tick,
                                           end_tick):
         """
 
@@ -76,9 +77,9 @@ class MusicDataset(ABC):
         pass
 
     @abstractmethod
-    def extract_metadata_with_padding(self, 
+    def extract_metadata_with_padding(self,
                                       tensor_metadata,
-                                      start_tick, 
+                                      start_tick,
                                       end_tick):
         """
 
@@ -96,7 +97,7 @@ class MusicDataset(ABC):
         :param score_length: int, length of the score in ticks
         :return: torch long tensor, initialized with start indices 
         """
-        pass 
+        pass
 
     @abstractmethod
     def random_score_tensor(self, score_length):
@@ -129,7 +130,14 @@ class MusicDataset(ABC):
             else:
                 print(f'Creating {self.__repr__()} TensorDataset'
                       f' since it is not cached')
+                #  Create dataset dir
+                dataset_dir = os.path.join(cache_dir, self.__repr__())
+                if os.path.isdir(dataset_dir):
+                    shutil.rmtree(dataset_dir)
+                os.makedirs(dataset_dir)
+                #  Build database
                 self.tensor_dataset = self.make_tensor_dataset()
+                #  Store
                 torch.save(self.tensor_dataset, self.tensor_dataset_filepath(cache_dir))
                 print(f'TensorDataset for {self.__repr__()} '
                       f'saved in {self.tensor_dataset_filepath(cache_dir)}')
@@ -139,28 +147,10 @@ class MusicDataset(ABC):
         return os.path.exists(self.tensor_dataset_filepath(cache_dir))
 
     def tensor_dataset_filepath(self, cache_dir):
-        tensor_datasets_cache_dir = os.path.join(
-            cache_dir,
-            'tensor_datasets')
-        if not os.path.exists(tensor_datasets_cache_dir):
-            os.mkdir(tensor_datasets_cache_dir)
-        fp = os.path.join(
-            tensor_datasets_cache_dir,
-            self.__repr__()
-        )
-        return fp
+        return os.path.join(cache_dir, self.__repr__(), 'tensor_dataset')
 
     def filepath(self, cache_dir):
-        tensor_datasets_cache_dir = os.path.join(
-            cache_dir,
-            'datasets')
-        if not os.path.exists(tensor_datasets_cache_dir):
-            os.mkdir(tensor_datasets_cache_dir)
-        return os.path.join(
-            cache_dir,
-            'datasets',
-            self.__repr__()
-        )
+        return os.path.join(cache_dir, self.__repr__(), 'dataset')
 
     def data_loaders(self, batch_size, cache_dir, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """

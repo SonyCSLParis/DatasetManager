@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import music21
 import numpy as np
 import torch
+
 from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pianoroll_frame, unquantize_velocity, \
     shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
@@ -29,7 +30,7 @@ Usually I use V = 1 and pitch_i simply indicates if a note is played or not
 """
 
 
-class ArrangementDataset(MusicDataset):
+class OrchestrationBertDataset(MusicDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
@@ -37,14 +38,12 @@ class ArrangementDataset(MusicDataset):
 
     def __init__(self,
                  corpus_it_gen,
-                 corpus_it_gen_instru_range,
                  name,
                  subdivision,
                  sequence_size,
                  velocity_quantization,
                  max_transposition,
                  integrate_discretization,
-                 alignement_type,
                  transpose_to_sounding_pitch,
                  compute_statistics_flag=None):
         """
@@ -58,7 +57,6 @@ class ArrangementDataset(MusicDataset):
         super().__init__()
         self.name = name
         self.corpus_it_gen = corpus_it_gen
-        self.corpus_it_gen_instru_range = corpus_it_gen_instru_range
         self.subdivision = subdivision  # We use only on beats notes so far
         assert sequence_size % 2 == 1
         self.sequence_size = sequence_size
@@ -66,19 +64,16 @@ class ArrangementDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
         self.integrate_discretization = integrate_discretization
-        self.alignement_type = alignement_type
-
-        #  Tessitura computed on data or use the reference tessitura ?
-        self.compute_tessitura = False
 
         config = get_config()
 
+        #  For consistency, use arrangement mappings
         arrangement_path = config["arrangement_path"]
         reference_tessitura_path = f'{arrangement_path}/reference_tessitura.json'
         simplify_instrumentation_path = f'{arrangement_path}/simplify_instrumentation.json'
 
         self.dump_folder = config["dump_folder"]
-        self.statistic_folder = self.dump_folder + '/arrangement/statistics'
+        self.statistic_folder = self.dump_folder + '/orchestration_bert/statistics'
         if os.path.isdir(self.statistic_folder):
             shutil.rmtree(self.statistic_folder)
         os.makedirs(self.statistic_folder)
@@ -107,24 +102,11 @@ class ArrangementDataset(MusicDataset):
         self.index2instruments_presence = {}
         self.instrument_presence_name2index = {}
         self.instrument_presence_index2name = {}
-        #  Piano
-        self.midi_pitch2index_piano = {}
-        self.index2midi_pitch_piano = {}
-        self.value2oneHot_perPianoToken = {}
-        self.oneHot2value_perPianoToken = {}
         # Dimensions
         self.number_instruments = None
-        self.number_pitch_piano = None
         self.instrument_presence_dim = None
 
         # Often used vectors, computed in compute_index_dicts
-        self.precomputed_vectors_piano = {
-            START_SYMBOL: None,
-            END_SYMBOL: None,
-            PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
-            REST_SYMBOL: None,
-        }
         self.precomputed_vectors_orchestra = {
             START_SYMBOL: None,
             END_SYMBOL: None,
@@ -132,7 +114,6 @@ class ArrangementDataset(MusicDataset):
             MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
-
         self.precomputed_vectors_orchestra_instruments_presence = {
             PAD_SYMBOL: None
         }
@@ -142,7 +123,7 @@ class ArrangementDataset(MusicDataset):
         return
 
     def __repr__(self):
-        return f'ArrangementDataset-' \
+        return f'OrchestrationBertDataset-' \
             f'{self.name}-' \
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
@@ -151,13 +132,6 @@ class ArrangementDataset(MusicDataset):
 
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
-
-    def iterator_gen_complementary(self):
-        return (score for score in self.corpus_it_gen_instru_range())
-
-    @staticmethod
-    def pair2index(one_hot_0, one_hot_1):
-        return one_hot_0 * 12 + one_hot_1
 
     def load_index_dicts(self):
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
@@ -185,14 +159,8 @@ class ArrangementDataset(MusicDataset):
         self.index2instruments_presence = index_dicts['index2instruments_presence']
         self.instrument_presence_name2index = index_dicts['instrument_presence_name2index']
         self.instrument_presence_index2name = index_dicts['instrument_presence_index2name']
-        #  Piano
-        self.midi_pitch2index_piano = index_dicts['midi_pitch2index_piano']
-        self.index2midi_pitch_piano = index_dicts['index2midi_pitch_piano']
-        self.value2oneHot_perPianoToken = index_dicts['value2oneHot_perPianoToken']
-        self.oneHot2value_perPianoToken = index_dicts['oneHot2value_perPianoToken']
         # Dimensions
         self.number_instruments = index_dicts['number_instruments']
-        self.number_pitch_piano = index_dicts['number_pitch_piano']
         self.instrument_presence_dim = index_dicts['instrument_presence_dim']
         # Misc
         self.observed_tessitura = index_dicts['observed_tessitura']
@@ -200,23 +168,6 @@ class ArrangementDataset(MusicDataset):
         ############################################################
         ############################################################
         # These are the one-hot representation of several useful (especially during generation) vectors
-        piano_start_vector = []
-        piano_end_vector = []
-        piano_padding_vector = []
-        piano_mask_vector = []
-        piano_rest_vector = []
-        for token_index, value2oneHot in self.value2oneHot_perPianoToken.items():
-            piano_start_vector.append(value2oneHot[START_SYMBOL])
-            piano_end_vector.append(value2oneHot[END_SYMBOL])
-            piano_padding_vector.append(value2oneHot[PAD_SYMBOL])
-            piano_mask_vector.append(value2oneHot[MASK_SYMBOL])
-            piano_rest_vector.append(value2oneHot[REST_SYMBOL])
-        self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
-        self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
-        self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_padding_vector)).long()
-        self.precomputed_vectors_piano[MASK_SYMBOL] = torch.from_numpy(np.asarray(piano_mask_vector)).long()
-        self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
-
         orchestra_start_vector = []
         orchestra_end_vector = []
         orchestra_padding_vector = []
@@ -1525,6 +1476,7 @@ if __name__ == '__main__':
                                  integrate_discretization=integrate_discretization,
                                  alignement_type='complete',
                                  transpose_to_sounding_pitch=True,
+                                 cache_dir=None,
                                  compute_statistics_flag=None)
 
     dataset.load_index_dicts()

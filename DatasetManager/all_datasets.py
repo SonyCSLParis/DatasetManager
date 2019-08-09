@@ -148,6 +148,23 @@ def get_all_datasets():
                 ),
                 'corpus_it_gen_instru_range': None
             },
+        # 'orchestration':
+        #     {
+        #         'dataset_class_name': OrchestrationDataset,
+        #         'corpus_it_gen': OrchestrationIteratorGenerator(
+        #             arrangement_path=f"{config['database_path']}/Orchestration/orchestral",
+        #             subsets=[
+        #                 'kunstderfuge',
+        #                 'musicalion',
+        #                 'mutopia',
+        #                 'open_music_scores',
+        #                 'bouliane',
+        #                 'hand_picked_spotify'
+        #             ],
+        #             num_elements=None,
+        #         ),
+        #         'corpus_it_gen_instru_range': None
+        #     },
         'bach_chorales':
             {
                 'dataset_class_name': ChoraleDataset,

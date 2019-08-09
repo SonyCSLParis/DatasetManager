@@ -5,11 +5,12 @@ from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementVoiceDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
-from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
+from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
+from DatasetManager.orchestration.orchestration_helper import OrchestraIteratorGenerator
 from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
 from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDataset, FolkMeasuresDatasetTranspose, FolkDatasetNBars
 

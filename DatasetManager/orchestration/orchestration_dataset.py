@@ -5,7 +5,6 @@ import re
 import shutil
 
 import DatasetManager
-import DatasetManager.arrangement.nw_align as nw_align
 import matplotlib.pyplot as plt
 import music21
 import numpy as np
@@ -123,7 +122,7 @@ class OrchestrationBertDataset(MusicDataset):
         return
 
     def __repr__(self):
-        return f'OrchestrationBertDataset-' \
+        return f'OrchestrationDataset-' \
             f'{self.name}-' \
             f'{self.subdivision}-' \
             f'{self.sequence_size}-' \
@@ -348,56 +347,6 @@ class OrchestrationBertDataset(MusicDataset):
             for instrument_index in instrument_indices:
                 self.midi_pitch2index[instrument_index] = midi_pitch2index_per_instrument[instrument_name]
                 self.index2midi_pitch[instrument_index] = index2midi_pitch_per_instrument[instrument_name]
-        ############################################################
-        ############################################################
-
-        ############################################################
-        ############################################################
-        # Piano
-        min_pitch_piano = min(set_midiPitch_per_instrument["Piano"])
-        max_pitch_piano = max(set_midiPitch_per_instrument["Piano"])
-        #  Use range to avoid "gaps" in the piano tessitura
-        list_midiPitch = sorted(list(range(min_pitch_piano, max_pitch_piano + 1)))
-        for index, midi_pitch in enumerate(list_midiPitch):
-            self.midi_pitch2index_piano[midi_pitch] = index
-            self.index2midi_pitch_piano[index] = midi_pitch
-
-        # One hot encoding for velocitites
-        dict_for_velocity2oneHot = {}
-        dict_for_oneHot2velocity = {}
-        # Silence (start with silence mapped to zero, kinda more logical, and then velocity and oneHot are the same
-        # value)
-        index = 0
-        dict_for_velocity2oneHot[REST_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = REST_SYMBOL
-        for velocity in range(1, self.velocity_quantization):
-            index += 1
-            dict_for_velocity2oneHot[velocity] = index
-            dict_for_oneHot2velocity[index] = velocity
-        # Slur
-        index += 1
-        dict_for_velocity2oneHot[SLUR_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = SLUR_SYMBOL
-        # Mask (for nade like inference schemes)
-        index += 1
-        dict_for_velocity2oneHot[MASK_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = MASK_SYMBOL
-        # Pad
-        index += 1
-        dict_for_velocity2oneHot[PAD_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = PAD_SYMBOL
-        # Start
-        index += 1
-        dict_for_velocity2oneHot[START_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = START_SYMBOL
-        # End
-        index += 1
-        dict_for_velocity2oneHot[END_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = END_SYMBOL
-
-        for token_index, _ in self.index2midi_pitch_piano.items():
-            self.value2oneHot_perPianoToken[token_index] = dict.copy(dict_for_velocity2oneHot)
-            self.oneHot2value_perPianoToken[token_index] = dict.copy(dict_for_oneHot2velocity)
         ############################################################
         ############################################################
 

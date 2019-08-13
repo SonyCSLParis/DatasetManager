@@ -116,7 +116,11 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
     # Transpose the score at sounding pitch. Simplify when transposing instruments are in the score
     score_soundingPitch = score
     if transpose_to_sounding_pitch:
-        score_soundingPitch = score.toSoundingPitch()
+        try:
+            score_soundingPitch = score.toSoundingPitch()
+        except:
+            score_soundingPitch = score
+
 
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)

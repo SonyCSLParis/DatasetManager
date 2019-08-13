@@ -86,10 +86,6 @@ class ArrangementFrameDataset(MusicDataset):
         return (self.sort_arrangement_pairs(arrangement_pair)
                 for arrangement_pair in self.corpus_it_gen())
 
-    @staticmethod
-    def pair2index(one_hot_0, one_hot_1):
-        return one_hot_0 * 12 + one_hot_1
-
     def compute_index_dicts(self):
         #  Mapping midi_pitch to token for each instrument
         set_midiPitch_per_instrument ={'Piano': set()}

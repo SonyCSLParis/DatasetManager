@@ -730,8 +730,8 @@ class ArrangementVoiceDataset(ArrangementDataset):
 
         return stream
 
-    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano=None, writing_dir=None,
-                        filepath=None, writing_tempo='adagio', subdivision=None):
+    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano, writing_dir,
+                        filepath, writing_tempo, subdivision, only_orchestra):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
@@ -759,11 +759,12 @@ class ArrangementVoiceDataset(ArrangementDataset):
         orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano, writing_tempo=writing_tempo,
                                                           subdivision=subdivision)
 
-        piano_part.write(fp=f"{writing_dir}/{filepath}_piano.mid", fmt='midi')
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.mid", fmt='midi')
-        # Both in the same score
-        orchestra_stream.append(piano_part)
-        orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
+        if not only_orchestra:
+            piano_part.write(fp=f"{writing_dir}/{filepath}_piano.mid", fmt='midi')
+            # Both in the same score
+            orchestra_stream.append(piano_part)
+            orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
                                  unknown_instruments=[], subdivision=None):

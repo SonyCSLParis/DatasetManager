@@ -11,6 +11,8 @@ from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.orchestration.orchestration_helper import OrchestraIteratorGenerator
+from DatasetManager.piano.piano_helper import PianoIteratorGenerator
+from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
 from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
 from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDataset, FolkMeasuresDatasetTranspose, FolkDatasetNBars
 
@@ -166,6 +168,29 @@ def get_all_datasets():
         #         ),
         #         'corpus_it_gen_instru_range': None
         #     },
+        'piano_midi':
+            {
+                'dataset_class_name': PianoMidiDataset,
+                'corpus_it_gen': PianoIteratorGenerator(
+                    path=f"{config['database_path']}/Piano",
+                    subsets=[
+                        'classic_piano_dataset',
+                        'ecomp_piano_dataset'
+                    ],
+                    num_elements=None
+                ),
+            },
+        'piano_midi_small':
+            {
+                'dataset_class_name': PianoMidiDataset,
+                'corpus_it_gen': PianoIteratorGenerator(
+                    path=f"{config['database_path']}/Piano",
+                    subsets=[
+                        'debug'
+                    ],
+                    num_elements=None
+                ),
+            },
         'bach_chorales':
             {
                 'dataset_class_name': ChoraleDataset,

@@ -111,9 +111,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
 
     # def iterator_gen_complementary(self):
 
-    # @staticmethod
-    # def pair2index(one_hot_0, one_hot_1):
-
     def load_index_dicts(self):
         dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
         index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{type(self).__name__}.pkl'
@@ -876,8 +873,8 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         else:
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
-    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano=None, writing_dir=None,
-                        filepath=None, writing_tempo='adagio', subdivision=None):
+    def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano, writing_dir,
+                        filepath, writing_tempo, subdivision, only_orchestra):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
@@ -897,11 +894,12 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                                                               writing_tempo=writing_tempo,
                                                               subdivision=subdivision)
 
-            piano_part.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_piano.mid", fmt='midi')
             orchestra_stream.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_orchestra.mid", fmt='midi')
-            # Both in the same score
-            orchestra_stream.append(piano_part)
-            orchestra_stream.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_both.mid", fmt='midi')
+            if not only_orchestra:
+                piano_part.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_piano.mid", fmt='midi')
+                # Both in the same score
+                orchestra_stream.append(piano_part)
+                orchestra_stream.write(fp=f"{writing_dir}/{filepath}_{batch_ind}_both.mid", fmt='midi')
 
 
 if __name__ == '__main__':

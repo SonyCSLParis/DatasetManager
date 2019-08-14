@@ -8,7 +8,48 @@ from DatasetManager.arrangement.arrangement_midiPiano_dataset import Arrangement
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.metadata import FermataMetadata, TickMetadata, KeyMetadata, BeatMarkerMetadata
 from DatasetManager.chorale_dataset import ChoraleBeatsDataset
+from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset
+
+
+###########################################################
+# Piano midi
+def build_piano_midi(dataset_manager, batch_size, sequence_size, integrate_discretization,
+                     max_transposition, number_dump, test_bool):
+    name = 'piano_midi'
+    if test_bool:
+        name += '_small'
+
+    piano_midi_dataset: PianoMidiDataset = dataset_manager.get_dataset(
+        name=name,
+        sequence_size=sequence_size,
+        max_transposition=max_transposition,
+        integrate_discretization=integrate_discretization,
+    )
+
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = piano_midi_dataset.data_loaders(
+        batch_size=batch_size,
+        cache_dir=dataset_manager.cache_dir,
+        split=(0.85, 0.10),
+        DEBUG_BOOL_SHUFFLE=True
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    writing_dir = f"{piano_midi_dataset.dump_folder}/piano_midi/writing"
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, message_type_batch = sample_batched
+        if i_batch > number_dump:
+            break
+        piano_midi_dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")
+    return
 
 
 ###########################################################
@@ -52,7 +93,8 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
         piano_batch, orchestra_batch, instrumentation_batch = sample_batched
         if i_batch > number_dump:
             break
-        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}")
+        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}",
+                                            writing_tempo='adagio', subdivision=None, only_orchestra=False)
     return
 
 
@@ -231,40 +273,49 @@ if __name__ == '__main__':
     test_bool = True
     dataset_manager = DatasetManager()
 
-    build_arrangement(
+    build_piano_midi(
         dataset_manager=dataset_manager,
         batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
+        sequence_size=100,
         integrate_discretization=integrate_discretization,
         max_transposition=max_transposition,
         number_dump=number_dump,
         test_bool=test_bool
     )
-    build_arrangement_midi(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        integrate_discretization=integrate_discretization,
-        max_transposition=max_transposition,
-        number_dump=number_dump,
-        test_bool=test_bool
-    )
-    build_arrangement_voice(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        integrate_discretization=integrate_discretization,
-        max_transposition=max_transposition,
-        number_dump=number_dump,
-        test_bool=test_bool
-    )
-    build_bach_beat(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequences_size=sequence_size,
-        test_bool=test_bool
-    )
+    # build_arrangement(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
+    # build_arrangement_midi(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
+    # build_arrangement_voice(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
+    # build_bach_beat(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequences_size=sequence_size,
+    #     test_bool=test_bool
+    # )

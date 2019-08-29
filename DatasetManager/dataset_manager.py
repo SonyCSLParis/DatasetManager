@@ -57,7 +57,19 @@ all_datasets = {
             'corpus_it_gen':      LeadsheetIteratorGenerator(
                 num_elements=None
             )
-        }
+        },
+    'lsdb_1barstride_test':
+        {
+            'dataset_class_name': LsdbDataset,
+            'corpus_it_gen':      LeadsheetIteratorGenerator(
+                num_elements=10)
+        },
+    'lsdb_1barstride':
+        {
+            'dataset_class_name': LsdbDataset,
+            'corpus_it_gen':      LeadsheetIteratorGenerator(
+                num_elements=None)
+        },
 
 }
 
@@ -155,10 +167,10 @@ if __name__ == '__main__':
     print('Num Test Batches: ', len(test_dataloader))
     '''
     # LSDB
-    '''
+
     lsdb_dataset: LsdbDataset = dataset_manager.get_dataset(
-        name='lsdb',
-        sequences_size=64,
+        name='lsdb_1barstride',
+        sequences_size=4,
     )
     (train_dataloader,
      val_dataloader,
@@ -192,3 +204,4 @@ if __name__ == '__main__':
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
+    '''

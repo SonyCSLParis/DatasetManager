@@ -131,7 +131,10 @@ class MusicDataset(ABC):
             else:
                 print(f'Creating {self.__repr__()} TensorDataset'
                       f' since it is not cached')
-                self._tensor_dataset = self.make_tensor_dataset()
+                if 'lsdb_1barstride' in self.name:
+                    self._tensor_dataset = self.make_tensor_dataset_1barstride()
+                else:
+                    self._tensor_dataset = self.make_tensor_dataset()
                 torch.save(self._tensor_dataset, self.tensor_dataset_filepath)
                 print(f'TensorDataset for {self.__repr__()} '
                       f'saved in {self.tensor_dataset_filepath}')

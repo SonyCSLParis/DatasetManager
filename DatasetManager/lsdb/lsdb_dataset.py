@@ -290,6 +290,89 @@ class LsdbDataset(MusicDataset):
               )
         return dataset
 
+    def make_tensor_dataset_1barstride(self):
+        """
+        Implementation of the make_tensor_dataset abstract base class
+        """
+        # todo check on chorale with Chord
+        print('Making tensor dataset')
+        # todo not useful?
+        # self.compute_index_dicts()
+        lead_tensor_dataset = []
+        chord_root_tensor_dataset = []
+        chord_name_tensor_dataset = []
+        count = 0
+        num_scores = sum(1 for x in self.corpus_it_gen())
+        if num_scores == 0:
+            print('No scores available in LeadSheetIteratorGenerator')
+            raise RuntimeError
+        import os
+        songname_path = os.path.join(self.cache_dir,'songname',self.__repr__())
+        if not os.path.exists(songname_path):
+            os.mkdir(songname_path)
+        f = open(os.path.join(songname_path,'tensor_songname.txt'),'w')
+        for _, leadsheet in tqdm(enumerate(self.corpus_it_gen())):
+            print('Entered: ', count)
+            count += 1
+            print(leadsheet.metadata.title)
+            if not self.is_valid(leadsheet):
+                continue
+            try:
+                lead_tensor, chord_root_tensor, chord_name_tensor = self.get_score_tensor(
+                    leadsheet, update_dicts=True
+                )
+                num_bars = int(leadsheet.highestTime/4)
+                for offsetStart_bar in range(0, num_bars):
+                    offsetStart = offsetStart_bar * 4
+                    offsetEnd = offsetStart + self.sequences_size
+                    local_lead_tensor = self.extract_score_tensor_with_padding(
+                        tensor=lead_tensor,
+                        start_tick=offsetStart * self.subdivision,
+                        end_tick=offsetEnd * self.subdivision,
+                        symbol2index=self.symbol2index_dicts[self.NOTES]
+                    )
+                    local_chord_root_tensor = self.extract_score_tensor_with_padding(
+                        tensor=chord_root_tensor,
+                        start_tick=offsetStart,
+                        end_tick=offsetEnd,
+                        symbol2index=self.symbol2index_dicts[self.CHORD_ROOT]
+                    )
+                    local_chord_name_tensor = self.extract_score_tensor_with_padding(
+                        tensor=chord_name_tensor,
+                        start_tick=offsetStart,
+                        end_tick=offsetEnd,
+                        symbol2index=self.symbol2index_dicts[self.CHORD_NAME]
+                    )
+                    # append and add batch dimension
+                    # cast to int
+                    lead_tensor_dataset.append(
+                        local_lead_tensor.int())
+                    chord_root_tensor_dataset.append(
+                        local_chord_root_tensor.int()
+                    )
+                    chord_name_tensor_dataset.append(
+                        local_chord_name_tensor.int()
+                    )
+                    f.write(f'{len(lead_tensor_dataset)}:'+leadsheet.metadata.title+'\n')
+            except LeadsheetParsingException as e:
+                print(e)
+
+        f.close()
+
+        lead_tensor_dataset = torch.cat(lead_tensor_dataset, 0)
+        chord_root_tensor_dataset = torch.cat(chord_root_tensor_dataset, 0)
+        chord_name_tensor_dataset = torch.cat(chord_name_tensor_dataset, 0)
+        dataset = TensorDataset(lead_tensor_dataset,
+                                chord_root_tensor_dataset,
+                                chord_name_tensor_dataset
+                                )
+
+        print(f'Sizes: {lead_tensor_dataset.size()},'
+              f' {chord_root_tensor_dataset.size()},'
+              f' {chord_name_tensor_dataset.size()}'
+              )
+        return dataset
+
     def contains_notes_and_chords(self, leadsheet):
         notes_and_rests, chords = notes_and_chords(leadsheet)
         notes = [n.pitch.midi for n in notes_and_rests if n.isNote]

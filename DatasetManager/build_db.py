@@ -14,7 +14,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset
 
 ###########################################################
 # Piano midi
-def build_piano_midi(dataset_manager, batch_size, sequence_size, integrate_discretization,
+def build_piano_midi(dataset_manager, batch_size, sequence_size,
                      max_transposition, number_dump, test_bool):
     name = 'piano_midi'
     if test_bool:
@@ -24,7 +24,6 @@ def build_piano_midi(dataset_manager, batch_size, sequence_size, integrate_discr
         name=name,
         sequence_size=sequence_size,
         max_transposition=max_transposition,
-        integrate_discretization=integrate_discretization,
     )
 
     (train_dataloader,
@@ -33,7 +32,7 @@ def build_piano_midi(dataset_manager, batch_size, sequence_size, integrate_discr
         batch_size=batch_size,
         cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
-        DEBUG_BOOL_SHUFFLE=True
+        DEBUG_BOOL_SHUFFLE=False
     )
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
@@ -264,20 +263,19 @@ def build_folk(dataset_manager, batch_size, subdivision, sequences_size):
 
 
 if __name__ == '__main__':
-    number_dump = 1
+    number_dump = 10
     batch_size = 8
     subdivision = 16
     sequence_size = 7
     integrate_discretization = True
-    max_transposition = 5
+    max_transposition = 2
     test_bool = True
     dataset_manager = DatasetManager()
 
     build_piano_midi(
         dataset_manager=dataset_manager,
         batch_size=batch_size,
-        sequence_size=100,
-        integrate_discretization=integrate_discretization,
+        sequence_size=500,
         max_transposition=max_transposition,
         number_dump=number_dump,
         test_bool=test_bool

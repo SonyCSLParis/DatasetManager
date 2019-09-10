@@ -1,9 +1,14 @@
 import json
+import os
+import shutil
+
 import music21
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
+
+from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL, MASK_SYMBOL
@@ -33,8 +38,7 @@ class PianoMidiDataset(MusicDataset):
                  corpus_it_gen,
                  name,
                  sequence_size,
-                 max_transposition,
-                 integrate_discretization):
+                 max_transposition):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -48,9 +52,6 @@ class PianoMidiDataset(MusicDataset):
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
         self.max_transposition = max_transposition
-        self.integrate_discretization = integrate_discretization
-        self.velocity_quantization = 32
-        self.duration_quantization = np.arange(10, 1000, 10)  # in milliseconds
 
         config = get_config()
 
@@ -275,7 +276,7 @@ class PianoMidiDataset(MusicDataset):
                 #  Transpose
                 #   shift up or down everything between 0 and 88 and 88 and 176
                 #    after checking that it does not go out of range
-                for transposition in range(-self.max_transposition, self.max_transposition):
+                for transposition in range(-self.max_transposition, self.max_transposition+1):
                     if transposition == 0:
                         continue
                     chunk_transposed = []
@@ -324,7 +325,6 @@ class PianoMidiDataset(MusicDataset):
         raise NotImplementedError
 
     def tensor_to_score(self, sequence, midipath):
-        print('coucou')
         #  Filter out meta events
         sequence_clean = [int(e) for e in sequence if e not in self.meta_range]
         # Create EventSeq
@@ -344,3 +344,42 @@ class PianoMidiDataset(MusicDataset):
         for batch_ind in range(num_batches):
             self.tensor_to_score(sequence=piano_sequences[batch_ind],
                                  midipath=f"{writing_dir}/{filepath}_{batch_ind}.mid")
+
+
+if __name__ == '__main__':
+    #  Read
+    from DatasetManager.piano.piano_helper import PianoIteratorGenerator
+
+    config = get_config()
+
+    # parameters
+    sequence_size = 5
+    max_transposition = 12
+    subdivision = 16
+
+    corpus_it_gen = PianoIteratorGenerator(
+        path=f"{config['database_path']}/Piano",
+        subsets=[
+            'debug'
+        ],
+        num_elements=None
+    )
+
+    dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
+                               name='shit',
+                               sequence_size=sequence_size,
+                               max_transposition=max_transposition,
+                               )
+
+    dataset.compute_index_dicts()
+
+    writing_dir = f'{config["dump_folder"]}/piano_midi/reconstruction_midi'
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+
+    num_frames = 500
+    for score_id, midi_file in tqdm(enumerate(dataset.iterator_gen())):
+        sequence = preprocess_midi(midi_file)
+        dataset.tensor_to_score(sequence=sequence,
+                                midipath=f"{writing_dir}/{score_id}.mid")

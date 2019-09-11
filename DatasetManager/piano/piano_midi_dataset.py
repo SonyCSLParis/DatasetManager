@@ -69,6 +69,7 @@ class PianoMidiDataset(MusicDataset):
         self.meta_range = None
         self.message_type_to_index = {}
         self.index_to_message_type = {}
+        self.one_hot_dimension = None
 
         self.precomputed_vectors_piano = {
             START_SYMBOL: None,
@@ -173,6 +174,8 @@ class PianoMidiDataset(MusicDataset):
         self.index_to_meta_symbols[index] = END_SYMBOL
         index += 1
         self.meta_range = list(range(last_index, index))
+
+        self.one_hot_dimension = index
 
         # Message types to index
         index = 0

@@ -14,6 +14,14 @@ class MusicDataset(ABC):
     def __init__(self):
         self.tensor_dataset = None
 
+    @property
+    def cache_dir(self):
+        package_dir = os.path.dirname(os.path.realpath(__file__))
+        cache_dir = os.path.join(package_dir,
+                                      'dataset_cache')
+        return cache_dir
+
+
     @abstractmethod
     def iterator_gen(self):
         """
@@ -152,7 +160,7 @@ class MusicDataset(ABC):
     def filepath(self, cache_dir):
         return os.path.join(cache_dir, self.__repr__(), 'dataset')
 
-    def data_loaders(self, batch_size, cache_dir, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -162,7 +170,7 @@ class MusicDataset(ABC):
         """
         assert sum(split) < 1
 
-        dataset = self.get_tensor_dataset(cache_dir)
+        dataset = self.get_tensor_dataset(self.cache_dir)
         num_examples = len(dataset)
         a, b = split
         train_dataset = TensorDataset(*dataset[: int(a * num_examples)])

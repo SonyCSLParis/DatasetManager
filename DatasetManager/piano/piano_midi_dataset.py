@@ -1,17 +1,16 @@
-import json
 import os
+import pickle
 import shutil
 
-import music21
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils import data
 from tqdm import tqdm
 
+import DatasetManager
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    PAD_SYMBOL, MASK_SYMBOL
-from DatasetManager.music_dataset import MusicDataset
-from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq
+    PAD_SYMBOL
+from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
 
 """
 Typical piano sequence:
@@ -26,7 +25,7 @@ p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
 """
 
 
-class PianoMidiDataset(MusicDataset):
+class PianoMidiDataset(data.Dataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
@@ -46,21 +45,18 @@ class PianoMidiDataset(MusicDataset):
         """
         super().__init__()
 
+        package_dir = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        cache_dir = os.path.join(package_dir, 'dataset_cache')
+        # create cache dir if it doesn't exist
+        if not os.path.exists(cache_dir):
+            os.mkdir(cache_dir)
+
+        self.list_ids = []
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
         self.max_transposition = max_transposition
         self.last_index = None
-
-        config = get_config()
-
-        arrangement_path = config["arrangement_path"]
-        reference_tessitura_path = f'{arrangement_path}/reference_tessitura.json'
-        self.dump_folder = config["dump_folder"]
-
-        with open(reference_tessitura_path, 'r') as ff:
-            tessitura = json.load(ff)
-        self.reference_tessitura = (music21.note.Note(tessitura['Piano'][0]), music21.note.Note(tessitura['Piano'][1]))
 
         self.feat_ranges = None
         self.meta_symbols_to_index = {}
@@ -77,17 +73,120 @@ class PianoMidiDataset(MusicDataset):
             REST_SYMBOL: None,
         }
 
+        dataset_dir = f'{cache_dir}/{self}'
+        filename = f'{dataset_dir}/dataset.pkl'
+        self.local_parameters = {
+            'dataset_dir': dataset_dir,
+            'filename': filename
+        }
+
+        #  Building/loading the dataset
+        if os.path.isfile(filename):
+            self.load()
+        else:
+            print(f'Building dataset {self}')
+            self.make_tensor_dataset()
         return
 
     def __repr__(self):
-        name = f'PianosMidipianoDataset-' \
+        name = f'PianoMidi-' \
             f'{self.name}-' \
             f'{self.sequence_size}-' \
             f'{self.max_transposition}'
         return name
 
+    def __len__(self):
+        """Denotes the total number of samples"""
+        return len(self.list_ids)
+
+    def save(self):
+        f = open(self.local_parameters['filename'], 'wb')
+        pickle.dump(self.__dict__, f, 2)
+        f.close()
+
+    def load(self):
+        """
+        Load a dataset while avoiding local parameters specific to the machine used
+        :return:
+        """
+        f = open(self.local_parameters['filename'], 'rb')
+        tmp_dict = pickle.load(f)
+        f.close()
+        for k, v in tmp_dict.items():
+            if k != 'local_parameters':
+                self.__dict__[k] = v
+
+    def extract_subset(self, list_ids):
+        instance = PianoMidiDataset(corpus_it_gen=None,
+                                    name=self.name,
+                                    sequence_size=self.sequence_size,
+                                    max_transposition=self.max_transposition)
+        instance.list_ids = list_ids
+        return instance
+
+    def __getitem__(self, index):
+        """
+        Generates one sample of data
+        """
+        dataset_dir = self.local_parameters["dataset_dir"]
+        # Select sample
+        id = self.list_ids[index]
+        # Load data and get label
+        x = torch.load(f'{dataset_dir}/x/{id}.pt')
+        messages = torch.load(f'{dataset_dir}/message_type/{id}.pt')
+
+        return x, messages
+
     def iterator_gen(self):
-        return (score for score in self.corpus_it_gen())
+        return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
+
+    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+        """
+        Returns three data loaders obtained by splitting
+        self.tensor_dataset according to split
+        :param batch_size:
+        :param split:
+        :return:
+        """
+        assert sum(split) < 1
+
+        num_examples = len(self)
+        a, b = split
+        train_ids = self.list_ids[: int(a * num_examples)]
+        val_ids = self.list_ids[int(a * num_examples): int((a + b) * num_examples)]
+        eval_ids = self.list_ids[int((a + b) * num_examples):]
+
+        train_dataset = self.extract_subset(train_ids)
+        val_dataset = self.extract_subset(val_ids)
+        eval_dataset = self.extract_subset(eval_ids)
+
+        train_dl = data.DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=DEBUG_BOOL_SHUFFLE,
+            num_workers=0,
+            pin_memory=True,
+            drop_last=True,
+        )
+
+        val_dl = data.DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+            drop_last=True,
+        )
+
+        eval_dl = data.DataLoader(
+            eval_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+            drop_last=True,
+        )
+        return train_dl, val_dl, eval_dl
 
     def compute_index_dicts(self):
         #  From performance rnn
@@ -101,52 +200,6 @@ class PianoMidiDataset(MusicDataset):
         # list_midiPitch = sorted(list(range(lowest_pitch, highest_pitch + 1)))
         # list_velocity = list(range(self.velocity_quantization))
         # list_duration = list(self.duration_quantization)
-
-        # #  note on
-        # index = 0
-        # for midi_pitch in list_midiPitch:
-        #     symbol = f'{midi_pitch}_on'
-        #     self.symbol2index[symbol] = index
-        #     self.index2symbol[index] = symbol
-        #     index += 1
-        #
-        # #  note off
-        # for midi_pitch in list_midiPitch:
-        #     symbol = f'{midi_pitch}_off'
-        #     self.symbol2index[symbol] = index
-        #     self.index2symbol[index] = symbol
-        #     index += 1
-        #
-        # # durations
-        # for duration in list_duration:
-        #     symbol = f'dur_{duration}'
-        #     self.symbol2index[symbol] = index
-        #     self.index2symbol[index] = symbol
-        #     index += 1
-        #
-        # # velocities
-        # for vel in list_velocity:
-        #     symbol = f'vel_{vel}'
-        #     self.symbol2index[symbol] = index
-        #     self.index2symbol[index] = symbol
-        #     index += 1
-        #
-        # # Mask (for nade like inference schemes)
-        # self.symbol2index[MASK_SYMBOL] = index
-        # self.index2symbol[index] = MASK_SYMBOL
-        # index += 1
-        # # Pad
-        # self.symbol2index[PAD_SYMBOL] = index
-        # self.index2symbol[index] = PAD_SYMBOL
-        # index += 1
-        # # Start
-        # self.symbol2index[START_SYMBOL] = index
-        # self.index2symbol[index] = START_SYMBOL
-        # index += 1
-        # # End
-        # self.symbol2index[END_SYMBOL] = index
-        # self.index2symbol[index] = END_SYMBOL
-        # index += 1
 
         self.feat_ranges = EventSeq.feat_ranges()
         last_index = 0
@@ -181,29 +234,7 @@ class PianoMidiDataset(MusicDataset):
         self.index_to_message_type[index] = 'meta'
         return
 
-    def extract_score_tensor_with_padding(self, tensor_score):
-        return None
-
-    def extract_metadata_with_padding(self, tensor_metadata, start_tick, end_tick):
-        return None
-
-    def empty_score_tensor(self, score_length):
-
-        return None
-
-    def random_score_tensor(self, score_length):
-        return None
-
-    def get_score_tensor(self, scores, offsets):
-        return None
-
-    def get_metadata_tensor(self, score):
-        return None
-
-    def transposed_score_and_metadata_tensors(self, score, semi_tone):
-        return None
-
-    def make_tensor_dataset(self, frame_orchestra=None):
+    def make_tensor_dataset(self):
         """
         Implementation of the make_tensor_dataset abstract base class
         """
@@ -216,11 +247,12 @@ class PianoMidiDataset(MusicDataset):
         total_chunk_counter = 0
         chunk_counter = 0
         impossible_transposition = 0
-
-        #  Dataset
-        piano_tensor_dataset = []
-        # Store message types, to easily filter different messages depending on the application
-        message_type_dataset = []
+        dataset_dir = self.local_parameters["dataset_dir"]
+        if os.path.isdir(dataset_dir):
+            shutil.rmtree(dataset_dir)
+        os.makedirs(dataset_dir)
+        os.mkdir(f'{dataset_dir}/x')
+        os.mkdir(f'{dataset_dir}/message_type')
 
         # Iterate over files
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
@@ -243,8 +275,6 @@ class PianoMidiDataset(MusicDataset):
             chunk_size = self.sequence_size
             hop_size = chunk_size // 2
             for t in range(-hop_size, seq_len, hop_size):
-                chunk_counter += 1
-                total_chunk_counter += 1
                 prepend_seq = []
                 append_seq = []
                 if t < 0:
@@ -257,7 +287,8 @@ class PianoMidiDataset(MusicDataset):
                 start = max(0, t)
                 end = min(seq_len, t + chunk_size)
                 chunk = prepend_seq + list(sequence[start:end]) + append_seq
-                piano_tensor_dataset.append(torch.tensor(chunk).long())
+                torch.save(torch.tensor(chunk).long(), f'{dataset_dir}/x/{total_chunk_counter}.pt')
+
                 # Build symbol_type sequence
                 message_type_chunk = []
                 for message in chunk:
@@ -268,12 +299,17 @@ class PianoMidiDataset(MusicDataset):
                             meta_message = False
                     if meta_message:
                         message_type_chunk.append(self.message_type_to_index['meta'])
-                message_type_dataset.append(torch.tensor(message_type_chunk).long())
+                torch.save(torch.tensor(message_type_chunk).long(),
+                           f'{dataset_dir}/message_type/{total_chunk_counter}.pt')
+
+                self.list_ids.append(total_chunk_counter)
+                chunk_counter += 1
+                total_chunk_counter += 1
 
                 #  Transpose
                 #   shift up or down everything between 0 and 88 and 88 and 176
                 #    after checking that it does not go out of range
-                for transposition in range(-self.max_transposition, self.max_transposition+1):
+                for transposition in range(-self.max_transposition, self.max_transposition + 1):
                     if transposition == 0:
                         continue
                     chunk_transposed = []
@@ -294,28 +330,20 @@ class PianoMidiDataset(MusicDataset):
                         impossible_transposition += 1
                         continue
                     else:
-                        total_chunk_counter += 1
-                        piano_tensor_dataset.append(torch.tensor(chunk_transposed).long())
+                        torch.save(torch.tensor(chunk_transposed).long(), f'{dataset_dir}/x/{total_chunk_counter}.pt')
                         #  Types are unchanged
-                        message_type_dataset.append(torch.tensor(message_type_chunk).long())
+                        torch.save(torch.tensor(message_type_chunk).long(),
+                                   f'{dataset_dir}/message_type/{total_chunk_counter}.pt')
+                        self.list_ids.append(total_chunk_counter)
+                        total_chunk_counter += 1
 
-        piano_tensor_dataset = torch.stack(piano_tensor_dataset, 0)
-        message_type_dataset = torch.stack(message_type_dataset, 0)
+        print(f'Chunks: {chunk_counter}\n'
+              f'with transpos: {total_chunk_counter}\n'
+              f'Impossible transpo: {impossible_transposition}')
 
-        #######################
-        #  Create Tensor Dataset
-        dataset = TensorDataset(piano_tensor_dataset,
-                                message_type_dataset)
-        #######################
-
-        print(
-            f'### Sizes: \n'
-            f'Piano: {piano_tensor_dataset.size()}\n'
-            f'Chunks: {chunk_counter}\n'
-            f'with transpos: {total_chunk_counter}\n'
-            f'Impossible transpo: {impossible_transposition}')
-
-        return dataset
+        # Save class
+        self.save()
+        return
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
                                  unknown_instruments=[], subdivision=None):
@@ -330,9 +358,6 @@ class PianoMidiDataset(MusicDataset):
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
         # Visualise a few examples
-        if writing_dir is None:
-            writing_dir = f"{self.dump_folder}/piano_midi"
-
         if len(piano_sequences.size()) == 1:
             piano_sequences = torch.unsqueeze(piano_sequences, dim=0)
 
@@ -344,39 +369,37 @@ class PianoMidiDataset(MusicDataset):
 
 
 if __name__ == '__main__':
-    #  Read
-    from DatasetManager.piano.piano_helper import PianoIteratorGenerator
-
     config = get_config()
-
-    # parameters
-    sequence_size = 5
-    max_transposition = 12
-    subdivision = 16
 
     corpus_it_gen = PianoIteratorGenerator(
         path=f"{config['database_path']}/Piano",
         subsets=[
-            'debug'
+            'debug',
         ],
         num_elements=None
     )
 
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-                               name='shit',
-                               sequence_size=sequence_size,
-                               max_transposition=max_transposition,
-                               )
+                               name='small',
+                               sequence_size=200,
+                               max_transposition=3)
 
-    dataset.compute_index_dicts()
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
 
-    writing_dir = f'{config["dump_folder"]}/piano_midi/reconstruction_midi'
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    number_dump = 20
+    writing_dir = f"../dump/piano_midi/writing"
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
-
-    num_frames = 500
-    for score_id, midi_file in tqdm(enumerate(dataset.iterator_gen())):
-        sequence = preprocess_midi(midi_file)
-        dataset.tensor_to_score(sequence=sequence,
-                                midipath=f"{writing_dir}/{score_id}.mid")
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, message_type_batch = sample_batched
+        if i_batch > number_dump:
+            break
+        dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

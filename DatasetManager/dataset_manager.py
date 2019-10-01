@@ -1,14 +1,12 @@
 import os
 import torch
 from DatasetManager.music_dataset import MusicDataset
-import DatasetManager.all_datasets as all_datasets
+from DatasetManager.all_datasets import get_all_datasets
 
 # Basically, all you have to do to use an existing dataset is to
 # add an entry in the all_datasets variable
 # and specify its base class and which music21 objects it uses
 # by giving an iterator over music21 scores
-
-all_datasets = all_datasets.get_all_datasets()
 
 
 class DatasetManager:
@@ -21,6 +19,9 @@ class DatasetManager:
             os.mkdir(self.cache_dir)
 
     def get_dataset(self, name: str, **dataset_kwargs) -> MusicDataset:
+
+        all_datasets = get_all_datasets()
+
         if name in all_datasets:
             return self.load_if_exists_or_initialize_and_save(
                 name=name,

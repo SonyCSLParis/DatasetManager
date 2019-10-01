@@ -46,7 +46,7 @@ class ArrangementDataset(MusicDataset):
                  integrate_discretization,
                  alignement_type,
                  transpose_to_sounding_pitch,
-                 compute_statistics_flag=None):
+                 compute_statistics_flag):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)

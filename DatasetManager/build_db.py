@@ -3,34 +3,46 @@ import shutil
 
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementVoiceDataset
+from DatasetManager.config import get_config
 from DatasetManager.dataset_manager import DatasetManager
 from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.metadata import FermataMetadata, TickMetadata, KeyMetadata, BeatMarkerMetadata
 from DatasetManager.chorale_dataset import ChoraleBeatsDataset
+from DatasetManager.piano.piano_helper import PianoIteratorGenerator
 from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset
 
 
 ###########################################################
 # Piano midi
+
+config = get_config()
+
 def build_piano_midi(dataset_manager, batch_size, sequence_size,
                      max_transposition, number_dump, test_bool):
     name = 'piano_midi'
     if test_bool:
         name += '_small'
 
-    piano_midi_dataset: PianoMidiDataset = dataset_manager.get_dataset(
-        name=name,
-        sequence_size=sequence_size,
-        max_transposition=max_transposition,
-    )
+    corpus_it_gen = PianoIteratorGenerator(
+            path=f"{config['database_path']}/Piano",
+            subsets=[
+                'classic_piano_dataset',
+                'ecomp_piano_dataset'
+            ],
+            num_elements=None
+        )
+    piano_midi_dataset: PianoMidiDataset = PianoMidiDataset(list_ids,
+                                                            corpus_it_gen,
+                                                            name,
+                                                            sequence_size,
+                                                            max_transposition)
 
     (train_dataloader,
      val_dataloader,
      test_dataloader) = piano_midi_dataset.data_loaders(
         batch_size=batch_size,
-        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=False
     )

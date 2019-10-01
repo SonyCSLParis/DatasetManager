@@ -11,7 +11,7 @@ from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, sh
     note_to_midiPitch, new_events
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, MASK_SYMBOL, PAD_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from tqdm import tqdm
 
@@ -19,7 +19,7 @@ from tqdm import tqdm
 Piano is encoded like orchestra.
 It has a fixed number of voices V, and each temporal frame is a vector
 [v_1, ..., v_V-1]
-where v_i is a categorical variable whose labels are {p_i, SLUR, START, END, REST, PAD, MASK}, 
+where v_i is a categorical variable whose labels are {p_i, SLUR, START, END, REST, PAD}, 
 where p_i represent pitch and s_i represents a slured pitch.
 We use a different slur symbol for each pitch to avoid ambiguous situations where the position in the voices are shifted,
 like for instance if the lowest note at time t is slured, but at time t+1 a new note starts plaing at a lower pitch.
@@ -97,14 +97,12 @@ class ArrangementVoiceDataset(ArrangementDataset):
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
         self.precomputed_vectors_orchestra = {
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
 
@@ -163,12 +161,10 @@ class ArrangementVoiceDataset(ArrangementDataset):
         piano_start_vector = [self.midi_pitch_piano2index[START_SYMBOL]] * self.number_voices_piano
         piano_end_vector = [self.midi_pitch_piano2index[END_SYMBOL]] * self.number_voices_piano
         piano_pad_vector = [self.midi_pitch_piano2index[PAD_SYMBOL]] * self.number_voices_piano
-        piano_mask_vector = [self.midi_pitch_piano2index[MASK_SYMBOL]] * self.number_voices_piano
         self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
         self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
         self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
         self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_pad_vector)).long()
-        self.precomputed_vectors_piano[MASK_SYMBOL] = torch.from_numpy(np.asarray(piano_mask_vector)).long()
 
         orchestra_start_vector = []
         orchestra_end_vector = []
@@ -180,12 +176,10 @@ class ArrangementVoiceDataset(ArrangementDataset):
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
             orchestra_pad_vector.append(mapping[PAD_SYMBOL])
-            orchestra_mask_vector.append(mapping[MASK_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
-        self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
         unknown_vector = np.ones((self.instrument_presence_dim)) * self.instruments_presence2index[PAD_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = \
@@ -314,10 +308,6 @@ class ArrangementVoiceDataset(ArrangementDataset):
             midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
             index += 1
-            # Mask (for nade like inference schemes)
-            midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
-            index += 1
             # Start
             midi_pitch2index_per_instrument[instrument_name][START_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = START_SYMBOL
@@ -391,10 +381,6 @@ class ArrangementVoiceDataset(ArrangementDataset):
         # Pad
         self.midi_pitch_piano2index[PAD_SYMBOL] = index
         self.index2midi_pitch_piano[index] = PAD_SYMBOL
-        index += 1
-        #  Mask
-        self.midi_pitch_piano2index[MASK_SYMBOL] = index
-        self.index2midi_pitch_piano[index] = MASK_SYMBOL
         index += 1
         # Start
         self.midi_pitch_piano2index[START_SYMBOL] = index
@@ -701,7 +687,7 @@ class ArrangementVoiceDataset(ArrangementDataset):
             #  Each voice is monophonic
             for frame_index, duration in enumerate(durations):
                 symbol = self.index2midi_pitch_piano[piano_matrix[frame_index, voice_index]]
-                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
+                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, PAD_SYMBOL]:
                     if symbol == SLUR_SYMBOL:
                         (this_pitch, this_offset, this_duration) = score_list.pop(-1)
                         new_elem = (this_pitch, this_offset, this_duration + duration)

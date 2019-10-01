@@ -2,18 +2,19 @@ import os
 import pickle
 import re
 import shutil
+
 import music21
 import numpy as np
 import torch
+from tqdm import tqdm
 
 import DatasetManager
-from DatasetManager.arrangement.arrangement_helper import shift_pr_along_pitch_axis, note_to_midiPitch, \
-    score_to_pianoroll, new_events, flatten_dict_pr
-from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL, MASK_SYMBOL
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
+from DatasetManager.arrangement.arrangement_helper import shift_pr_along_pitch_axis, note_to_midiPitch, \
+    score_to_pianoroll, new_events
 from DatasetManager.config import get_config
-from tqdm import tqdm
+from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
+    YES_SYMBOL, NO_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL
 
 """
 Typical piano sequence:
@@ -82,14 +83,12 @@ class ArrangementMidipianoDataset(ArrangementDataset):
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
         self.precomputed_vectors_orchestra = {
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
 
@@ -156,14 +155,12 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         for instru_ind, mapping in self.midi_pitch2index.items():
             orchestra_start_vector.append(mapping[START_SYMBOL])
             orchestra_pad_vector.append(mapping[PAD_SYMBOL])
-            orchestra_mask_vector.append(mapping[MASK_SYMBOL])
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_pad_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
-        self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
         unknown_vector = np.ones((self.instrument_presence_dim)) * self.instruments_presence2index[PAD_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = \
@@ -287,10 +284,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
             index += 1
             midi_pitch2index_per_instrument[instrument_name][SLUR_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = SLUR_SYMBOL
-            # Mask
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
             # Pad
             index += 1
             midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
@@ -363,10 +356,6 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         # Time shift
         self.symbol2index_piano[STOP_SYMBOL] = index
         self.index2symbol_piano[index] = STOP_SYMBOL
-        index += 1
-        # Masking
-        self.symbol2index_piano[MASK_SYMBOL] = index
-        self.index2symbol_piano[index] = MASK_SYMBOL
         index += 1
         # Padding
         self.symbol2index_piano[PAD_SYMBOL] = index
@@ -548,7 +537,7 @@ class ArrangementMidipianoDataset(ArrangementDataset):
                 frame_piano = this_chunk_piano_indices[index_frame]
                 frame_orchestra = this_chunk_orchestra_indices[index_frame]
 
-                if frame_orchestra in [START_SYMBOL, MASK_SYMBOL, PAD_SYMBOL, END_SYMBOL]:
+                if frame_orchestra in [START_SYMBOL, PAD_SYMBOL, END_SYMBOL]:
                     if frame_piano == END_SYMBOL:
                         #  Remove TS (after asserting there is one...)
                         assert local_piano_tensor[-1] == self.symbol2index_piano[TIME_SHIFT], "Weirdness"
@@ -800,7 +789,7 @@ class ArrangementMidipianoDataset(ArrangementDataset):
             #  Get symbol corresponding to one-hot encoding
             symbol = self.index2symbol_piano[elem]
 
-            if symbol in [START_SYMBOL, END_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
+            if symbol in [START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                 global_offset += durations[frame_index]
                 # frame_index += 1
             elif symbol in [TIME_SHIFT, STOP_SYMBOL]:

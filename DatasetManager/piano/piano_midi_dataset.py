@@ -330,7 +330,7 @@ class PianoMidiDataset(data.Dataset):
                         impossible_transposition += 1
                         continue
                     else:
-                        torch.save(torch.tensor(chunk).long(), f'{dataset_dir}/x/{total_chunk_counter}.pt')
+                        torch.save(torch.tensor(chunk_transposed).long(), f'{dataset_dir}/x/{total_chunk_counter}.pt')
                         #  Types are unchanged
                         torch.save(torch.tensor(message_type_chunk).long(),
                                    f'{dataset_dir}/message_type/{total_chunk_counter}.pt')
@@ -355,12 +355,9 @@ class PianoMidiDataset(data.Dataset):
         # Create EventSeq
         EventSeq.from_array(sequence_clean).to_note_seq().to_midi_file(midipath)
 
-    def visualise_batch(self, piano_sequences, writing_dir, filepath, dump_fodler):
+    def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
         # Visualise a few examples
-        if writing_dir is None:
-            writing_dir = f"{dump_fodler}/piano_midi"
-
         if len(piano_sequences.size()) == 1:
             piano_sequences = torch.unsqueeze(piano_sequences, dim=0)
 
@@ -387,6 +384,22 @@ if __name__ == '__main__':
                                sequence_size=200,
                                max_transposition=3)
 
-    (generator_train,
-     generator_val,
-     generator_test) = dataset.data_loaders(batch_size=16)
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
+
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    number_dump = 20
+    writing_dir = f"../dump/piano_midi/writing"
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, message_type_batch = sample_batched
+        if i_batch > number_dump:
+            break
+        dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

@@ -1180,7 +1180,7 @@ class ArrangementDataset(MusicDataset):
     def random_score_tensor(self, score_length):
         return None
 
-    def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo='adagio', subdivision=None):
+    def piano_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo='adagio', subdivision=None):
 
         piano_matrix = tensor_score.numpy()
         length = len(piano_matrix)
@@ -1242,9 +1242,12 @@ class ArrangementDataset(MusicDataset):
                 f.quarterLength = duration / subdivision
                 this_part.insert((offset / subdivision), f)
 
+        if format == 'xml':
+            this_part = this_part.chordify()
+
         return this_part
 
-    def orchestra_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
+    def orchestra_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo="adagio", subdivision=None):
         """
 
         :param durations:
@@ -1332,6 +1335,8 @@ class ArrangementDataset(MusicDataset):
                     f.quarterLength = duration / subdivision
                     this_part.insert((offset / subdivision), f)
 
+            if format == 'xml':
+                this_part = this_part.chordify()
             this_part.atSoundingPitch = self.transpose_to_sounding_pitch
             stream.append(this_part)
             streams[instrument_name] = this_part

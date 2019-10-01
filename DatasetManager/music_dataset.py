@@ -17,8 +17,7 @@ class MusicDataset(ABC):
     @property
     def cache_dir(self):
         package_dir = os.path.dirname(os.path.realpath(__file__))
-        cache_dir = os.path.join(package_dir,
-                                      'dataset_cache')
+        cache_dir = os.path.join(package_dir, 'dataset_cache')
         return cache_dir
 
 

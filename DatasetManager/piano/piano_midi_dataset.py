@@ -3,12 +3,10 @@ import os
 import shutil
 
 import music21
-import numpy as np
 import torch
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
-from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL, MASK_SYMBOL
@@ -52,6 +50,7 @@ class PianoMidiDataset(MusicDataset):
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
         self.max_transposition = max_transposition
+        self.last_index = None
 
         config = get_config()
 
@@ -75,7 +74,6 @@ class PianoMidiDataset(MusicDataset):
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
 
@@ -155,12 +153,8 @@ class PianoMidiDataset(MusicDataset):
         for k, v in self.feat_ranges.items():
             if v.stop > last_index:
                 last_index = v.stop
-        # Mask (for nade like inference schemes)
         index = last_index
         self.last_index = last_index
-        self.meta_symbols_to_index[MASK_SYMBOL] = index
-        self.index_to_meta_symbols[index] = MASK_SYMBOL
-        index += 1
         # Pad
         self.meta_symbols_to_index[PAD_SYMBOL] = index
         self.index_to_meta_symbols[index] = PAD_SYMBOL

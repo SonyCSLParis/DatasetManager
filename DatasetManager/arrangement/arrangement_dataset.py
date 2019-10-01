@@ -1311,6 +1311,7 @@ class ArrangementDataset(MusicDataset):
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()
+        streams = {}
 
         for instrument_name, elems in score_dict.items():
             this_part = music21.stream.Part(id=instrument_name)
@@ -1347,8 +1348,9 @@ class ArrangementDataset(MusicDataset):
 
             this_part.atSoundingPitch = self.transpose_to_sounding_pitch
             stream.append(this_part)
+            streams[instrument_name] = this_part
 
-        return stream
+        return stream, streams, score_dict
 
     def tensor_to_score(self, tensor_score, score_type):
         if score_type == 'piano':
@@ -1382,10 +1384,12 @@ class ArrangementDataset(MusicDataset):
             orchestra_with_padding_between_batch[:, time_length] = self.precomputed_vectors_orchestra[REST_SYMBOL]
             orchestra_flat = orchestra_with_padding_between_batch.view(-1, self.number_instruments)
 
-        piano_part = self.piano_tensor_to_score(piano_flat, durations_piano, writing_tempo=writing_tempo,
+        piano_part = self.piano_tensor_to_score(piano_flat, durations_piano,
+                                                writing_tempo=writing_tempo,
                                                 subdivision=subdivision)
-        orchestra_stream = self.orchestra_tensor_to_score(orchestra_flat, durations_piano, writing_tempo=writing_tempo,
-                                                          subdivision=subdivision)
+        orchestra_stream, _, _ = self.orchestra_tensor_to_score(orchestra_flat, durations_piano,
+                                                                writing_tempo=writing_tempo,
+                                                                subdivision=subdivision)
 
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.mid", fmt='midi')
         if not only_orchestra:
@@ -1477,7 +1481,7 @@ class ArrangementDataset(MusicDataset):
         orchestra_init[:context_length - 1] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
         orchestra_init[context_length - 1] = self.precomputed_vectors_orchestra[START_SYMBOL]
         orchestra_init[-context_length] = self.precomputed_vectors_orchestra[END_SYMBOL]
-        orchestra_init[-context_length:] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
+        orchestra_init[-context_length + 1:] = self.precomputed_vectors_orchestra[PAD_SYMBOL]
         return orchestra_silences, orchestra_unknown, instruments_presence, orchestra_init
 
 

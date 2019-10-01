@@ -16,7 +16,7 @@ from DatasetManager.arrangement.instrument_grouping import get_instrument_groupi
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL, MASK_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
@@ -122,14 +122,12 @@ class ArrangementDataset(MusicDataset):
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
         self.precomputed_vectors_orchestra = {
             START_SYMBOL: None,
             END_SYMBOL: None,
             PAD_SYMBOL: None,
-            MASK_SYMBOL: None,
             REST_SYMBOL: None,
         }
 
@@ -205,12 +203,10 @@ class ArrangementDataset(MusicDataset):
             piano_start_vector.append(value2oneHot[START_SYMBOL])
             piano_end_vector.append(value2oneHot[END_SYMBOL])
             piano_padding_vector.append(value2oneHot[PAD_SYMBOL])
-            piano_mask_vector.append(value2oneHot[MASK_SYMBOL])
             piano_rest_vector.append(value2oneHot[REST_SYMBOL])
         self.precomputed_vectors_piano[START_SYMBOL] = torch.from_numpy(np.asarray(piano_start_vector)).long()
         self.precomputed_vectors_piano[END_SYMBOL] = torch.from_numpy(np.asarray(piano_end_vector)).long()
         self.precomputed_vectors_piano[PAD_SYMBOL] = torch.from_numpy(np.asarray(piano_padding_vector)).long()
-        self.precomputed_vectors_piano[MASK_SYMBOL] = torch.from_numpy(np.asarray(piano_mask_vector)).long()
         self.precomputed_vectors_piano[REST_SYMBOL] = torch.from_numpy(np.asarray(piano_rest_vector)).long()
 
         orchestra_start_vector = []
@@ -222,13 +218,11 @@ class ArrangementDataset(MusicDataset):
             orchestra_start_vector.append(mapping[START_SYMBOL])
             orchestra_end_vector.append(mapping[END_SYMBOL])
             orchestra_padding_vector.append(mapping[PAD_SYMBOL])
-            orchestra_mask_vector.append(mapping[MASK_SYMBOL])
             orchestra_rest_vector.append(mapping[REST_SYMBOL])
         self.precomputed_vectors_orchestra[START_SYMBOL] = torch.from_numpy(np.asarray(orchestra_start_vector)).long()
         self.precomputed_vectors_orchestra[END_SYMBOL] = torch.from_numpy(np.asarray(orchestra_end_vector)).long()
         self.precomputed_vectors_orchestra[PAD_SYMBOL] = torch.from_numpy(np.asarray(orchestra_padding_vector)).long()
         self.precomputed_vectors_orchestra[REST_SYMBOL] = torch.from_numpy(np.asarray(orchestra_rest_vector)).long()
-        self.precomputed_vectors_orchestra[MASK_SYMBOL] = torch.from_numpy(np.asarray(orchestra_mask_vector)).long()
         #
         unknown_vector = np.ones((self.instrument_presence_dim)) * self.instruments_presence2index[PAD_SYMBOL]
         self.precomputed_vectors_orchestra_instruments_presence[PAD_SYMBOL] = torch.from_numpy(unknown_vector).long()
@@ -346,10 +340,6 @@ class ArrangementDataset(MusicDataset):
             index += 1
             midi_pitch2index_per_instrument[instrument_name][PAD_SYMBOL] = index
             index2midi_pitch_per_instrument[instrument_name][index] = PAD_SYMBOL
-            # Mask (for nade like inference schemes)
-            index += 1
-            midi_pitch2index_per_instrument[instrument_name][MASK_SYMBOL] = index
-            index2midi_pitch_per_instrument[instrument_name][index] = MASK_SYMBOL
             # Start
             index += 1
             midi_pitch2index_per_instrument[instrument_name][START_SYMBOL] = index
@@ -423,10 +413,6 @@ class ArrangementDataset(MusicDataset):
         index += 1
         dict_for_velocity2oneHot[SLUR_SYMBOL] = index
         dict_for_oneHot2velocity[index] = SLUR_SYMBOL
-        # Mask (for nade like inference schemes)
-        index += 1
-        dict_for_velocity2oneHot[MASK_SYMBOL] = index
-        dict_for_oneHot2velocity[index] = MASK_SYMBOL
         # Pad
         index += 1
         dict_for_velocity2oneHot[PAD_SYMBOL] = index
@@ -871,7 +857,7 @@ class ArrangementDataset(MusicDataset):
         #  Get min and max pitches
         pr_frames = np.asarray(
             [pr[frame] for frame in frames if
-             frame not in [MASK_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]])
+             frame not in [REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]])
         flat_pr = pr_frames.sum(axis=0)
         non_zeros_pitches = list(np.where(flat_pr > 0)[0])
         if len(non_zeros_pitches) > 0:
@@ -1230,7 +1216,7 @@ class ArrangementDataset(MusicDataset):
                 if current_velocity != SLUR_SYMBOL:
                     #  Write previous frame if it was not a silence
                     if velocity is not None:
-                        if velocity not in [MASK_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
+                        if velocity not in [REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                             f = music21.note.Note(pitch)
                             f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                             f.quarterLength = duration / subdivision
@@ -1249,7 +1235,7 @@ class ArrangementDataset(MusicDataset):
                 current_offset += current_duration
 
             # Don't forget the last note
-            # if velocity not in [REST_SYMBOL, MASK_SYMBOL]:
+            # if velocity not in [REST_SYMBOL]:
             if velocity not in [REST_SYMBOL]:
                 f = music21.note.Note(pitch)
                 f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
@@ -1293,7 +1279,7 @@ class ArrangementDataset(MusicDataset):
 
             for frame_index, duration in enumerate(durations):
                 symbol = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
-                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
+                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, PAD_SYMBOL]:
                     if symbol == SLUR_SYMBOL:
                         if len(score_list) == 0:
                             print(f'Slur symbol placed after nothing in {instrument_name}')
@@ -1475,7 +1461,7 @@ class ArrangementDataset(MusicDataset):
                     orchestra_silences.append(0)
                     orchestra_unknown.append(0)
                     #  Initialise with last
-                    orchestra_init[:, instrument_index] = self.midi_pitch2index[instrument_index][MASK_SYMBOL]
+                    orchestra_init[:, instrument_index] = len(self.midi_pitch2index[instrument_index])
 
         # Start and end symbol at the beginning and end
         orchestra_init[:context_length - 1] = self.precomputed_vectors_orchestra[PAD_SYMBOL]

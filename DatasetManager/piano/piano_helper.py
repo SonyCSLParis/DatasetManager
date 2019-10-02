@@ -12,6 +12,7 @@ from pretty_midi import PrettyMIDI, Note, Instrument
 # ==================================================================================
 
 # NoteSeq -------------------------------------------------------------------------
+import DatasetManager
 
 DEFAULT_SAVING_PROGRAM = 1
 DEFAULT_LOADING_PROGRAMS = range(128)
@@ -43,8 +44,9 @@ class PianoIteratorGenerator:
     :return:
     """
 
-    def __init__(self, path, subsets, num_elements=None):
-        self.path = path  # Root of the database
+    def __init__(self, subsets, num_elements=None):
+        package_dir = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        self.path = os.path.join(package_dir, 'databases', 'Piano')
         self.subsets = subsets
         self.num_elements = num_elements
 

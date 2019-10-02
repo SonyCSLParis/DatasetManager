@@ -117,4 +117,5 @@ stub.py
 .DS_Store
 
 # Config files
-DatasetManager/config.py
+DatasetManager/databases
+DatasetManager/dump

@@ -6,6 +6,8 @@ import shutil
 import torch
 import matplotlib as mpl
 
+import DatasetManager
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset
@@ -17,8 +19,6 @@ from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.helpers import PAD_SYMBOL, REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 import DatasetManager.arrangement.nw_align as nw_align
-
-from DatasetManager.config import get_config
 
 from DatasetManager.arrangement.arrangement_helper import score_to_pianoroll, quantize_and_filter_music21_element, \
     quantize_velocity_pianoroll_frame, unquantize_velocity, shift_pr_along_pitch_axis
@@ -58,10 +58,11 @@ class ArrangementPianorollDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
 
-        config = get_config()
-        reference_tessitura_path = config["reference_tessitura_path"]
-        simplify_instrumentation_path = config["simplify_instrumentation_path"]
-        self.dump_folder = config["dump_folder"]
+        dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        dump_folder = f'{dataset_manager_path}/dump'
+        reference_tessitura_path = f'{dataset_manager_path}/arrangement/reference_tessitura.json'
+        simplify_instrumentation_path = f'{dataset_manager_path}/arrangement/simplify_instrumentation.json'
+        self.dump_folder = dump_folder
         self.statistic_folder = self.dump_folder + '/arrangement_pianoroll/statistics'
         if os.path.isdir(self.statistic_folder):
             shutil.rmtree(self.statistic_folder)

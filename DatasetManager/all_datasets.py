@@ -1,7 +1,9 @@
-import music21
-from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
+import os
 
-from DatasetManager.config import get_config
+import music21
+
+import DatasetManager
+from DatasetManager.arrangement.arrangement_midiPiano_dataset import ArrangementMidipianoDataset
 from DatasetManager.arrangement.arrangement_voice_dataset import ArrangementVoiceDataset
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFrameDataset
@@ -19,10 +21,11 @@ from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDat
 
 def get_all_datasets():
 
-    config = get_config()
+    dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+    database_path = f'{dataset_manager_path}/databases'
 
     annex_dataset = OrchestraIteratorGenerator(
-        folder_path=f"{config['database_path']}/Orchestration/orchestral",
+        folder_path=f"{database_path}/Orchestration/orchestral",
         subsets=[
             "kunstderfuge"
         ],
@@ -34,7 +37,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'liszt_classical_archives',
                     ],
@@ -46,7 +49,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'imslp',
                         'liszt_classical_archives',
@@ -62,7 +65,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'debug',
                     ],
@@ -73,7 +76,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'small_liszt_beethov',
                     ],
@@ -85,7 +88,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementFrameDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'debug'
                     ],
@@ -96,7 +99,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementFrameDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'liszt_classical_archives',
                     ],
@@ -107,7 +110,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementVoiceDataset,
                 'corpus_it_gen':      ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'liszt_classical_archives',
                     ],
@@ -119,7 +122,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementVoiceDataset,
                 'corpus_it_gen': ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'small_liszt_beethov',
                     ],
@@ -131,7 +134,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementMidipianoDataset,
                 'corpus_it_gen': ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'liszt_classical_archives',
                     ],
@@ -143,7 +146,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': ArrangementMidipianoDataset,
                 'corpus_it_gen': ArrangementIteratorGenerator(
-                    arrangement_path=f"{config['database_path']}/Orchestration/arrangement",
+                    arrangement_path=f"{database_path}/Orchestration/arrangement",
                     subsets=[
                         'small_liszt_beethov',
                     ],
@@ -155,7 +158,7 @@ def get_all_datasets():
         #     {
         #         'dataset_class_name': OrchestrationDataset,
         #         'corpus_it_gen': OrchestrationIteratorGenerator(
-        #             arrangement_path=f"{config['database_path']}/Orchestration/orchestral",
+        #             arrangement_path=f"{database_path}/Orchestration/orchestral",
         #             subsets=[
         #                 'kunstderfuge',
         #                 'musicalion',
@@ -172,7 +175,7 @@ def get_all_datasets():
             {
                 'dataset_class_name': PianoMidiDataset,
                 'corpus_it_gen': PianoIteratorGenerator(
-                    path=f"{config['database_path']}/Piano",
+                    path=f"{database_path}/Piano",
                     subsets=[
                         'classic_piano_dataset',
                         'ecomp_piano_dataset'
@@ -183,7 +186,7 @@ def get_all_datasets():
         'piano_midi_small':
             {'dataset_class_name': PianoMidiDataset,
                 'corpus_it_gen': PianoIteratorGenerator(
-                    path=f"{config['database_path']}/Piano",
+                    path=f"{database_path}/Piano",
                     subsets=[
                         'debug'
                     ],

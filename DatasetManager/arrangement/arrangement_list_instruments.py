@@ -1,6 +1,7 @@
-import music21
-from DatasetManager.config import get_config
-from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
+import os
+
+import DatasetManager
+from DatasetManager.arrangement.arrangement_helper import OrchestraIteratorGenerator
 
 
 def list_instruments_name(score_iterator):
@@ -47,24 +48,14 @@ def write_sets(ss, out_file):
 
 
 if __name__ == '__main__':
-    config = get_config()
-    # database_path = f'{config["database_path"]}/Orchestration/arrangement_mxml'
-    # subsets = [
-    #     'imslp'
-    # ]
-    # score_iterator = ArrangementIteratorGenerator(
-    #     arrangement_path=database_path,
-    #     subsets=subsets
-    # )
-    # parts, instruments = list_instruments_name(
-    #     score_iterator=score_iterator
-    # )
+    dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+    database_path = f'{dataset_manager_path}/databases'
+    dump_folder = f'{dataset_manager_path}/dump'
 
-    database_path = f'{config["database_path"]}/Orchestration/BACKUP/Kunstderfuge'
+    database_path = f'{database_path}/Orchestration/BACKUP/Kunstderfuge'
     score_iterator = OrchestraIteratorGenerator(f'{database_path}/Selected_works_clean_mxml', process_file=True)
     parts, instruments = list_instruments_name_pure_orch(score_iterator)
 
-    dump_folder = config["dump_folder"]
     out_file = f'{dump_folder}/arrangement/parts.txt'
     write_sets(parts, out_file)
     out_file = f'{dump_folder}/arrangement/instruments.txt'

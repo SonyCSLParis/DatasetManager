@@ -3,8 +3,8 @@ import csv
 import os
 import shutil
 
+import DatasetManager
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
-from DatasetManager.config import get_config
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, note_to_midiPitch, \
     separate_instruments_names, OrchestraIteratorGenerator, score_to_pianoroll
 import music21
@@ -19,10 +19,13 @@ import matplotlib.pyplot as plt
 class ComputeStatistics:
     def __init__(self, score_iterator, subdivision, savefolder_name, sounding_pitch_boolean=False):
 
-        config = get_config()
+        dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        database_path = f'{dataset_manager_path}/databases'
+        dump_folder = f'{dataset_manager_path}/dump'
+        simplify_instrumentation_path = f'{dataset_manager_path}/arrangement/simplify_instrumentation.json'
 
         #  Dump folder
-        self.dump_folder = config['dump_folder']
+        self.dump_folder = dump_folder
         self.savefolder_name = f'{self.dump_folder}/{savefolder_name}/statistics'
         if os.path.isdir(self.savefolder_name):
             shutil.rmtree(self.savefolder_name)
@@ -31,7 +34,6 @@ class ComputeStatistics:
         self.num_bins = 30
 
         #  Simplify instrumentation
-        simplify_instrumentation_path = config['simplify_instrumentation_path']
         with open(simplify_instrumentation_path, 'r') as ff:
             self.simplify_instrumentation = json.load(ff)
         self.instrument_grouping = get_instrument_grouping()

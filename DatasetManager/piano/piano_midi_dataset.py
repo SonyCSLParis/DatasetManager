@@ -7,10 +7,10 @@ from torch.utils import data
 from tqdm import tqdm
 
 import DatasetManager
-from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
 from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
+from guppy import hpy
 
 """
 Typical piano sequence:
@@ -242,6 +242,8 @@ class PianoMidiDataset(data.Dataset):
 
         self.compute_index_dicts()
 
+        # h = hpy()
+
         print('Making tensor dataset')
 
         total_chunk_counter = 0
@@ -256,6 +258,8 @@ class PianoMidiDataset(data.Dataset):
 
         # Iterate over files
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
+
+            # print(h.heap())
 
             sequence = preprocess_midi(midi_file)
             #  Assert only note, velocity and duration are here for now
@@ -369,10 +373,7 @@ class PianoMidiDataset(data.Dataset):
 
 
 if __name__ == '__main__':
-    config = get_config()
-
     corpus_it_gen = PianoIteratorGenerator(
-        path=f"{config['database_path']}/Piano",
         subsets=[
             'debug',
         ],

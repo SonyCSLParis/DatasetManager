@@ -14,7 +14,6 @@ from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pian
     shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.arrangement.instrumentation import get_instrumentation
-from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
@@ -71,13 +70,13 @@ class ArrangementDataset(MusicDataset):
         #  Tessitura computed on data or use the reference tessitura ?
         self.compute_tessitura = False
 
-        config = get_config()
-
-        arrangement_path = config["arrangement_path"]
+        dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        arrangement_path = f'{dataset_manager_path}/arrangement'
         reference_tessitura_path = f'{arrangement_path}/reference_tessitura.json'
         simplify_instrumentation_path = f'{arrangement_path}/simplify_instrumentation.json'
 
-        self.dump_folder = config["dump_folder"]
+        dump_folder = f'{dataset_manager_path}/dump'
+        self.dump_folder = dump_folder
         self.statistic_folder = self.dump_folder + '/arrangement/statistics'
         if os.path.isdir(self.statistic_folder):
             shutil.rmtree(self.statistic_folder)
@@ -1480,7 +1479,8 @@ if __name__ == '__main__':
     #  Read
     from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
 
-    config = get_config()
+    dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+    database_path = f'{dataset_manager_path}/databases'
 
     # parameters
     sequence_size = 5
@@ -1490,7 +1490,7 @@ if __name__ == '__main__':
     integrate_discretization = True
 
     corpus_it_gen = ArrangementIteratorGenerator(
-        arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
+        arrangement_path=f'{database_path}/Orchestration/arrangement',
         subsets=[
             'liszt_classical_archives',
             # 'debug',
@@ -1521,7 +1521,8 @@ if __name__ == '__main__':
 
     dataset.load_index_dicts()
 
-    writing_dir = f'{config["dump_folder"]}/arrangement/reconstruction_midi'
+    dump_folder = f'{dataset_manager_path}/dump'
+    writing_dir = f'{dump_folder}/arrangement/reconstruction_midi'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)

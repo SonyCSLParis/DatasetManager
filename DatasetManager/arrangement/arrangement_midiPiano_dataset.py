@@ -12,7 +12,6 @@ import DatasetManager
 from DatasetManager.arrangement.arrangement_dataset import ArrangementDataset
 from DatasetManager.arrangement.arrangement_helper import shift_pr_along_pitch_axis, note_to_midiPitch, \
     score_to_pianoroll, new_events
-from DatasetManager.config import get_config
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, TIME_SHIFT, PAD_SYMBOL, STOP_SYMBOL
 
@@ -895,7 +894,9 @@ if __name__ == '__main__':
     #  Read
     from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
-    config = get_config()
+    dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+    database_path = f'{dataset_manager_path}/databases'
+    dump_folder = f'{dataset_manager_path}/dump'
 
     # parameters
     sequence_size = 5
@@ -907,7 +908,7 @@ if __name__ == '__main__':
     transposition_semi_tone = 0
 
     corpus_it_gen = ArrangementIteratorGenerator(
-        arrangement_path=f'{config["database_path"]}/Orchestration/arrangement',
+        arrangement_path=f'{database_path}/Orchestration/arrangement',
         subsets=[
             # 'liszt_classical_archives',
             'debug',
@@ -929,7 +930,7 @@ if __name__ == '__main__':
 
     dataset.load_index_dicts()
 
-    writing_dir = f'{config["dump_folder"]}/arrangement_voice/reconstruction_midi'
+    writing_dir = f'{dump_folder}/arrangement_voice/reconstruction_midi'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)

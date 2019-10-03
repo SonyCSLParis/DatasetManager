@@ -744,9 +744,9 @@ class ArrangementMidipianoDataset(ArrangementDataset):
         orchestra_init = orchestra_init.unsqueeze(0).repeat(batch_size, 1, 1)
         instruments_presence_init = instruments_presence.unsqueeze(0).repeat(batch_size, 1, 1)
 
-        return piano_init.long().cuda(), piano_write.long(), rhythm_piano, \
-               orchestra_init.long().cuda(), \
-               instruments_presence_init.long().cuda(), orchestra_silences, orchestra_unknown
+        return piano_init.long(), piano_write.long(), rhythm_piano, \
+               orchestra_init.long(), \
+               instruments_presence_init.long(), orchestra_silences, orchestra_unknown
 
     def piano_tensor_to_score(self, tensor_score, durations=None, writing_tempo="adagio", subdivision=None):
         """

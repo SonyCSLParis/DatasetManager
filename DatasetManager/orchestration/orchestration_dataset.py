@@ -1347,9 +1347,9 @@ class OrchestrationBertDataset(MusicDataset):
         instruments_presence_init = instruments_presence.unsqueeze(0).repeat(batch_size, 1, 1)
         piano_write = piano_init
 
-        return piano_init.long().cuda(), piano_write.long(), rhythm_piano, \
-               orchestra_init.long().cuda(), \
-               instruments_presence_init.long().cuda(), orchestra_silences, orchestra_unknown
+        return piano_init.long(), piano_write.long(), rhythm_piano, \
+               orchestra_init.long(), \
+               instruments_presence_init.long(), orchestra_silences, orchestra_unknown
 
     def init_orchestra(self, num_frames, context_length, banned_instruments, unknown_instruments):
         # Set orchestra constraints in the form of banned instruments

@@ -175,7 +175,6 @@ def get_all_datasets():
             {
                 'dataset_class_name': PianoMidiDataset,
                 'corpus_it_gen': PianoIteratorGenerator(
-                    path=f"{database_path}/Piano",
                     subsets=[
                         'classic_piano_dataset',
                         'ecomp_piano_dataset'
@@ -186,7 +185,6 @@ def get_all_datasets():
         'piano_midi_small':
             {'dataset_class_name': PianoMidiDataset,
                 'corpus_it_gen': PianoIteratorGenerator(
-                    path=f"{database_path}/Piano",
                     subsets=[
                         'debug'
                     ],

@@ -375,13 +375,13 @@ class PianoMidiDataset(data.Dataset):
 if __name__ == '__main__':
     corpus_it_gen = PianoIteratorGenerator(
         subsets=[
-            'debug',
+            'ecomp_piano_dataset',
         ],
         num_elements=None
     )
 
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-                               name='small',
+                               name='ecomp_piano_dataset',
                                sequence_size=200,
                                max_transposition=3)
 

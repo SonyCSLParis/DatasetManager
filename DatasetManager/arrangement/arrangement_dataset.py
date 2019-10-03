@@ -1389,8 +1389,7 @@ class ArrangementDataset(MusicDataset):
             orchestra_stream.write(fp=f"{writing_dir}/{filepath}_both.mid", fmt='midi')
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
-                                 unknown_instruments=[],
-                                 subdivision=None):
+                                 unknown_instruments=[], subdivision=None):
         # Get pianorolls
         score_piano = music21.converter.parse(filepath)
 
@@ -1403,7 +1402,11 @@ class ArrangementDataset(MusicDataset):
                                                               transpose_to_sounding_pitch=self.transpose_to_sounding_pitch,
                                                               integrate_discretization=self.integrate_discretization,
                                                               binarize=False)
+        return self.pianoroll_to_formated_tensor(pianoroll_piano, onsets_piano, batch_size, context_length,
+                                                 banned_instruments, unknown_instruments)
 
+    def pianoroll_to_formated_tensor(self, pianoroll_piano, onsets_piano, batch_size, context_length,
+                                     banned_instruments, unknown_instruments):
         quantized_pianoroll_piano = quantize_velocity_pianoroll_frame(pianoroll_piano["Piano"],
                                                                       self.velocity_quantization)
 

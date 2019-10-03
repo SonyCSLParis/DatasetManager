@@ -1246,13 +1246,7 @@ class ArrangementDataset(MusicDataset):
 
         return this_part
 
-    def orchestra_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo="adagio", subdivision=None):
-        """
-
-        :param durations:
-        :param tensor_score: one-hot encoding with dimensions (time, instrument)
-        :return:
-        """
+    def orchestra_tensor_to_dict(self, tensor_score, durations, subdivision):
         # (batch, num_parts, notes_encoding)
         orchestra_matrix = tensor_score.numpy()
         length = len(orchestra_matrix)
@@ -1296,6 +1290,18 @@ class ArrangementDataset(MusicDataset):
                 offset += duration
 
             score_dict[instrument_name] += score_list
+
+        return score_dict, total_duration_ql
+
+    def orchestra_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo="adagio", subdivision=None):
+        """
+
+        :param durations:
+        :param tensor_score: one-hot encoding with dimensions (time, instrument)
+        :return:
+        """
+
+        score_dict, total_duration_ql = self.orchestra_tensor_to_dict(tensor_score, durations, subdivision)
 
         #  Batch is used as time in the score
         stream = music21.stream.Stream()

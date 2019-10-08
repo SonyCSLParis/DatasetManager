@@ -153,8 +153,8 @@ class ArrangementDataset(MusicDataset):
         return (score for score in self.corpus_it_gen_instru_range())
 
     def load_index_dicts(self):
-        dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
-        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{type(self).__name__}.pkl'
+        index_dict_path = f'{os.path.expanduser("~")}/Data/dataset_cache/index_dicts/{type(self).__name__}.pkl'
+
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None
@@ -1179,7 +1179,7 @@ class ArrangementDataset(MusicDataset):
     def random_score_tensor(self, score_length):
         return None
 
-    def piano_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo='adagio', subdivision=None):
+    def piano_tensor_to_score(self, tensor_score, format, durations, subdivision):
 
         piano_matrix = tensor_score.numpy()
         length = len(piano_matrix)
@@ -1195,10 +1195,6 @@ class ArrangementDataset(MusicDataset):
         this_part = music21.stream.Part(id='Piano')
         music21_instrument = music21.instrument.fromString('Piano')
         this_part.insert(music21_instrument)
-
-        # Tempo
-        # t = music21.tempo.MetronomeMark(writing_tempo)
-        # this_part.insert(0, t)
 
         # Browse pitch dimension first, to deal with sustained notes
         for piano_index, pitch in self.index2midi_pitch_piano.items():
@@ -1293,7 +1289,7 @@ class ArrangementDataset(MusicDataset):
 
         return score_dict, total_duration_ql
 
-    def orchestra_tensor_to_score(self, tensor_score, format, durations=None, writing_tempo="adagio", subdivision=None):
+    def orchestra_tensor_to_score(self, tensor_score, format, durations, subdivision):
         """
 
         :param durations:
@@ -1321,10 +1317,6 @@ class ArrangementDataset(MusicDataset):
             else:
                 music21_instrument = music21.instrument.fromString(re.sub('_', ' ', instrument_name))
             this_part.insert(0, music21_instrument)
-
-            # Tempo
-            # t = music21.tempo.MetronomeMark(writing_tempo)
-            # this_part.insert(0, t)
 
             if elems == []:
                 f = music21.note.Rest()
@@ -1360,7 +1352,7 @@ class ArrangementDataset(MusicDataset):
             raise Exception(f"Expected score_type to be either piano or orchestra. Got {score_type} instead.")
 
     def visualise_batch(self, piano_pianoroll, orchestra_pianoroll, durations_piano, writing_dir,
-                        filepath, writing_tempo, subdivision, only_orchestra):
+                        filepath, subdivision, only_orchestra):
         # data is a matrix (batch, ...)
         # Visualise a few examples
         if writing_dir is None:
@@ -1384,10 +1376,9 @@ class ArrangementDataset(MusicDataset):
             orchestra_flat = orchestra_with_padding_between_batch.view(-1, self.number_instruments)
 
         piano_part = self.piano_tensor_to_score(piano_flat, durations_piano,
-                                                writing_tempo=writing_tempo,
                                                 subdivision=subdivision)
         orchestra_stream, _, _ = self.orchestra_tensor_to_score(orchestra_flat, durations_piano,
-                                                                writing_tempo=writing_tempo,
+                                                                durations=None,
                                                                 subdivision=subdivision)
 
         orchestra_stream.write(fp=f"{writing_dir}/{filepath}_orchestra.mid", fmt='midi')

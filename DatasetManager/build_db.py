@@ -38,7 +38,6 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
-        cache_dir=dataset_manager.cache_dir,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=True
     )
@@ -56,7 +55,7 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
         if i_batch > number_dump:
             break
         arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}",
-                                            writing_tempo='adagio', subdivision=None, only_orchestra=False)
+                                            writing_tempo='adagio', subdivision=subdivision, only_orchestra=False)
     return
 
 
@@ -235,24 +234,16 @@ if __name__ == '__main__':
     test_bool = True
     dataset_manager = DatasetManager()
 
-    build_piano_midi(
+    build_arrangement(
         dataset_manager=dataset_manager,
         batch_size=batch_size,
-        sequence_size=500,
+        subdivision=subdivision,
+        sequence_size=sequence_size,
+        integrate_discretization=integrate_discretization,
         max_transposition=max_transposition,
         number_dump=number_dump,
         test_bool=test_bool
     )
-    # build_arrangement(
-    #     dataset_manager=dataset_manager,
-    #     batch_size=batch_size,
-    #     subdivision=subdivision,
-    #     sequence_size=sequence_size,
-    #     integrate_discretization=integrate_discretization,
-    #     max_transposition=max_transposition,
-    #     number_dump=number_dump,
-    #     test_bool=test_bool
-    # )
     # build_arrangement_midi(
     #     dataset_manager=dataset_manager,
     #     batch_size=batch_size,

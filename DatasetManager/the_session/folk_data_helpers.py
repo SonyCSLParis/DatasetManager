@@ -138,11 +138,7 @@ class FolkIteratorGenerator:
                           the second element being the time signature
                           denominator 
         """
-        self.package_dir = None
-        self.raw_dataset_dir = os.path.join(
-            self.package_dir,
-            'raw_data',
-        )
+        self.raw_dataset_dir = f'{os.path.expanduser("~")}/Data/raw_data'
 
         self.raw_dataset_url = 'https://raw.githubusercontent.com/IraKorshunova/' \
                                'folk-rnn/master/data/' \
@@ -166,10 +162,7 @@ class FolkIteratorGenerator:
         else:
             self.time_sigs = time_sigs
 
-        self.valid_files_list = os.path.join(
-            self.package_dir,
-            self.__repr__() + 'valid_filepaths.txt'
-        )
+        self.valid_files_list = f'{self.raw_dataset_dir}/{self.__repr__()}/valid_filepaths.txt'
 
         # read and store the valid file paths
         self.valid_tune_filepaths = []

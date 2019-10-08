@@ -63,10 +63,10 @@ class OrchestrationBertDataset(MusicDataset):
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
         self.integrate_discretization = integrate_discretization
 
-        dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
-        database_path = f'{dataset_manager_path}/databases'
-        dump_folder = f'{dataset_manager_path}/dump'
-        arrangement_path = f'{dataset_manager_path}/arrangement'
+        # dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        # database_path = f'{dataset_manager_path}/databases'
+        # dump_folder = f'{dataset_manager_path}/dump'
+        # arrangement_path = f'{dataset_manager_path}/arrangement'
 
         #  For consistency, use arrangement mappings
         reference_tessitura_path = f'{arrangement_path}/reference_tessitura.json'

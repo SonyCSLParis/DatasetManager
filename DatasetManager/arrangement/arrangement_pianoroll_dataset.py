@@ -48,7 +48,7 @@ class ArrangementPianorollDataset(MusicDataset):
         :param subdivision: number of sixteenth notes per beat
         :param cache_dir: directory where tensor_dataset is stored
         """
-        super(ArrangementPianorollDataset, self).__init__(cache_dir=cache_dir)
+        super(ArrangementPianorollDataset, self).__init__()
         self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.subdivision = subdivision  # We use only on beats notes so far
@@ -58,10 +58,9 @@ class ArrangementPianorollDataset(MusicDataset):
         self.max_transposition = max_transposition
         self.transpose_to_sounding_pitch = transpose_to_sounding_pitch
 
-        dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
-        dump_folder = f'{dataset_manager_path}/dump'
-        reference_tessitura_path = f'{dataset_manager_path}/arrangement/reference_tessitura.json'
-        simplify_instrumentation_path = f'{dataset_manager_path}/arrangement/simplify_instrumentation.json'
+        dump_folder = f'{os.path.expanduser("~")}/Data/dump'
+        reference_tessitura_path = 'reference_tessitura.json'
+        simplify_instrumentation_path = 'simplify_instrumentation.json'
         self.dump_folder = dump_folder
         self.statistic_folder = self.dump_folder + '/arrangement_pianoroll/statistics'
         if os.path.isdir(self.statistic_folder):

@@ -45,7 +45,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
 
-        cache_dir = '~/Data/dataset_cache'
+        cache_dir = f'{os.path.expanduser("~")}/Data/dataset_cache'
         # create cache dir if it doesn't exist
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)

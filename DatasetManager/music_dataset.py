@@ -16,7 +16,7 @@ class MusicDataset(ABC):
 
     @property
     def cache_dir(self):
-        cache_dir = '~/Data/dataset_cache'
+        cache_dir = f'{os.path.expanduser("~")}/Data/dataset_cache'
         return cache_dir
 
     @abstractmethod

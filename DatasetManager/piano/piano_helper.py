@@ -45,7 +45,7 @@ class PianoIteratorGenerator:
     """
 
     def __init__(self, subsets, num_elements=None):
-        self.path = '~/Data/databases/Piano'
+        self.path = f'{os.path.expanduser("~")}/Data/databases/Piano'
         self.subsets = subsets
         self.num_elements = num_elements
 

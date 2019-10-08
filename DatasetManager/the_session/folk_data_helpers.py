@@ -15,10 +15,10 @@ from bson import ObjectId
 
 # dictionary
 note_values = {
-    'q':  1.,
-    'h':  2.,
-    'w':  4.,
-    '8':  0.5,
+    'q': 1.,
+    'h': 2.,
+    'w': 4.,
+    '8': 0.5,
     '16': 0.25,
     '32': 0.125
 }
@@ -122,6 +122,7 @@ def score_range(score):
     max_pitch = max(pitches)
     return min_pitch, max_pitch
 
+
 class FolkIteratorGenerator:
     """
     Object that returns a iterator over folk dataset (as music21 scores)
@@ -129,10 +130,10 @@ class FolkIteratorGenerator:
     :return:
     """
 
-    def __init__(self, 
-                 num_elements=None, 
-                 has_chords=False, 
-                 time_sigs = [(4,4)]):
+    def __init__(self,
+                 num_elements=None,
+                 has_chords=False,
+                 time_sigs=[(4, 4)]):
         """
         :param num_elements: int, number of tunes to be considered
         :param has_chords: bool, True if tunes should have chords, 
@@ -142,7 +143,7 @@ class FolkIteratorGenerator:
                           the second element being the time signature
                           denominator 
         """
-        self.package_dir = os.path.dirname(os.path.realpath(__file__))
+        self.package_dir = f'{os.path.dirname(os.path.realpath(__file__))}/..'
         self.raw_dataset_dir = os.path.join(
             self.package_dir,
             'raw_data',
@@ -166,7 +167,7 @@ class FolkIteratorGenerator:
 
         self.has_chords = has_chords
         if time_sigs is None:
-            self.time_sigs = [(4, 4)]    # 4by4 is the default time signature
+            self.time_sigs = [(4, 4)]  # 4by4 is the default time signature
         else:
             self.time_sigs = time_sigs
 
@@ -174,11 +175,11 @@ class FolkIteratorGenerator:
             self.package_dir,
             self.__repr__() + 'valid_filepaths.txt'
         )
-        
+
         # read and store the valid file paths
         self.valid_tune_filepaths = []
         self.valid_file_indices = []
-        
+
         # set num_elements for the iterator
         if num_elements == None:
             self.num_elements = 25000
@@ -191,8 +192,8 @@ class FolkIteratorGenerator:
         else:
             chord_str = ''
         name_str = 'FolkItGen(' + \
-                    chord_str + \
-                    str(self.time_sigs).replace(" ", "") + ')'
+                   chord_str + \
+                   str(self.time_sigs).replace(" ", "") + ')'
         return name_str
 
     def download_raw_dataset(self):
@@ -484,9 +485,9 @@ class FolkIteratorGenerator:
         num_measures = len(measures)
         # add rests in pick-up measures
         if num_measures > 0:
-            m0_dur = measures[num_measures-1].barDurationProportion()
+            m0_dur = measures[num_measures - 1].barDurationProportion()
             if m0_dur != 1.0:
-                offset = measures[num_measures-1].paddingRight
+                offset = measures[num_measures - 1].paddingRight
                 measures[num_measures - 1].append(music21.note.Rest(quarterLength=offset))
         return score
 

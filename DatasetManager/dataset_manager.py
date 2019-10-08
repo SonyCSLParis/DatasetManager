@@ -11,7 +11,7 @@ from DatasetManager.all_datasets import get_all_datasets
 
 class DatasetManager:
     def __init__(self):
-        self.package_dir = os.path.dirname(os.path.realpath(__file__))
+        self.package_dir = f'{os.path.dirname(os.path.realpath(__file__))}/..'
         self.cache_dir = os.path.join(self.package_dir,
                                       'dataset_cache')
         # create cache dir if it doesn't exist

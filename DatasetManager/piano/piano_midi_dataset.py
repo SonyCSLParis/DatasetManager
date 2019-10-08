@@ -46,7 +46,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
 
-        package_dir = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        package_dir = f'{os.path.dirname(os.path.realpath(DatasetManager.__file__))}/..'
         cache_dir = os.path.join(package_dir, 'dataset_cache')
         # create cache dir if it doesn't exist
         if not os.path.exists(cache_dir):
@@ -413,9 +413,9 @@ class PianoMidiDataset(data.Dataset):
 
 if __name__ == '__main__':
     subsets = [
-        'ecomp_piano_dataset',
-        'classic_piano_dataset',
-        # 'debug'
+        # 'ecomp_piano_dataset',
+        # 'classic_piano_dataset',
+        'debug'
     ]
     corpus_it_gen = PianoIteratorGenerator(
         subsets=subsets,

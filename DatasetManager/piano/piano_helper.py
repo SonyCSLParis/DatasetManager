@@ -46,7 +46,7 @@ class PianoIteratorGenerator:
     """
 
     def __init__(self, subsets, num_elements=None):
-        package_dir = os.path.dirname(os.path.realpath(DatasetManager.__file__))
+        package_dir = f'{os.path.dirname(os.path.realpath(DatasetManager.__file__))}/..'
         self.path = os.path.join(package_dir, 'databases', 'Piano')
         self.subsets = subsets
         self.num_elements = num_elements

@@ -15,7 +15,7 @@ from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pian
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL, MASK_SYMBOL
+    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
 from torch.utils.data import TensorDataset
 from tqdm import tqdm

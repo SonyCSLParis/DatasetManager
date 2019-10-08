@@ -1335,7 +1335,10 @@ class ArrangementDataset(MusicDataset):
                 elems = sorted(elems, key=lambda e: e[1])
                 for elem in elems:
                     pitch, offset, duration = elem
-                    f = music21.note.Note(pitch)
+                    try:
+                        f = music21.note.Note(pitch)
+                    except:
+                        print('yo')
                     f.volume.velocity = 60.
                     f.quarterLength = duration / subdivision
                     this_part.insert((offset / subdivision), f)

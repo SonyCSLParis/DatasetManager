@@ -7,6 +7,7 @@ import os
 import numpy as np
 from pretty_midi import PrettyMIDI, Note, Instrument
 
+
 # ==================================================================================
 # Parameters
 # ==================================================================================
@@ -74,14 +75,12 @@ class PianoIteratorGenerator:
 
 # These come from Github "Performance RNN - PyTorch"
 # https://github.com/djosix/Performance-RNN-PyTorch
-
 def preprocess_midi(path):
     note_seq = NoteSeq.from_midi_file(path)
     note_seq.adjust_time(-note_seq.notes[0].start)
     event_seq = EventSeq.from_note_seq(note_seq)
-    # control_seq = ControlSeq.from_event_seq(event_seq)
-    # return event_seq.to_array(), control_seq.to_compressed_array()
-    return event_seq.to_array()
+    ret = event_seq.to_array()
+    return ret
 
 # ==================================================================================
 # Notes
@@ -229,11 +228,32 @@ class EventSeq:
 
     @staticmethod
     def from_array(event_indeces):
+        # notes: old original version
+        # 
+        #     time = 0
+        #     events = []
+        #     for event_index in event_indeces:
+        #         for event_type, feat_range in EventSeq.feat_ranges().items():
+        #             if feat_range.start <= event_index < feat_range.stop:
+        #                 event_value = event_index - feat_range.start
+        #                 events.append(Event(event_type, time, event_value))
+        #                 if event_type == 'time_shift':
+        #                     time += EventSeq.time_shift_bins[event_value]
+        #                 break
+        #
+        #     return EventSeq(events)
+
         time = 0
         events = []
+        first_note_on_encountered = False
         for event_index in event_indeces:
             for event_type, feat_range in EventSeq.feat_ranges().items():
                 if feat_range.start <= event_index < feat_range.stop:
+                    if not first_note_on_encountered:
+                        if event_type == 'note_on':
+                            first_note_on_encountered = True
+                        elif event_type not in ['velocity', 'note_on']:
+                            break
                     event_value = event_index - feat_range.start
                     events.append(Event(event_type, time, event_value))
                     if event_type == 'time_shift':
@@ -305,6 +325,7 @@ class EventSeq:
             elif event.type == 'note_off':
                 pitch = event.value + EventSeq.pitch_range.start
 
+                # If note not in last_notes, it is just removed
                 if pitch in last_notes:
                     note = last_notes[pitch]
                     note.end = max(time, note.start + MIN_NOTE_LENGTH)

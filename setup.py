@@ -8,5 +8,5 @@ setup(
     author_email='gaetan.hadjeres@sony.com',
     license='BSD',
     packages=['DatasetManager'], install_requires=['pymongo', 'music21', 'sshtunnel', 'numpy',
-                                                   'torch', 'tqdm']
+                                                   'torch', 'tqdm', 'pretty_midi']
 )

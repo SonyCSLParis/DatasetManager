@@ -104,10 +104,6 @@ ENV/
 .idea
 
 # cache folder
-dataset_cache/
-dataset_cache_old/
-tmp_database/
-resources/
 xml/
 raw_data/
 
@@ -116,6 +112,7 @@ passwords.json
 stub.py
 .DS_Store
 
-# Config files
-DatasetManager/databases
-DatasetManager/dump
+# folders 
+databases
+dump
+dataset_cache

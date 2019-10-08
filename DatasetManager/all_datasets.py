@@ -21,8 +21,7 @@ from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDat
 
 def get_all_datasets():
 
-    dataset_manager_path = f'{os.path.dirname(os.path.realpath(DatasetManager.__file__))}/..'
-    database_path = f'{dataset_manager_path}/databases'
+    database_path = f'~/Data/databases'
 
     annex_dataset = OrchestraIteratorGenerator(
         folder_path=f"{database_path}/Orchestration/orchestral",

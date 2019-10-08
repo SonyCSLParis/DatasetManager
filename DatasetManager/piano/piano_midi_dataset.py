@@ -8,7 +8,6 @@ import torch
 from torch.utils import data
 from tqdm import tqdm
 
-import DatasetManager
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
 from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
@@ -46,8 +45,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
 
-        package_dir = f'{os.path.dirname(os.path.realpath(DatasetManager.__file__))}/..'
-        cache_dir = os.path.join(package_dir, 'dataset_cache')
+        cache_dir = '~/Data/dataset_cache'
         # create cache dir if it doesn't exist
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
@@ -397,7 +395,7 @@ class PianoMidiDataset(data.Dataset):
             ranges = self.feat_ranges[message_type]
             min_value, max_value = min(ranges), max(ranges)
             authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
-                                                 ((x <= max_value + transposition) * (x >= min_value + transposition)))
+                                                 ((x + transposition <= max_value) * (x + transposition >= min_value)))
             if not authorized_transposition:
                 return x, messages
 

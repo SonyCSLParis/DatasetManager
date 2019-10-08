@@ -16,10 +16,8 @@ class MusicDataset(ABC):
 
     @property
     def cache_dir(self):
-        package_dir = f'{os.path.dirname(os.path.realpath(__file__))}/..'
-        cache_dir = os.path.join(package_dir, 'dataset_cache')
+        cache_dir = '~/Data/dataset_cache'
         return cache_dir
-
 
     @abstractmethod
     def iterator_gen(self):

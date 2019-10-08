@@ -1,17 +1,12 @@
 import os
-import music21
-import sys
-import numpy as np
-
-from tqdm import tqdm
-from glob2 import glob
 from fractions import Fraction
-from music21 import interval, meter
-from music21.abcFormat import ABCHandlerException
 
-from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL
-from DatasetManager.lsdb.lsdb_exceptions import LeadsheetTimeSignatureException
-from bson import ObjectId
+import music21
+import numpy as np
+from glob2 import glob
+from music21 import meter
+from music21.abcFormat import ABCHandlerException
+from tqdm import tqdm
 
 # dictionary
 note_values = {
@@ -143,7 +138,7 @@ class FolkIteratorGenerator:
                           the second element being the time signature
                           denominator 
         """
-        self.package_dir = f'{os.path.dirname(os.path.realpath(__file__))}/..'
+        self.package_dir = None
         self.raw_dataset_dir = os.path.join(
             self.package_dir,
             'raw_data',

@@ -7,7 +7,6 @@ import os
 import numpy as np
 from pretty_midi import PrettyMIDI, Note, Instrument
 
-
 # ==================================================================================
 # Parameters
 # ==================================================================================
@@ -46,8 +45,7 @@ class PianoIteratorGenerator:
     """
 
     def __init__(self, subsets, num_elements=None):
-        package_dir = f'{os.path.dirname(os.path.realpath(DatasetManager.__file__))}/..'
-        self.path = os.path.join(package_dir, 'databases', 'Piano')
+        self.path = '~/Data/databases/Piano'
         self.subsets = subsets
         self.num_elements = num_elements
 
@@ -73,7 +71,7 @@ class PianoIteratorGenerator:
             yield midi_file
 
 
-# These come from Github "Performance RNN - PyTorch"
+#  These come from Github "Performance RNN - PyTorch"
 # https://github.com/djosix/Performance-RNN-PyTorch
 def preprocess_midi(path):
     note_seq = NoteSeq.from_midi_file(path)
@@ -81,6 +79,7 @@ def preprocess_midi(path):
     event_seq = EventSeq.from_note_seq(note_seq)
     ret = event_seq.to_array()
     return ret
+
 
 # ==================================================================================
 # Notes
@@ -229,7 +228,7 @@ class EventSeq:
     @staticmethod
     def from_array(event_indeces):
         # notes: old original version
-        # 
+        #  
         #     time = 0
         #     events = []
         #     for event_index in event_indeces:

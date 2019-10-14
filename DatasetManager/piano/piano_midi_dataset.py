@@ -35,7 +35,8 @@ class PianoMidiDataset(data.Dataset):
                  corpus_it_gen,
                  name,
                  sequence_size,
-                 max_transposition):
+                 max_transposition,
+                 excluded_features):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -50,6 +51,7 @@ class PianoMidiDataset(data.Dataset):
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
 
+        self.excluded_features = excluded_features
         self.list_ids = []
         self.name = name
         self.corpus_it_gen = corpus_it_gen
@@ -67,7 +69,6 @@ class PianoMidiDataset(data.Dataset):
         self.one_hot_dimension = None
 
         # Chunks
-        self.chunk_size = None
         self.hop_size = None
 
         self.precomputed_vectors_piano = {
@@ -124,7 +125,8 @@ class PianoMidiDataset(data.Dataset):
         instance = PianoMidiDataset(corpus_it_gen=None,
                                     name=self.name,
                                     sequence_size=self.sequence_size,
-                                    max_transposition=self.max_transposition)
+                                    max_transposition=self.max_transposition,
+                                    excluded_features=self.excluded_features)
         instance.list_ids = list_ids
         return instance
 
@@ -207,7 +209,7 @@ class PianoMidiDataset(data.Dataset):
         # list_velocity = list(range(self.velocity_quantization))
         # list_duration = list(self.duration_quantization)
 
-        self.feat_ranges = EventSeq.feat_ranges()
+        self.feat_ranges = EventSeq.feat_ranges(excluded_features=self.excluded_features)
         last_index = 0
         for k, v in self.feat_ranges.items():
             if v.stop > last_index:
@@ -282,7 +284,7 @@ class PianoMidiDataset(data.Dataset):
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
 
             #  Preprocess midi
-            sequence = preprocess_midi(midi_file)
+            sequence = preprocess_midi(midi_file, excluded_features=self.excluded_features)
 
             #  Assert only note, velocity and duration are here for now
             assert sequence.max() < self.last_index
@@ -297,15 +299,15 @@ class PianoMidiDataset(data.Dataset):
             #       - velocity
             #       - meta symbols
             seq_len = len(sequence)
-            self.chunk_size = self.sequence_size
-            self.hop_size = self.chunk_size // 4
+            self.sequence_size = self.sequence_size
+            self.hop_size = self.sequence_size // 4
 
             for t in range(-self.hop_size, seq_len, self.hop_size):
                 prepend_seq = []
                 append_seq = []
 
                 start = max(0, t)
-                virtual_last_index = t + self.chunk_size + self.hop_size
+                virtual_last_index = t + self.sequence_size + self.hop_size
                 end = min(seq_len, virtual_last_index)
                 subsequence = self.extract_subsequence(sequence, start, end)
 
@@ -320,12 +322,12 @@ class PianoMidiDataset(data.Dataset):
                     #  Replace append_seq previously calculated with a new one containing the END symbol
                     append_seq = [self.meta_symbols_to_index[END_SYMBOL]] + \
                                  [self.meta_symbols_to_index[PAD_SYMBOL]] * (append_length - 1)
-                    if t + self.chunk_size > seq_len:
+                    if t + self.sequence_size > seq_len:
                         edge_chunk = True
 
                 chunk = prepend_seq + list(subsequence) + append_seq
                 if edge_chunk:
-                    chunk = chunk[:self.chunk_size]
+                    chunk = chunk[:self.sequence_size]
                 x_tensor = torch.tensor(chunk).long()
                 torch.save(x_tensor, f'{dataset_dir}/x/{chunk_counter}.pt')
 
@@ -375,10 +377,10 @@ class PianoMidiDataset(data.Dataset):
     def transform(self, x, messages):
         ############################
         #  Time shift
-        if len(x) > self.chunk_size:
+        if len(x) > self.sequence_size:
             time_shift = math.floor(random.uniform(0, self.hop_size))
-            x = x[time_shift:time_shift + self.chunk_size]
-            messages = messages[time_shift:time_shift + self.chunk_size]
+            x = x[time_shift:time_shift + self.sequence_size]
+            messages = messages[time_shift:time_shift + self.sequence_size]
 
         ############################
         # Transposition
@@ -391,7 +393,8 @@ class PianoMidiDataset(data.Dataset):
         x_trans = x
 
         # First check transposition is possible
-        for message_type in ['note_on', 'note_off']:
+        transposable_types = [e for e in ['note_on', 'note_off'] if e not in self.excluded_features]
+        for message_type in transposable_types:
             ranges = self.feat_ranges[message_type]
             min_value, max_value = min(ranges), max(ranges)
             authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
@@ -400,7 +403,7 @@ class PianoMidiDataset(data.Dataset):
                 return x, messages
 
         # Then transpose
-        for message_type in ['note_on', 'note_off']:
+        for message_type in transposable_types:
             # Mask
             x_trans = torch.where(self.message_type_to_index[message_type] == messages,
                                   x_trans + transposition,
@@ -410,6 +413,10 @@ class PianoMidiDataset(data.Dataset):
 
 
 if __name__ == '__main__':
+
+    excluded_features = ['note_off', 'velocity']
+    # excluded_features = []
+
     subsets = [
         # 'ecomp_piano_dataset',
         # 'classic_piano_dataset',
@@ -421,10 +428,12 @@ if __name__ == '__main__':
     )
 
     name = '-'.join(subsets)
+    name += '_' + '-'.join(excluded_features)
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
                                name=name,
-                               sequence_size=800,
-                               max_transposition=6)
+                               sequence_size=600,
+                               max_transposition=6,
+                               excluded_features=excluded_features)
 
     (train_dataloader,
      val_dataloader,

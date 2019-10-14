@@ -73,11 +73,11 @@ class PianoIteratorGenerator:
 
 #  These come from Github "Performance RNN - PyTorch"
 # https://github.com/djosix/Performance-RNN-PyTorch
-def preprocess_midi(path):
+def preprocess_midi(path, excluded_features):
     note_seq = NoteSeq.from_midi_file(path)
     note_seq.adjust_time(-note_seq.notes[0].start)
     event_seq = EventSeq.from_note_seq(note_seq)
-    ret = event_seq.to_array()
+    ret = event_seq.to_array(excluded_features)
     return ret
 
 
@@ -276,10 +276,12 @@ class EventSeq:
         return feat_dims
 
     @staticmethod
-    def feat_ranges():
+    def feat_ranges(excluded_features):
         offset = 0
         feat_ranges = collections.OrderedDict()
         for feat_name, feat_dim in EventSeq.feat_dims().items():
+            if feat_name in excluded_features:
+                continue
             feat_ranges[feat_name] = range(offset, offset + feat_dim)
             offset += feat_dim
         return feat_ranges
@@ -345,9 +347,9 @@ class EventSeq:
 
         return NoteSeq(notes)
 
-    def to_array(self):
-        feat_idxs = EventSeq.feat_ranges()
-        idxs = [feat_idxs[event.type][event.value] for event in self.events]
+    def to_array(self, excluded_features):
+        feat_idxs = EventSeq.feat_ranges(excluded_features=excluded_features)
+        idxs = [feat_idxs[event.type][event.value] for event in self.events if event.type not in excluded_features]
         dtype = np.uint8 if EventSeq.dim() <= 256 else np.uint16
         return np.array(idxs, dtype=dtype)
 

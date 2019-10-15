@@ -1,0 +1,277 @@
+import math
+import os
+import pickle
+import random
+import shutil
+
+import torch
+from torch.utils import data
+from tqdm import tqdm
+
+from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
+    PAD_SYMBOL
+from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
+from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
+
+"""
+Typical piano sequence:
+p0 p1 TS p0 p1 p2 TS p0 STOP X X X X
+
+If beginning: 
+START p0 p1 TS p0 p1 p2 TS p0 STOP X X X
+
+If end: 
+p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
+
+"""
+
+
+class HarpsichordMidiDataset(PianoMidiDataset):
+    """
+    Class for all arrangement dataset
+    It is highly recommended to run arrangement_statistics before building the database
+    """
+
+    def __init__(self,
+                 corpus_it_gen,
+                 name,
+                 sequence_size,
+                 max_transposition):
+        """
+        :param corpus_it_gen: calling this function returns an iterator
+        over chorales (as music21 scores)
+        :param name:
+        :param metadatas: list[Metadata], the list of used metadatas
+        :param subdivision: number of sixteenth notes per beat
+        """
+        super().__init__(corpus_it_gen, name, sequence_size, max_transposition)
+        return
+
+    def __repr__(self):
+        name = f'HarpsichordMidi-' \
+               f'{self.name}-' \
+               f'{self.sequence_size}-' \
+               f'{self.max_transposition}'
+        return name
+
+    def extract_subset(self, list_ids):
+        instance = HarpsichordMidiDataset(corpus_it_gen=None,
+                                          name=self.name,
+                                          sequence_size=self.sequence_size,
+                                          max_transposition=self.max_transposition)
+        instance.list_ids = list_ids
+        return instance
+
+    def compute_index_dicts(self):
+        #  From performance rnn
+        # 100 duration from 10ms to 1s
+        # 32 vellocities
+        # dimension = 388
+        # 30 seconds ~ 1200 frames
+        # lowest_note, highest_note = self.reference_tessitura
+        # lowest_pitch = note_to_midiPitch(lowest_note)
+        # highest_pitch = note_to_midiPitch(highest_note)
+        # list_midiPitch = sorted(list(range(lowest_pitch, highest_pitch + 1)))
+        # list_velocity = list(range(self.velocity_quantization))
+        # list_duration = list(self.duration_quantization)
+
+        self.feat_ranges = EventSeq.feat_ranges(excluded_features=['note_off', 'velocity'])
+        last_index = 0
+        for k, v in self.feat_ranges.items():
+            if v.stop > last_index:
+                last_index = v.stop
+        index = last_index
+        self.last_index = last_index
+        # Pad
+        self.meta_symbols_to_index[PAD_SYMBOL] = index
+        self.index_to_meta_symbols[index] = PAD_SYMBOL
+        index += 1
+        # Start
+        self.meta_symbols_to_index[START_SYMBOL] = index
+        self.index_to_meta_symbols[index] = START_SYMBOL
+        index += 1
+        # End
+        self.meta_symbols_to_index[END_SYMBOL] = index
+        self.index_to_meta_symbols[index] = END_SYMBOL
+        index += 1
+        self.meta_range = list(range(last_index, index))
+
+        self.one_hot_dimension = index
+
+        # Message types to index
+        index = 0
+        for message_type in self.feat_ranges.keys():
+            self.message_type_to_index[message_type] = index
+            self.index_to_message_type[index] = message_type
+            index += 1
+        self.message_type_to_index['meta'] = index
+        self.index_to_message_type[index] = 'meta'
+        return
+
+    def make_tensor_dataset(self):
+        """
+        Implementation of the make_tensor_dataset abstract base class
+        """
+        print('Loading index dictionnary')
+
+        self.compute_index_dicts()
+
+        print('Making tensor dataset')
+
+        chunk_counter = 0
+        dataset_dir = self.local_parameters["dataset_dir"]
+        if os.path.isdir(dataset_dir):
+            shutil.rmtree(dataset_dir)
+        os.makedirs(dataset_dir)
+        os.mkdir(f'{dataset_dir}/x')
+        os.mkdir(f'{dataset_dir}/message_type')
+
+        # Iterate over files
+        for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
+
+            #  Preprocess midi
+            sequence = preprocess_midi(midi_file, excluded_features=['note_off', 'velocity'])
+
+            #  Assert only note, velocity and duration are here for now
+            assert sequence.max() < self.last_index
+
+            # Splits:
+            # - constant size chunks (no really padding),
+            # - with shift of a constant Half window size
+            # - add a vector which indicate the locations of
+            #       - time_shift
+            #       - notes_on
+            #       - notes_off
+            #       - velocity
+            #       - meta symbols
+            seq_len = len(sequence)
+            self.chunk_size = self.sequence_size
+            self.hop_size = self.chunk_size // 4
+
+            for t in range(-self.hop_size, seq_len, self.hop_size):
+                prepend_seq = []
+                append_seq = []
+
+                start = max(0, t)
+                virtual_last_index = t + self.chunk_size + self.hop_size
+                end = min(seq_len, virtual_last_index)
+                subsequence = self.extract_subsequence(sequence, start, end)
+
+                #  Add Start and End plus padding for sides
+                edge_chunk = False  #  This is used to disallow time shift in data augmentations
+                if t < 0:
+                    prepend_seq = [self.meta_symbols_to_index[PAD_SYMBOL]] * (-t - 1) + \
+                                  [self.meta_symbols_to_index[START_SYMBOL]]
+                    edge_chunk = True
+                elif virtual_last_index > seq_len:
+                    append_length = virtual_last_index - seq_len
+                    #  Replace append_seq previously calculated with a new one containing the END symbol
+                    append_seq = [self.meta_symbols_to_index[END_SYMBOL]] + \
+                                 [self.meta_symbols_to_index[PAD_SYMBOL]] * (append_length - 1)
+                    if t + self.chunk_size > seq_len:
+                        edge_chunk = True
+
+                chunk = prepend_seq + list(subsequence) + append_seq
+                if edge_chunk:
+                    chunk = chunk[:self.chunk_size]
+                x_tensor = torch.tensor(chunk).long()
+                torch.save(x_tensor, f'{dataset_dir}/x/{chunk_counter}.pt')
+
+                # Build symbol_type sequence
+                message_type_chunk = []
+                for message in chunk:
+                    meta_message = True
+                    for message_type, ranges in self.feat_ranges.items():
+                        if message in ranges:
+                            message_type_chunk.append(self.message_type_to_index[message_type])
+                            meta_message = False
+                            break
+                    if meta_message:
+                        message_type_chunk.append(self.message_type_to_index['meta'])
+                mess_tensor = torch.tensor(message_type_chunk).long()
+                torch.save(mess_tensor, f'{dataset_dir}/message_type/{chunk_counter}.pt')
+
+                self.list_ids.append(chunk_counter)
+                chunk_counter += 1
+        print(f'Chunks: {chunk_counter}\n')
+        # Save class
+        self.save()
+        return
+
+    def tensor_to_score(self, sequence, midipath):
+        raise NotImplementedError
+        #  Can't use lib here, need to write it
+
+    # def transform(self, x, messages):
+    #     ############################
+    #     #  Time shift
+    #     if len(x) > self.chunk_size:
+    #         time_shift = math.floor(random.uniform(0, self.hop_size))
+    #         x = x[time_shift:time_shift + self.chunk_size]
+    #         messages = messages[time_shift:time_shift + self.chunk_size]
+    #
+    #     ############################
+    #     # Transposition
+    #     # Draw a random transposition
+    #     transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
+    #     if transposition == 0:
+    #         return x, messages
+    #
+    #     mess_trans = messages
+    #     x_trans = x
+    #
+    #     # First check transposition is possible
+    #     for message_type in ['note_on', 'note_off']:
+    #         ranges = self.feat_ranges[message_type]
+    #         min_value, max_value = min(ranges), max(ranges)
+    #         authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
+    #                                              ((x + transposition <= max_value) * (x + transposition >= min_value)))
+    #         if not authorized_transposition:
+    #             return x, messages
+    #
+    #     # Then transpose
+    #     for message_type in ['note_on', 'note_off']:
+    #         # Mask
+    #         x_trans = torch.where(self.message_type_to_index[message_type] == messages,
+    #                               x_trans + transposition,
+    #                               x_trans)
+    #
+    #     return x_trans, mess_trans
+
+
+if __name__ == '__main__':
+    subsets = [
+        # 'ecomp_piano_dataset',
+        # 'classic_piano_dataset',
+        'debug'
+    ]
+    corpus_it_gen = PianoIteratorGenerator(
+        subsets=subsets,
+        num_elements=None
+    )
+
+    name = '-'.join(subsets)
+    dataset = HarpsichordMidiDataset(corpus_it_gen=corpus_it_gen,
+                                     name=name,
+                                     sequence_size=600,
+                                     max_transposition=6)
+
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
+
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    number_dump = 100
+    writing_dir = f"../dump/piano_midi/writing"
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, message_type_batch = sample_batched
+        if i_batch > number_dump:
+            break
+        dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

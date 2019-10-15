@@ -33,7 +33,6 @@ class PianoMidiDataset(data.Dataset):
 
     def __init__(self,
                  corpus_it_gen,
-                 name,
                  sequence_size,
                  max_transposition,
                  excluded_features):
@@ -53,7 +52,6 @@ class PianoMidiDataset(data.Dataset):
 
         self.excluded_features = excluded_features
         self.list_ids = []
-        self.name = name
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
         self.max_transposition = max_transposition
@@ -94,8 +92,10 @@ class PianoMidiDataset(data.Dataset):
         return
 
     def __repr__(self):
+        prefix = '-'.join(self.corpus_it_gen.subsets)
+        prefix += '_' + '-'.join(self.excluded_features)
         name = f'PianoMidi-' \
-            f'{self.name}-' \
+            f'{prefix}-' \
             f'{self.sequence_size}-' \
             f'{self.max_transposition}'
         return name
@@ -122,8 +122,7 @@ class PianoMidiDataset(data.Dataset):
                 self.__dict__[k] = v
 
     def extract_subset(self, list_ids):
-        instance = PianoMidiDataset(corpus_it_gen=None,
-                                    name=self.name,
+        instance = PianoMidiDataset(corpus_it_gen=self.corpus_it_gen,
                                     sequence_size=self.sequence_size,
                                     max_transposition=self.max_transposition,
                                     excluded_features=self.excluded_features)
@@ -428,10 +427,7 @@ if __name__ == '__main__':
         num_elements=None
     )
 
-    name = '-'.join(subsets)
-    name += '_' + '-'.join(excluded_features)
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-                               name=name,
                                sequence_size=600,
                                max_transposition=6,
                                excluded_features=excluded_features)

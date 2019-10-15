@@ -359,8 +359,16 @@ class PianoMidiDataset(data.Dataset):
     def tensor_to_score(self, sequence, midipath):
         #  Filter out meta events
         sequence_clean = [int(e) for e in sequence if e not in self.meta_range]
+        # if len(self.excluded_features) > 0:
+        #
+        #     for elem in sequence_clean:
+        #         f = music21.note.Note(pitch)
+        #         f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
+        #         f.quarterLength = duration / subdivision
+        #         this_part.insert((offset / subdivision), f)
+        # else:
         # Create EventSeq
-        EventSeq.from_array(sequence_clean).to_note_seq().to_midi_file(midipath)
+        EventSeq.from_array(sequence_clean, self.excluded_features).to_note_seq().to_midi_file(midipath)
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)

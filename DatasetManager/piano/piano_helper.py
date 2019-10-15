@@ -12,7 +12,6 @@ from pretty_midi import PrettyMIDI, Note, Instrument
 # ==================================================================================
 
 # NoteSeq -------------------------------------------------------------------------
-import DatasetManager
 
 DEFAULT_SAVING_PROGRAM = 1
 DEFAULT_LOADING_PROGRAMS = range(128)
@@ -226,7 +225,7 @@ class EventSeq:
         return EventSeq(events)
 
     @staticmethod
-    def from_array(event_indeces):
+    def from_array(event_indeces, excluded_features):
         # notes: old original version
         #  
         #     time = 0
@@ -246,7 +245,7 @@ class EventSeq:
         events = []
         first_note_on_encountered = False
         for event_index in event_indeces:
-            for event_type, feat_range in EventSeq.feat_ranges().items():
+            for event_type, feat_range in EventSeq.feat_ranges(excluded_features).items():
                 if feat_range.start <= event_index < feat_range.stop:
                     if not first_note_on_encountered:
                         if event_type == 'note_on':

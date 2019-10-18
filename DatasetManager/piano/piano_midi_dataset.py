@@ -4,6 +4,7 @@ import pickle
 import random
 import shutil
 
+import numpy as np
 import torch
 from torch.utils import data
 from tqdm import tqdm
@@ -35,7 +36,9 @@ class PianoMidiDataset(data.Dataset):
                  corpus_it_gen,
                  sequence_size,
                  max_transposition,
-                 excluded_features):
+                 time_dilation_factor,
+                 excluded_features,
+                 ):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -54,8 +57,11 @@ class PianoMidiDataset(data.Dataset):
         self.list_ids = []
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
-        self.max_transposition = max_transposition
         self.last_index = None
+
+        #  Data augmentations
+        self.max_transposition = max_transposition
+        self.time_dilation_factor = time_dilation_factor
 
         # One hot encoding
         self.feat_ranges = None
@@ -68,6 +74,13 @@ class PianoMidiDataset(data.Dataset):
 
         # Chunks
         self.hop_size = None
+
+        #  Transformation chain
+        self.transformations = {
+            'time_shift': True,
+            'time_dilation': True,
+            'transposition': True
+        }
 
         self.precomputed_vectors_piano = {
             START_SYMBOL: None,
@@ -95,9 +108,9 @@ class PianoMidiDataset(data.Dataset):
         prefix = '-'.join(self.corpus_it_gen.subsets)
         prefix += '_' + '-'.join(self.excluded_features)
         name = f'PianoMidi-' \
-            f'{prefix}-' \
-            f'{self.sequence_size}-' \
-            f'{self.max_transposition}'
+               f'{prefix}-' \
+               f'{self.sequence_size}-' \
+               f'{self.max_transposition}'
         return name
 
     def __len__(self):
@@ -125,6 +138,7 @@ class PianoMidiDataset(data.Dataset):
         instance = PianoMidiDataset(corpus_it_gen=self.corpus_it_gen,
                                     sequence_size=self.sequence_size,
                                     max_transposition=self.max_transposition,
+                                    time_dilation_factor=self.time_dilation_factor,
                                     excluded_features=self.excluded_features)
         instance.list_ids = list_ids
         return instance
@@ -139,10 +153,10 @@ class PianoMidiDataset(data.Dataset):
         # Load data and get label
         x = torch.load(f'{dataset_dir}/x/{id}.pt')
         messages = torch.load(f'{dataset_dir}/message_type/{id}.pt')
+        # Apply transformations
+        x, messages = self.transform(x, messages)
 
-        x_trans, mess_trans = self.transform(x, messages)
-
-        return x_trans, mess_trans
+        return x, messages
 
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
@@ -377,45 +391,69 @@ class PianoMidiDataset(data.Dataset):
     def transform(self, x, messages):
         ############################
         #  Time shift
-        if len(x) > self.sequence_size:
-            time_shift = math.floor(random.uniform(0, self.hop_size))
-            x = x[time_shift:time_shift + self.sequence_size]
-            messages = messages[time_shift:time_shift + self.sequence_size]
+        if self.transformations['time_shift']:
+            if len(x) > self.sequence_size:
+                time_shift = math.floor(random.uniform(0, self.hop_size))
+                x = x[time_shift:time_shift + self.sequence_size]
+                messages = messages[time_shift:time_shift + self.sequence_size]
+
+        ############################
+        #  Time dilation
+        if self.transformations['time_dilation']:
+            dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
+            print(dilation_factor)
+            new_x = []
+            for ind in range(len(x)):
+                event_index = x[ind]
+                feat_range = self.feat_ranges['time_shift']
+                if feat_range.start <= event_index < feat_range.stop:
+                    event_value = event_index - feat_range.start
+                    abs_time = EventSeq.time_shift_bins[event_value]
+                    # scale time
+                    scaled_abs_time = abs_time * dilation_factor
+                    new_event_value = np.searchsorted(EventSeq.time_shift_bins, scaled_abs_time, side='right') - 1
+                    new_event_index = new_event_value + feat_range.start
+                else:
+                    new_event_index = event_index
+                new_x.append(new_event_index)
+            x = torch.tensor(new_x).long()
 
         ############################
         # Transposition
         # Draw a random transposition
-        transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
-        if transposition == 0:
-            return x, messages
-
-        mess_trans = messages
-        x_trans = x
-
-        # First check transposition is possible
-        transposable_types = [e for e in ['note_on', 'note_off'] if e not in self.excluded_features]
-        for message_type in transposable_types:
-            ranges = self.feat_ranges[message_type]
-            min_value, max_value = min(ranges), max(ranges)
-            authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
-                                                 ((x + transposition <= max_value) * (x + transposition >= min_value)))
-            if not authorized_transposition:
+        if self.transformations['transposition']:
+            transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
+            if transposition == 0:
                 return x, messages
 
-        # Then transpose
-        for message_type in transposable_types:
-            # Mask
-            x_trans = torch.where(self.message_type_to_index[message_type] == messages,
-                                  x_trans + transposition,
-                                  x_trans)
+            x_trans = x
 
-        return x_trans, mess_trans
+            # First check transposition is possible
+            transposable_types = [e for e in ['note_on', 'note_off'] if e not in self.excluded_features]
+            for message_type in transposable_types:
+                ranges = self.feat_ranges[message_type]
+                min_value, max_value = min(ranges), max(ranges)
+                authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
+                                                     ((x + transposition <= max_value) * (
+                                                                 x + transposition >= min_value)))
+                if not authorized_transposition:
+                    return x, messages
+
+            # Then transpose
+            for message_type in transposable_types:
+                # Mask
+                x_trans = torch.where(self.message_type_to_index[message_type] == messages,
+                                      x_trans + transposition,
+                                      x_trans)
+            x = x_trans
+
+        return x, messages
 
 
 if __name__ == '__main__':
 
-    excluded_features = ['note_off', 'velocity']
-    # excluded_features = []
+    # excluded_features = ['note_off', 'velocity']
+    excluded_features = []
 
     subsets = [
         # 'ecomp_piano_dataset',
@@ -430,7 +468,9 @@ if __name__ == '__main__':
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
                                sequence_size=600,
                                max_transposition=6,
-                               excluded_features=excluded_features)
+                               time_dilation_factor=0.1,
+                               excluded_features=excluded_features,
+                               )
 
     (train_dataloader,
      val_dataloader,

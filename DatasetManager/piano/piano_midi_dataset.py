@@ -400,6 +400,7 @@ class PianoMidiDataset(data.Dataset):
         ############################
         #  Time dilation
         if self.transformations['time_dilation']:
+            avoid_dilation = False
             dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
             print(dilation_factor)
             new_x = []
@@ -411,12 +412,16 @@ class PianoMidiDataset(data.Dataset):
                     abs_time = EventSeq.time_shift_bins[event_value]
                     # scale time
                     scaled_abs_time = abs_time * dilation_factor
+                    if scaled_abs_time > EventSeq.time_shift_bins[-1]:
+                        avoid_dilation = True
+                        break
                     new_event_value = np.searchsorted(EventSeq.time_shift_bins, scaled_abs_time, side='right') - 1
                     new_event_index = new_event_value + feat_range.start
                 else:
                     new_event_index = event_index
                 new_x.append(new_event_index)
-            x = torch.tensor(new_x).long()
+            if not avoid_dilation:
+                x = torch.tensor(new_x).long()
 
         ############################
         # Transposition

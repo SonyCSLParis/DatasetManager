@@ -37,6 +37,7 @@ class PianoMidiDataset(data.Dataset):
                  sequence_size,
                  max_transposition,
                  time_dilation_factor,
+                 insert_zero_time_token,
                  excluded_features,
                  ):
         """
@@ -53,15 +54,22 @@ class PianoMidiDataset(data.Dataset):
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
 
-        self.excluded_features = excluded_features
         self.list_ids = []
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
         self.last_index = None
 
+        self.excluded_features = excluded_features
+        self.insert_zero_time_token = insert_zero_time_token
+
         #  Data augmentations
         self.max_transposition = max_transposition
         self.time_dilation_factor = time_dilation_factor
+        self.transformations = {
+            'time_shift': True,
+            'time_dilation': True,
+            'transposition': True
+        }
 
         # One hot encoding
         self.feat_ranges = None
@@ -74,13 +82,6 @@ class PianoMidiDataset(data.Dataset):
 
         # Chunks
         self.hop_size = None
-
-        #  Transformation chain
-        self.transformations = {
-            'time_shift': True,
-            'time_dilation': True,
-            'transposition': True
-        }
 
         self.precomputed_vectors_piano = {
             START_SYMBOL: None,
@@ -139,6 +140,7 @@ class PianoMidiDataset(data.Dataset):
                                     sequence_size=self.sequence_size,
                                     max_transposition=self.max_transposition,
                                     time_dilation_factor=self.time_dilation_factor,
+                                    insert_zero_time_token=self.insert_zero_time_token,
                                     excluded_features=self.excluded_features)
         instance.list_ids = list_ids
         return instance
@@ -222,7 +224,8 @@ class PianoMidiDataset(data.Dataset):
         # list_velocity = list(range(self.velocity_quantization))
         # list_duration = list(self.duration_quantization)
 
-        self.feat_ranges = EventSeq.feat_ranges(excluded_features=self.excluded_features)
+        self.feat_ranges = EventSeq.feat_ranges(excluded_features=self.excluded_features,
+                                                insert_zero_time_token=self.insert_zero_time_token)
         last_index = 0
         for k, v in self.feat_ranges.items():
             if v.stop > last_index:
@@ -297,7 +300,8 @@ class PianoMidiDataset(data.Dataset):
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
 
             #  Preprocess midi
-            sequence = preprocess_midi(midi_file, excluded_features=self.excluded_features)
+            sequence = preprocess_midi(midi_file, excluded_features=self.excluded_features,
+                                       insert_zero_time_token=self.insert_zero_time_token)
 
             #  Assert only note, velocity and duration are here for now
             assert sequence.max() < self.last_index
@@ -341,7 +345,7 @@ class PianoMidiDataset(data.Dataset):
                 chunk = prepend_seq + list(subsequence) + append_seq
                 if edge_chunk:
                     chunk = chunk[:self.sequence_size]
-                x_tensor = torch.tensor(chunk).long()
+                x_tensor = torch.tensor(np.array(chunk, dtype=np.int64)).long()
                 torch.save(x_tensor, f'{dataset_dir}/x/{chunk_counter}.pt')
 
                 # Build symbol_type sequence
@@ -370,10 +374,12 @@ class PianoMidiDataset(data.Dataset):
         raise NotImplementedError
 
     def tensor_to_score(self, sequence, midipath):
+        zero_time_event = self.feat_ranges['time_shift'][0]
         #  Filter out meta events
-        sequence_clean = [int(e) for e in sequence if e not in self.meta_range]
+        removed_tokens = [zero_time_event] + self.meta_range
+        sequence_clean = [int(e) for e in sequence if e not in removed_tokens]
         # Create EventSeq
-        note_seq = EventSeq.from_array(sequence_clean, self.excluded_features).to_note_seq()
+        note_seq = EventSeq.from_array(sequence_clean, self.excluded_features, self.insert_zero_time_token).to_note_seq(self.insert_zero_time_token)
         note_seq.to_midi_file(midipath)
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
@@ -409,13 +415,14 @@ class PianoMidiDataset(data.Dataset):
                 feat_range = self.feat_ranges['time_shift']
                 if feat_range.start <= event_index < feat_range.stop:
                     event_value = event_index - feat_range.start
-                    abs_time = EventSeq.time_shift_bins[event_value]
+                    abs_time = EventSeq.time_shift_bins(self.insert_zero_time_token)[event_value]
                     # scale time
                     scaled_abs_time = abs_time * dilation_factor
-                    if scaled_abs_time > EventSeq.time_shift_bins[-1]:
-                        avoid_dilation = True
-                        break
-                    new_event_value = np.searchsorted(EventSeq.time_shift_bins, scaled_abs_time, side='right') - 1
+                    # if scaled_abs_time > EventSeq.time_shift_bins[-1]:
+                    #     avoid_dilation = True
+                    #     break
+                    new_event_value = np.searchsorted(EventSeq.time_shift_bins(self.insert_zero_time_token),
+                                                      scaled_abs_time, side='right') - 1
                     new_event_index = new_event_value + feat_range.start
                 else:
                     new_event_index = event_index
@@ -457,13 +464,13 @@ class PianoMidiDataset(data.Dataset):
 
 if __name__ == '__main__':
 
-    # excluded_features = ['note_off', 'velocity']
-    excluded_features = []
+    excluded_features = ['note_off', 'velocity']
+    # excluded_features = []
 
     subsets = [
-        # 'ecomp_piano_dataset',
-        # 'classic_piano_dataset',
-        'debug'
+        'ecomp_piano_dataset',
+        'classic_piano_dataset',
+        # 'debug'
     ]
     corpus_it_gen = PianoIteratorGenerator(
         subsets=subsets,
@@ -471,9 +478,10 @@ if __name__ == '__main__':
     )
 
     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-                               sequence_size=600,
+                               sequence_size=200,
                                max_transposition=6,
                                time_dilation_factor=0.1,
+                               insert_zero_time_token=True,
                                excluded_features=excluded_features,
                                )
 

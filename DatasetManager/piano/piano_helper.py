@@ -73,11 +73,11 @@ class PianoIteratorGenerator:
 
 #  These come from Github "Performance RNN - PyTorch"
 # https://github.com/djosix/Performance-RNN-PyTorch
-def preprocess_midi(path, excluded_features):
+def preprocess_midi(path, excluded_features, insert_zero_time_token):
     note_seq = NoteSeq.from_midi_file(path)
     note_seq.adjust_time(-note_seq.notes[0].start)
-    event_seq = EventSeq.from_note_seq(note_seq)
-    ret = event_seq.to_array(excluded_features)
+    event_seq = EventSeq.from_note_seq(note_seq, excluded_features, insert_zero_time_token)
+    ret = event_seq.to_array(excluded_features, insert_zero_time_token)
     return ret
 
 
@@ -183,10 +183,30 @@ class EventSeq:
     pitch_range = DEFAULT_PITCH_RANGE
     velocity_range = DEFAULT_VELOCITY_RANGE
     velocity_steps = DEFAULT_VELOCITY_STEPS
-    time_shift_bins = DEFAULT_TIME_SHIFT_BINS
 
     @staticmethod
-    def from_note_seq(note_seq):
+    def time_shift_bins(insert_zero_time_token):
+
+        #  From Chris:
+        # ∆T
+        # for 1–100 ticks (short) 1–100
+        # ∆T
+        # for 100–1000 ticks (medium) 101–190
+        # ∆T
+        # for > 10000 ticks (long) 191–370
+
+        # Use long ??
+        smallest_time_shift = 0.01
+        if insert_zero_time_token:
+            short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
+        else:
+            short_time_shifts = np.arange(smallest_time_shift, 1.0, smallest_time_shift)
+        medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
+        time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
+        return time_shift_bins
+
+    @staticmethod
+    def from_note_seq(note_seq, excluded_features, insert_zero_time_token):
         note_events = []
 
         if USE_VELOCITY:
@@ -205,7 +225,12 @@ class EventSeq:
                 note_events.append(Event('note_on', note.start, pitch_index))
                 note_events.append(Event('note_off', note.end, pitch_index))
 
+        #  sort by time
         note_events.sort(key=lambda event: event.time)  # stable
+
+        #  remove exlcuded types here
+        note_events = [e for e in note_events if e.type not in excluded_features]
+
         events = []
 
         for i, event in enumerate(note_events):
@@ -215,18 +240,37 @@ class EventSeq:
                 break
 
             interval = note_events[i + 1].time - event.time
-            shift = 0
 
-            while interval - shift >= EventSeq.time_shift_bins[0]:
-                index = np.searchsorted(EventSeq.time_shift_bins,
-                                        interval - shift, side='right') - 1
-                events.append(Event('time_shift', event.time + shift, index))
-                shift += EventSeq.time_shift_bins[index]
+            # shift = 0
+            # if insert_zero_time_token:
+            #     minimum_time_interval = EventSeq.time_shift_bins(insert_zero_time_token)[1]
+            # else:
+            #     minimum_time_interval = EventSeq.time_shift_bins(insert_zero_time_token)[0]
+            # first = True
+            # while interval - shift >= minimum_time_interval:
+            #     if not first:
+            #         print(interval)
+            #     index = np.searchsorted(EventSeq.time_shift_bins(insert_zero_time_token),
+            #                             interval - shift, side='right') - 1
+            #     events.append(Event('time_shift', event.time + shift, index))
+            #     shift += EventSeq.time_shift_bins(insert_zero_time_token)[index]
+            #     first = False
 
-        return EventSeq(events)
+            # if interval > EventSeq.time_shift_bins(insert_zero_time_token)[-1]:
+            #     print('yoyoyo')
+
+            index = np.searchsorted(EventSeq.time_shift_bins(insert_zero_time_token),
+                                    interval, side='right') - 1
+
+            if not insert_zero_time_token and index == 0:
+                continue
+
+            events.append(Event('time_shift', event.time, index))
+
+        return EventSeq(events, insert_zero_time_token)
 
     @staticmethod
-    def from_array(event_indeces, excluded_features):
+    def from_array(event_indeces, excluded_features, insert_zero_time_token):
         # notes: old original version
         #  
         #     time = 0
@@ -246,7 +290,7 @@ class EventSeq:
         events = []
         first_note_on_encountered = False
         for event_index in event_indeces:
-            for event_type, feat_range in EventSeq.feat_ranges(excluded_features).items():
+            for event_type, feat_range in EventSeq.feat_ranges(excluded_features, insert_zero_time_token).items():
                 if feat_range.start <= event_index < feat_range.stop:
                     if not first_note_on_encountered:
                         if event_type == 'note_on':
@@ -256,30 +300,30 @@ class EventSeq:
                     event_value = event_index - feat_range.start
                     events.append(Event(event_type, time, event_value))
                     if event_type == 'time_shift':
-                        time += EventSeq.time_shift_bins[event_value]
+                        time += EventSeq.time_shift_bins(insert_zero_time_token)[event_value]
                     break
 
-        return EventSeq(events)
+        return EventSeq(events, insert_zero_time_token)
 
     @staticmethod
-    def dim():
-        return sum(EventSeq.feat_dims().values())
+    def dim(insert_zero_time_token):
+        return sum(EventSeq.feat_dims(insert_zero_time_token).values())
 
     @staticmethod
-    def feat_dims():
+    def feat_dims(insert_zero_time_token):
         feat_dims = collections.OrderedDict()
         feat_dims['note_on'] = len(EventSeq.pitch_range)
         feat_dims['note_off'] = len(EventSeq.pitch_range)
         if USE_VELOCITY:
             feat_dims['velocity'] = EventSeq.velocity_steps
-        feat_dims['time_shift'] = len(EventSeq.time_shift_bins)
+        feat_dims['time_shift'] = len(EventSeq.time_shift_bins(insert_zero_time_token))
         return feat_dims
 
     @staticmethod
-    def feat_ranges(excluded_features):
+    def feat_ranges(excluded_features, insert_zero_time_token):
         offset = 0
         feat_ranges = collections.OrderedDict()
-        for feat_name, feat_dim in EventSeq.feat_dims().items():
+        for feat_name, feat_dim in EventSeq.feat_dims(insert_zero_time_token).items():
             if feat_name in excluded_features:
                 continue
             feat_ranges[feat_name] = range(offset, offset + feat_dim)
@@ -294,7 +338,7 @@ class EventSeq:
             EventSeq.velocity_range.stop,
             n / (EventSeq.velocity_steps - 1))
 
-    def __init__(self, events=[]):
+    def __init__(self, events, insert_zero_time_token):
         for event in events:
             assert isinstance(event, Event)
 
@@ -305,9 +349,9 @@ class EventSeq:
         for event in self.events:
             event.time = time
             if event.type == 'time_shift':
-                time += EventSeq.time_shift_bins[event.value]
+                time += EventSeq.time_shift_bins(insert_zero_time_token)[event.value]
 
-    def to_note_seq(self):
+    def to_note_seq(self, insert_zero_time_token):
         time = 0
         notes = []
 
@@ -337,7 +381,7 @@ class EventSeq:
                 velocity = velocity_bins[index]
 
             elif event.type == 'time_shift':
-                time += EventSeq.time_shift_bins[event.value]
+                time += EventSeq.time_shift_bins(insert_zero_time_token)[event.value]
 
         for note in notes:
             if note.end is None:
@@ -347,10 +391,11 @@ class EventSeq:
 
         return NoteSeq(notes)
 
-    def to_array(self, excluded_features):
-        feat_idxs = EventSeq.feat_ranges(excluded_features=excluded_features)
-        idxs = [feat_idxs[event.type][event.value] for event in self.events if event.type not in excluded_features]
-        dtype = np.uint8 if EventSeq.dim() <= 256 else np.uint16
+    def to_array(self, excluded_features, insert_zero_time_token):
+        feat_idxs = EventSeq.feat_ranges(excluded_features=excluded_features,
+                                         insert_zero_time_token=insert_zero_time_token)
+        idxs = [feat_idxs[event.type][event.value] for event in self.events]
+        dtype = np.uint8 if EventSeq.dim(insert_zero_time_token) <= 256 else np.uint16
         return np.array(idxs, dtype=dtype)
 
 

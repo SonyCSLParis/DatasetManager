@@ -408,7 +408,7 @@ class PianoMidiDataset(data.Dataset):
         if self.transformations['time_dilation']:
             avoid_dilation = False
             dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
-            print(dilation_factor)
+            # print(dilation_factor)
             new_x = []
             for ind in range(len(x)):
                 event_index = x[ind]

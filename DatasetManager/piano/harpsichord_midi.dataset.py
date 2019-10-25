@@ -1,3 +1,4 @@
+import itertools
 import math
 import os
 import pickle
@@ -5,16 +6,15 @@ import random
 import shutil
 
 import numpy as np
+import pretty_midi
 import torch
 from torch.utils import data
 from tqdm import tqdm
 
 from DatasetManager.helpers import END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
-from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator, get_midi_type, \
-    find_nearest_value
-
-TS_0 = 'TSZ'
+from DatasetManager.piano.piano_helper import preprocess_midi, PianoIteratorGenerator, get_midi_type, \
+    find_nearest_value, EventSeq
 
 """
 Typical piano sequence:
@@ -62,26 +62,31 @@ class HarpsichordMidiDataset(data.Dataset):
         assert self.sequence_size // 8, 'sequence_size needs to be a multiple of 8'
         self.last_index = None
 
-        #  Data augmentations
+        #  ranges
+        self.time_table = self.get_time_table()
+        self.pitch_range = range(21, 109)
+        self.velocity_range = range(21, 109)
+        self.programs = range(128)
+
+        #  data augmentations
         self.max_transposition = max_transposition
         self.time_dilation_factor = time_dilation_factor
         self.transformations = {
-            'time_shift': True,
-            'time_dilation': True,
-            'transposition': True
+            'time_shift': False,
+            'time_dilation': False,
+            'transposition': False
         }
 
-        self.time_table = EventSeq.time_shift_bins(insert_zero_time_token=True)
-
         # Midi 2 value
-        self.value2midi = {}
-        self.midi2value = {}
-        self.midi_positions = ['note_on', 'note_off', 'time_shift', 'velocity']
+        # self.value2midi = {}
+        # self.midi2value = {}
+        # self.midi_positions = ['note_on', 'note_off', 'time_shift', 'velocity']
 
         # Index 2 value
         self.index2value = {}
         self.value2index = {}
-        self.index_positions = ['pitch', 'duration', 'velocity', 'time_shift']
+        self.index_order = ['pitch', 'duration', 'velocity', 'time_shift']
+        self.index_order_dict = {v: k for k, v in enumerate(self.index_order)}
 
         # Chunks
         self.hop_size = None
@@ -119,6 +124,27 @@ class HarpsichordMidiDataset(data.Dataset):
         """Denotes the total number of samples"""
         return len(self.list_ids)
 
+    @staticmethod
+    def get_time_table():
+        #  From Chris:
+        # ∆T
+        # for 1–100 ticks (short) 1–100
+        # ∆T
+        # for 100–1000 ticks (medium) 101–190
+        # ∆T
+        # for > 10000 ticks (long) 191–370
+
+        # Use long ??
+        # smallest_time_shift = 0.001
+        # if insert_zero_time_token:
+        #     short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
+        # else:
+        #     short_time_shifts = np.arange(smallest_time_shift, 1.0, smallest_time_shift)
+        # medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
+        # time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
+        time_shift_bins = np.arange(0, 5.0, 0.01)
+        return time_shift_bins
+
     def save(self):
         f = open(self.local_parameters['filename'], 'wb')
         pickle.dump(self.__dict__, f, 2)
@@ -152,11 +178,10 @@ class HarpsichordMidiDataset(data.Dataset):
         # Select sample
         id = self.list_ids[index]
         # Load data and get label
-        x = torch.load(f'{dataset_dir}/x/{id}.pt')
-        y = None  #  Reconstruction with notes_off and velocity in a near future
+        x = np.load(f'{dataset_dir}/x/{id}.npy')
         # Apply transformations
-        x, y = self.transform(x, y)
-        return x, y
+        x = self.transform(x)
+        return x
 
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
@@ -224,31 +249,34 @@ class HarpsichordMidiDataset(data.Dataset):
 
         ######################################################################
         #  Midi 2 value
-        self.midi_ranges = EventSeq.feat_ranges(excluded_features=[],
-                                                insert_zero_time_token=False)
-        for feat_name, feat_range in self.midi_ranges.items():
-            midi2value = {}
-            value2midi = {}
-            for midi in feat_range:
-                midi_shift = midi - feat_range[0]
-                if feat_name == 'time_shift':
-                    # +1 is because we don't use t=0 token
-                    value = self.time_table[midi_shift+1]
-                elif feat_name in ['note_on', 'note_off']:
-                    value = EventSeq.pitch_range[midi_shift]
-                elif feat_name == 'velocity':
-                    value = EventSeq.velocity_range[midi_shift]
-                else:
-                    raise Exception
-
-                midi2value[midi] = value
-                value2midi[value] = midi
-            self.midi2value[feat_name] = midi2value
-            self.value2midi[feat_name] = value2midi
+        # self.midi_ranges = EventSeq.feat_ranges(excluded_features=[], insert_zero_time_token=False)
+        #
+        # for feat_name in self.midi_positions:
+        #
+        #     midi_range = self.midi_ranges[feat_name]
+        #
+        #     if feat_name == 'note_on':
+        #         values = self.pitch_range
+        #     elif feat_name == 'note_off':
+        #         values = self.pitch_range
+        #     elif feat_name == 'time_shift':
+        #         values = self.time_table[1:]
+        #     elif feat_name == 'velocity':
+        #         values = self.velocity_range
+        #     else:
+        #         raise Exception
+        #
+        #     midi2value = {}
+        #     value2midi = {}
+        #     for value, midi in zip(values, midi_range):
+        #         midi2value[midi] = value
+        #         value2midi[value] = midi
+        #     self.midi2value[feat_name] = midi2value
+        #     self.value2midi[feat_name] = value2midi
 
         ######################################################################
         #  Index 2 value
-        for feat_name in self.index_positions:
+        for feat_name in self.index_order:
             index2value = {}
             value2index = {}
             index = 0
@@ -258,9 +286,9 @@ class HarpsichordMidiDataset(data.Dataset):
             elif feat_name == 'duration':
                 values = self.time_table[1:]
             elif feat_name == 'pitch':
-                values = EventSeq.pitch_range
+                values = self.pitch_range
             elif feat_name == 'velocity':
-                values = EventSeq.velocity_range
+                values = self.velocity_range
             else:
                 raise Exception
 
@@ -288,9 +316,9 @@ class HarpsichordMidiDataset(data.Dataset):
 
         ######################################################################
         # Precomputed vectors
-        self.padding_chunk = [self.value2index[feat_name][PAD_SYMBOL] for feat_name in self.index_positions]
-        self.start_chunk = [self.value2index[feat_name][START_SYMBOL] for feat_name in self.index_positions]
-        self.end_chunk = [self.value2index[feat_name][END_SYMBOL] for feat_name in self.index_positions]
+        self.padding_chunk = [self.value2index[feat_name][PAD_SYMBOL] for feat_name in self.index_order]
+        self.start_chunk = [self.value2index[feat_name][START_SYMBOL] for feat_name in self.index_order]
+        self.end_chunk = [self.value2index[feat_name][END_SYMBOL] for feat_name in self.index_order]
         return
 
     def make_tensor_dataset(self):
@@ -309,55 +337,62 @@ class HarpsichordMidiDataset(data.Dataset):
             shutil.rmtree(dataset_dir)
         os.makedirs(dataset_dir)
         os.mkdir(f'{dataset_dir}/x')
-        os.mkdir(f'{dataset_dir}/message_type')
 
         # Iterate over files
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
 
             #  Preprocess midi
-            sequence = preprocess_midi(midi_file,
-                                       excluded_features=[],
-                                       insert_zero_time_token=False)
+            midi = pretty_midi.PrettyMIDI(midi_file)
+            sequence = list(itertools.chain(*[
+                inst.notes for inst in midi.instruments
+                if inst.program in self.programs and not inst.is_drum]))
 
             structured_sequence = []
-            for midi_ind in range(len(sequence)):
-                midi = sequence[midi_ind]
-                midi_type = get_midi_type(midi, self.midi_ranges)
 
-                if midi_type == 'velocity':
-                    velocity_value = self.midi2value['velocity'][midi]
-                    velocity = self.value2index['velocity'][velocity_value]
-                elif midi_type == 'note_on':
-                    pitch_value = self.midi2value['note_on'][midi]
-                    pitch = self.value2index['pitch'][pitch_value]
-                    # Check the next midi symbol to see if there is a time_shift
-                    next_midi = sequence[midi_ind + 1]
-                    time_shift_value = 0.0 \
-                        if (get_midi_type(next_midi, self.midi_ranges) != 'time_shift') \
-                        else self.midi2value['time_shift'][next_midi]
-                    time_shift = self.value2index['time_shift'][time_shift_value]
-                    # Find next note_off (not efficient but fuck it)
-                    duration_value = 0
-                    for future_midi_ind in range(midi_ind + 1, len(sequence)):
-                        future_midi = sequence[future_midi_ind]
-                        future_midi_type = get_midi_type(future_midi, self.midi_ranges)
-                        if future_midi_type == 'note_off':
-                            if self.midi2value['note_off'][future_midi] == pitch_value:
-                                break
-                        elif future_midi_type == 'time_shift':
-                            duration_value += self.midi2value['time_shift'][future_midi]
-                    duration_value = find_nearest_value(self.time_table, duration_value)
-                    duration = self.value2index['duration'][duration_value]
 
-                    #  Add note
-                    this_note = {
-                        'duration': duration,
-                        'time_shift': time_shift,
-                        'pitch': pitch,
-                        'velocity': velocity
-                    }
-                    this_note = [this_note[feat_name] for feat_name in self.index_positions]
-                    structured_sequence.append(this_note)
+
+
+            # for midi_ind in range(len(sequence)):
+            #     midi = sequence[midi_ind]
+            #     midi_type = get_midi_type(midi, self.midi_ranges)
+            #     midi_value = self.midi2value[midi_type][midi]
+            #
+            #     if midi_type == 'velocity':
+            #         velocity = self.value2index['velocity'][midi_value]
+            #     elif midi_type == 'note_on':
+            #         pitch = self.value2index['pitch'][midi_value]
+            #         # Check the next midi symbol to see if there is a time_shift
+            #         next_midi = sequence[midi_ind + 1]
+            #         time_shift_value = 0.0 \
+            #             if (get_midi_type(next_midi, self.midi_ranges) != 'time_shift') \
+            #             else self.midi2value['time_shift'][next_midi]
+            #         time_shift = self.value2index['time_shift'][time_shift_value]
+            #         # Find next note_off (not efficient but fuck it)
+            #         duration_value = 0
+            #         for future_midi_ind in range(midi_ind + 1, len(sequence)):
+            #             future_midi = sequence[future_midi_ind]
+            #             future_midi_type = get_midi_type(future_midi, self.midi_ranges)
+            #             future_midi_value = self.midi2value[future_midi_type][future_midi]
+            #             if future_midi_type == 'note_off':
+            #                 if future_midi_value == midi_value:
+            #                     break
+            #             elif future_midi_type == 'time_shift':
+            #                 duration_value += future_midi_value
+            #
+            #         duration_value_quant = find_nearest_value(self.time_table, duration_value)
+            #         if duration_value_quant == 0:
+            #             continue
+            #         duration = self.value2index['duration'][duration_value_quant]
+            #
+            #         #  Add note
+            #         this_note = {
+            #             'duration': duration,
+            #             'time_shift': time_shift,
+            #             'pitch': pitch,
+            #             'velocity': velocity
+            #         }
+            #         this_note = [this_note[feat_name] for feat_name in self.index_order]
+            #         structured_sequence.append(this_note)
 
             #  Build sequence
             self.hop_size = self.sequence_size // 4
@@ -388,8 +423,8 @@ class HarpsichordMidiDataset(data.Dataset):
                 if not edge_chunk:
                     end_time += self.hop_size
                 chunk = sequence[start_time:end_time]
-                x_tensor = torch.tensor(chunk).long()
-                torch.save(x_tensor, f'{dataset_dir}/x/{chunk_counter}.pt')
+                x_np = torch.tensor(chunk).long()
+                np.save(f'{dataset_dir}/x/{chunk_counter}', x_np)
                 self.list_ids.append(chunk_counter)
                 chunk_counter += 1
         print(f'Chunks: {chunk_counter}\n')
@@ -402,14 +437,40 @@ class HarpsichordMidiDataset(data.Dataset):
         raise NotImplementedError
 
     def tensor_to_score(self, sequence, midipath):
-        zero_time_event = self.feat_ranges['time_shift'][0]
-        #  Filter out meta events
-        removed_tokens = [zero_time_event] + self.meta_range
-        sequence_clean = [int(e) for e in sequence if e not in removed_tokens]
-        # Create EventSeq
-        note_seq = EventSeq.from_array(sequence_clean, self.excluded_features, self.insert_zero_time_token).to_note_seq(
-            self.insert_zero_time_token)
-        note_seq.to_midi_file(midipath)
+        # Create score
+        score = pretty_midi.PrettyMIDI()
+        # 'Acoustic Grand Piano', 'Bright Acoustic Piano',
+        #                   'Electric Grand Piano', 'Honky-tonk Piano',
+        #                   'Electric Piano 1', 'Electric Piano 2', 'Harpsichord',
+        piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+        piano = pretty_midi.Instrument(program=piano_program)
+
+        # values
+        sequence = sequence.numpy()
+        start_time = 0.0
+        for t in range(len(sequence)):
+            pitch_ind = sequence[t, self.index_order_dict['pitch']]
+            duration_ind = sequence[t, self.index_order_dict['duration']]
+            velocity_ind = sequence[t, self.index_order_dict['velocity']]
+            time_shift_ind = sequence[t, self.index_order_dict['time_shift']]
+
+            pitch_value = self.index2value['pitch'][pitch_ind]
+            duration_value = self.index2value['duration'][duration_ind]
+            velocity_value = self.index2value['velocity'][velocity_ind]
+            time_shift_value = self.index2value['time_shift'][time_shift_ind]
+
+            if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                continue
+
+            note = pretty_midi.Note(
+                velocity=velocity_value, pitch=pitch_value, start=start_time, end=start_time + duration_value)
+            piano.notes.append(note)
+
+            start_time += time_shift_value
+
+        score.instruments.append(piano)
+        score.write(midipath)
+        return
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
@@ -423,76 +484,76 @@ class HarpsichordMidiDataset(data.Dataset):
             self.tensor_to_score(sequence=piano_sequences[batch_ind],
                                  midipath=f"{writing_dir}/{filepath}_{batch_ind}.mid")
 
-    def transform(self, x, messages):
+    def transform(self, x):
+
+        ts_pos = self.index_order_dict['time_shift']
+        duration_pos = self.index_order_dict['duration']
+        pitch_pos = self.index_order_dict['pitch']
+
         ############################
         #  Time shift
         if self.transformations['time_shift']:
             if len(x) > self.sequence_size:
                 time_shift = math.floor(random.uniform(0, self.hop_size))
                 x = x[time_shift:time_shift + self.sequence_size]
-                messages = messages[time_shift:time_shift + self.sequence_size]
+        else:
+            x = x[:self.sequence_size]
 
         ############################
         #  Time dilation
         if self.transformations['time_dilation']:
             avoid_dilation = False
             dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
-            # print(dilation_factor)
-            ts_position = self.feature2position['time_shift']
-            time_shift = list(x[:, ts_position].numpy())
-            time_shift_absolute = [self.index2value[ts_position][e] for e in time_shift]
-            time_shift_absolute_dilated = dilation_factor * time_shift_absolute
-            new_time_shift = self.value2index[time_shift_absolute_dilated]
-            for ind in range(len(x)):
-                event_index = x[ind]
-                feat_range = self.feat_ranges['time_shift']
-                if feat_range.start <= event_index < feat_range.stop:
-                    event_value = event_index - feat_range.start
-                    abs_time = EventSeq.time_shift_bins(self.insert_zero_time_token)[event_value]
-                    # scale time
-                    scaled_abs_time = abs_time * dilation_factor
-                    # if scaled_abs_time > EventSeq.time_shift_bins[-1]:
-                    #     avoid_dilation = True
-                    #     break
-                    new_event_value = np.searchsorted(EventSeq.time_shift_bins(self.insert_zero_time_token),
-                                                      scaled_abs_time, side='right') - 1
-                    new_event_index = new_event_value + feat_range.start
+            #  todo: version matricielle ??? Ca parait chaud quand meme...
+            for t in range(len(x)):
+                # time_shift
+                old_ts = x[t, ts_pos]
+                ts_value = self.index2value['time_shift'][old_ts]
+                if ts_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                    continue
+                ts_dilated = find_nearest_value(self.time_table, ts_value * dilation_factor)
+                new_ts = self.value2index['time_shift'][ts_dilated]
+                x[t, ts_pos] = new_ts
+
+                #  duration
+                old_duration = x[t, duration_pos]
+                duration_value = self.index2value['duration'][old_duration]
+                if duration_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                    continue
+                duration_dilated = find_nearest_value(self.time_table, duration_value * dilation_factor)
+                if duration_dilated == 0.0:
+                    # smallest duration
+                    new_duration = 0
                 else:
-                    new_event_index = event_index
-                new_x.append(new_event_index)
-            if not avoid_dilation:
-                x = torch.tensor(new_x).long()
+                    new_duration = self.value2index['duration'][duration_dilated]
+                x[t, duration_pos] = new_duration
 
         ############################
         # Transposition
-        # Draw a random transposition
         if self.transformations['transposition']:
+
+            # Draw a random transposition
             transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
-            if transposition == 0:
-                return x, messages
 
-            x_trans = x
+            if transposition != 0:
+                x_trans = x
+                for t in range(len(x)):
+                    # pitch
+                    old_pitch = x[t, pitch_pos]
+                    pitch_value = self.index2value['pitch'][old_pitch]
+                    if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                        continue
+                    pitch_transposed = pitch_value + transposition
+                    if pitch_transposed not in self.value2index['pitch'].keys():
+                        # Transposition not allowed for that chunk... don't transpose then
+                        break
+                    new_pitch = self.value2index['pitch'][pitch_transposed]
+                    x_trans[t, pitch_pos] = new_pitch
+                x = x_trans
 
-            # First check transposition is possible
-            transposable_types = [e for e in ['note_on', 'note_off'] if e not in self.excluded_features]
-            for message_type in transposable_types:
-                ranges = self.feat_ranges[message_type]
-                min_value, max_value = min(ranges), max(ranges)
-                authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
-                                                     ((x + transposition <= max_value) * (
-                                                             x + transposition >= min_value)))
-                if not authorized_transposition:
-                    return x, messages
+        x = torch.tensor(x)
 
-            # Then transpose
-            for message_type in transposable_types:
-                # Mask
-                x_trans = torch.where(self.message_type_to_index[message_type] == messages,
-                                      x_trans + transposition,
-                                      x_trans)
-            x = x_trans
-
-        return x, messages
+        return x
 
 
 if __name__ == '__main__':
@@ -528,7 +589,7 @@ if __name__ == '__main__':
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
     for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch, message_type_batch = sample_batched
+        piano_batch = sample_batched
         if i_batch > number_dump:
             break
         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

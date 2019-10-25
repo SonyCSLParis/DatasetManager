@@ -29,7 +29,7 @@ BEAT_LENGTH = 60 / DEFAULT_TEMPO
 DEFAULT_TIME_SHIFT_BINS = 1.15 ** np.arange(32) / 65
 DEFAULT_VELOCITY_STEPS = 32
 # DEFAULT_NOTE_LENGTH = BEAT_LENGTH * 2
-DEFAULT_NOTE_LENGTH = BEAT_LENGTH / 4
+DEFAULT_NOTE_LENGTH = BEAT_LENGTH / 2
 MIN_NOTE_LENGTH = BEAT_LENGTH / 2
 
 # ControlSeq ----------------------------------------------------------------------
@@ -262,7 +262,7 @@ class EventSeq:
             index = np.searchsorted(EventSeq.time_shift_bins(insert_zero_time_token),
                                     interval, side='right') - 1
 
-            if not insert_zero_time_token and index == 0:
+            if not insert_zero_time_token and index == -1:
                 continue
 
             events.append(Event('time_shift', event.time, index))
@@ -518,6 +518,19 @@ class ControlSeq:
         ], 1)  # [steps, hist_dim + 1]
 
 
+def get_midi_type(midi, midi_ranges):
+    for feat_name, feat_range in midi_ranges.items():
+        if midi in feat_range:
+            midi_type = feat_name
+            return midi_type
+
+
+def find_nearest_value(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
+
+
 if __name__ == '__main__':
     import pickle
     import sys
@@ -541,3 +554,5 @@ if __name__ == '__main__':
     c = ControlSeq.recover_compressed_array(pickle.load(open('/tmp/cs-compressed.data', 'rb')))
 
     print('Done')
+
+

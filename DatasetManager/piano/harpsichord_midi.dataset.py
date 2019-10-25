@@ -13,8 +13,7 @@ from tqdm import tqdm
 
 from DatasetManager.helpers import END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
-from DatasetManager.piano.piano_helper import preprocess_midi, PianoIteratorGenerator, get_midi_type, \
-    find_nearest_value, EventSeq
+from DatasetManager.piano.piano_helper import PianoIteratorGenerator, find_nearest_value
 
 """
 Typical piano sequence:
@@ -65,7 +64,7 @@ class HarpsichordMidiDataset(data.Dataset):
         #  ranges
         self.time_table = self.get_time_table()
         self.pitch_range = range(21, 109)
-        self.velocity_range = range(21, 109)
+        self.velocity_range = range(128)
         self.programs = range(128)
 
         #  data augmentations
@@ -76,11 +75,6 @@ class HarpsichordMidiDataset(data.Dataset):
             'time_dilation': False,
             'transposition': False
         }
-
-        # Midi 2 value
-        # self.value2midi = {}
-        # self.midi2value = {}
-        # self.midi_positions = ['note_on', 'note_off', 'time_shift', 'velocity']
 
         # Index 2 value
         self.index2value = {}
@@ -142,7 +136,7 @@ class HarpsichordMidiDataset(data.Dataset):
         #     short_time_shifts = np.arange(smallest_time_shift, 1.0, smallest_time_shift)
         # medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
         # time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
-        time_shift_bins = np.arange(0, 5.0, 0.01)
+        time_shift_bins = np.arange(0, 10.0, 0.001)
         return time_shift_bins
 
     def save(self):
@@ -235,45 +229,6 @@ class HarpsichordMidiDataset(data.Dataset):
         return train_dl, val_dl, eval_dl
 
     def compute_index_dicts(self):
-        #  From performance rnn
-        # 100 duration from 10ms to 1s
-        # 32 vellocities
-        # dimension = 388
-        # 30 seconds ~ 1200 frames
-        # lowest_note, highest_note = self.reference_tessitura
-        # lowest_pitch = note_to_midiPitch(lowest_note)
-        # highest_pitch = note_to_midiPitch(highest_note)
-        # list_midiPitch = sorted(list(range(lowest_pitch, highest_pitch + 1)))
-        # list_velocity = list(range(self.velocity_quantization))
-        # list_duration = list(self.duration_quantization)
-
-        ######################################################################
-        #  Midi 2 value
-        # self.midi_ranges = EventSeq.feat_ranges(excluded_features=[], insert_zero_time_token=False)
-        #
-        # for feat_name in self.midi_positions:
-        #
-        #     midi_range = self.midi_ranges[feat_name]
-        #
-        #     if feat_name == 'note_on':
-        #         values = self.pitch_range
-        #     elif feat_name == 'note_off':
-        #         values = self.pitch_range
-        #     elif feat_name == 'time_shift':
-        #         values = self.time_table[1:]
-        #     elif feat_name == 'velocity':
-        #         values = self.velocity_range
-        #     else:
-        #         raise Exception
-        #
-        #     midi2value = {}
-        #     value2midi = {}
-        #     for value, midi in zip(values, midi_range):
-        #         midi2value[midi] = value
-        #         value2midi[value] = midi
-        #     self.midi2value[feat_name] = midi2value
-        #     self.value2midi[feat_name] = value2midi
-
         ######################################################################
         #  Index 2 value
         for feat_name in self.index_order:
@@ -346,53 +301,29 @@ class HarpsichordMidiDataset(data.Dataset):
             sequence = list(itertools.chain(*[
                 inst.notes for inst in midi.instruments
                 if inst.program in self.programs and not inst.is_drum]))
+            # sort by starting time
+            sequence.sort(key=lambda x: x.start)
+            seq_len = len(sequence)
 
             structured_sequence = []
+            for event_ind in range(seq_len):
+                # Get values
+                event = sequence[event_ind]
+                event_values = {}
+                event_values['duration'] = find_nearest_value(self.time_table[1:], event.end - event.start)
+                event_values['pitch'] = event.pitch
+                event_values['velocity'] = event.velocity
+                if event_ind != seq_len - 1:
+                    next_event = sequence[event_ind + 1]
+                    event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
+                else:
+                    event_values['time_shift'] = 0
 
-
-
-
-            # for midi_ind in range(len(sequence)):
-            #     midi = sequence[midi_ind]
-            #     midi_type = get_midi_type(midi, self.midi_ranges)
-            #     midi_value = self.midi2value[midi_type][midi]
-            #
-            #     if midi_type == 'velocity':
-            #         velocity = self.value2index['velocity'][midi_value]
-            #     elif midi_type == 'note_on':
-            #         pitch = self.value2index['pitch'][midi_value]
-            #         # Check the next midi symbol to see if there is a time_shift
-            #         next_midi = sequence[midi_ind + 1]
-            #         time_shift_value = 0.0 \
-            #             if (get_midi_type(next_midi, self.midi_ranges) != 'time_shift') \
-            #             else self.midi2value['time_shift'][next_midi]
-            #         time_shift = self.value2index['time_shift'][time_shift_value]
-            #         # Find next note_off (not efficient but fuck it)
-            #         duration_value = 0
-            #         for future_midi_ind in range(midi_ind + 1, len(sequence)):
-            #             future_midi = sequence[future_midi_ind]
-            #             future_midi_type = get_midi_type(future_midi, self.midi_ranges)
-            #             future_midi_value = self.midi2value[future_midi_type][future_midi]
-            #             if future_midi_type == 'note_off':
-            #                 if future_midi_value == midi_value:
-            #                     break
-            #             elif future_midi_type == 'time_shift':
-            #                 duration_value += future_midi_value
-            #
-            #         duration_value_quant = find_nearest_value(self.time_table, duration_value)
-            #         if duration_value_quant == 0:
-            #             continue
-            #         duration = self.value2index['duration'][duration_value_quant]
-            #
-            #         #  Add note
-            #         this_note = {
-            #             'duration': duration,
-            #             'time_shift': time_shift,
-            #             'pitch': pitch,
-            #             'velocity': velocity
-            #         }
-            #         this_note = [this_note[feat_name] for feat_name in self.index_order]
-            #         structured_sequence.append(this_note)
+                # Convert to indices
+                this_note = []
+                for feat_name in self.index_order:
+                    this_note.append(self.value2index[feat_name][event_values[feat_name]])
+                structured_sequence.append(this_note)
 
             #  Build sequence
             self.hop_size = self.sequence_size // 4
@@ -569,14 +500,14 @@ if __name__ == '__main__':
     )
 
     dataset = HarpsichordMidiDataset(corpus_it_gen=corpus_it_gen,
-                                     sequence_size=100,
+                                     sequence_size=200,
                                      max_transposition=6,
                                      time_dilation_factor=0.1
                                      )
 
     (train_dataloader,
      val_dataloader,
-     test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
+     test_dataloader) = dataset.data_loaders(batch_size=4, DEBUG_BOOL_SHUFFLE=False)
 
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))

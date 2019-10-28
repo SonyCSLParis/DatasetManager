@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
-from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
+# from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
 
 """
 Typical piano sequence:

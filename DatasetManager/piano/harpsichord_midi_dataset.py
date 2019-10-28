@@ -343,7 +343,11 @@ class HarpsichordMidiDataset(data.Dataset):
                 #  also check if pedal is pushed before the end of the note !!
                 sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
                 if sustain_pedal_value[sustained_index_end] == 1:
-                    event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
+                    if (sustained_index_end + 1) >= len(sustain_pedal_time):
+                        # notes: that's a problem, means a sustain pedal is not switched off....
+                        event_end_sustained = 0
+                    else:
+                        event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
                     event_end = max(event.end, event_end_sustained)
 
                 duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)

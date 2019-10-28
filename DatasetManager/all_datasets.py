@@ -14,7 +14,7 @@ from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.orchestration.orchestration_helper import OrchestraIteratorGenerator
 from DatasetManager.piano.piano_helper import PianoIteratorGenerator
-from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
+# from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
 from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
 from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDataset, FolkMeasuresDatasetTranspose, FolkDatasetNBars
 

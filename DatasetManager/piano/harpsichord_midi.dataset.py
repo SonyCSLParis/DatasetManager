@@ -71,9 +71,9 @@ class HarpsichordMidiDataset(data.Dataset):
         self.max_transposition = max_transposition
         self.time_dilation_factor = time_dilation_factor
         self.transformations = {
-            'time_shift': False,
-            'time_dilation': False,
-            'transposition': False
+            'time_shift': True,
+            'time_dilation': True,
+            'transposition': True
         }
 
         # Index 2 value
@@ -299,7 +299,6 @@ class HarpsichordMidiDataset(data.Dataset):
 
             #  Preprocess midi
             midi = pretty_midi.PrettyMIDI(midi_file)
-            midi.write('/home/leo/test.mid')
             raw_sequence = list(itertools.chain(*[
                 inst.notes for inst in midi.instruments
                 if inst.program in self.programs and not inst.is_drum]))
@@ -397,8 +396,6 @@ class HarpsichordMidiDataset(data.Dataset):
                 np.save(f'{dataset_dir}/x/{chunk_counter}', x_np)
                 self.list_ids.append(chunk_counter)
                 chunk_counter += 1
-
-            self.tensor_to_score(torch.tensor(sequence), '/home/leo/test.mid')
 
         print(f'Chunks: {chunk_counter}\n')
 

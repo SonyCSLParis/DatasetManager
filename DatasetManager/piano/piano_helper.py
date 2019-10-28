@@ -1,6 +1,5 @@
 import glob
 import os
-
 import numpy as np
 
 
@@ -29,12 +28,37 @@ class PianoIteratorGenerator:
             midi_files += (glob.glob(
                 os.path.join(self.path, subset, '*.mid')))
             midi_files += (glob.glob(
+                os.path.join(self.path, subset, '*.midi')))
+            midi_files += (glob.glob(
                 os.path.join(self.path, subset, '*.MID')))
         if self.num_elements is not None:
             midi_files = midi_files[:self.num_elements]
         for midi_file in midi_files:
             print(midi_file)
             yield midi_file
+
+
+def extract_cc(control_changes, channel, binarize):
+    ret_time = []
+    ret_value = []
+    previous_value = -1
+    for cc in control_changes:
+        if cc.number == channel:
+            if binarize:
+                value = 1 if cc.value > 0 else 0
+                if value == previous_value:
+                    continue
+            else:
+                value = cc.value
+            ret_time.append(cc.time)
+            ret_value.append(value)
+            previous_value = value
+
+    if len(ret_time) != 0 and ret_time[0] > 0:
+        ret_time.insert(0, 0.)
+        ret_value.insert(0, 0)
+
+    return np.array(ret_time), np.array(ret_value)
 
 
 def get_midi_type(midi, midi_ranges):

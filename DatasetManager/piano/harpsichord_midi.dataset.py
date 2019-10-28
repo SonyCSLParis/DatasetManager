@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from DatasetManager.helpers import END_SYMBOL, START_SYMBOL, \
     PAD_SYMBOL
-from DatasetManager.piano.piano_helper import PianoIteratorGenerator, find_nearest_value
+from DatasetManager.piano.piano_helper import PianoIteratorGenerator, find_nearest_value, extract_cc
 
 """
 Typical piano sequence:
@@ -136,7 +136,8 @@ class HarpsichordMidiDataset(data.Dataset):
         #     short_time_shifts = np.arange(smallest_time_shift, 1.0, smallest_time_shift)
         # medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
         # time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
-        time_shift_bins = np.arange(0, 10.0, 0.001)
+
+        time_shift_bins = np.arange(0, 10.0, 0.01)
         return time_shift_bins
 
     def save(self):
@@ -298,28 +299,66 @@ class HarpsichordMidiDataset(data.Dataset):
 
             #  Preprocess midi
             midi = pretty_midi.PrettyMIDI(midi_file)
-            sequence = list(itertools.chain(*[
+            midi.write('/home/leo/test.mid')
+            raw_sequence = list(itertools.chain(*[
                 inst.notes for inst in midi.instruments
                 if inst.program in self.programs and not inst.is_drum]))
+            control_changes = list(itertools.chain(*[
+                inst.control_changes for inst in midi.instruments
+                if inst.program in self.programs and not inst.is_drum]))
             # sort by starting time
-            sequence.sort(key=lambda x: x.start)
-            seq_len = len(sequence)
+            raw_sequence.sort(key=lambda x: x.start)
+            control_changes.sort(key=lambda x: x.time)
+
+            #  pedal, cc = 64
+            sustain_pedal_time, sustain_pedal_value = extract_cc(control_changes=control_changes,
+                                                                 channel=64,
+                                                                 binarize=True)
+
+            # sostenuto pedal, cc = 66
+            sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(control_changes=control_changes,
+                                                                     channel=66,
+                                                                     binarize=True)
+
+            # soft pedal, cc = 67
+            soft_pedal_time, soft_pedal_value = extract_cc(control_changes=control_changes,
+                                                           channel=67,
+                                                           binarize=True)
+
+            seq_len = len(raw_sequence)
 
             structured_sequence = []
             for event_ind in range(seq_len):
                 # Get values
-                event = sequence[event_ind]
+                event = raw_sequence[event_ind]
                 event_values = {}
-                event_values['duration'] = find_nearest_value(self.time_table[1:], event.end - event.start)
+
+                # Compute duration taking sustain
+                sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
+                if sustain_pedal_value[sustained_index_start] == 1:
+                    event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
+                    event_end = max(event.end, event_end_sustained)
+                else:
+                    event_end = event.end
+
+                #  also check if pedal is pushed before the end of the note !!
+                sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
+                if sustain_pedal_value[sustained_index_end] == 1:
+                    event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
+                    event_end = max(event.end, event_end_sustained)
+
+                duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
+
+                event_values['duration'] = duration_value
                 event_values['pitch'] = event.pitch
                 event_values['velocity'] = event.velocity
                 if event_ind != seq_len - 1:
-                    next_event = sequence[event_ind + 1]
+                    next_event = raw_sequence[event_ind + 1]
                     event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
                 else:
                     event_values['time_shift'] = 0
 
-                # Convert to indices
+                #  Convert to indices
                 this_note = []
                 for feat_name in self.index_order:
                     this_note.append(self.value2index[feat_name][event_values[feat_name]])
@@ -358,7 +397,11 @@ class HarpsichordMidiDataset(data.Dataset):
                 np.save(f'{dataset_dir}/x/{chunk_counter}', x_np)
                 self.list_ids.append(chunk_counter)
                 chunk_counter += 1
+
+            self.tensor_to_score(torch.tensor(sequence), '/home/leo/test.mid')
+
         print(f'Chunks: {chunk_counter}\n')
+
         # Save class
         self.save()
         return

@@ -80,6 +80,12 @@ class HarpsichordMidiDataset(data.Dataset):
         self.value2index = {}
         self.index_order = ['pitch', 'duration', 'velocity', 'time_shift']
         self.index_order_dict = {v: k for k, v in enumerate(self.index_order)}
+        self.default_value = {
+            'pitch': 60,
+            'duration': 0.1,
+            'time_shift': 0.1,
+            'velocity': 80
+        }
 
         # Chunks
         self.hop_size = None
@@ -154,12 +160,12 @@ class HarpsichordMidiDataset(data.Dataset):
             if k != 'local_parameters':
                 self.__dict__[k] = v
 
-    def extract_subset(self, list_ids, selected_features):
+    def extract_subset(self, list_ids):
         instance = HarpsichordMidiDataset(corpus_it_gen=self.corpus_it_gen,
                                           sequence_size=self.sequence_size,
                                           max_transposition=self.max_transposition,
                                           time_dilation_factor=self.time_dilation_factor)
-        instance.selected_features_indices = selected_features
+        instance.selected_features_indices = self.selected_features_indices
         instance.list_ids = list_ids
         return instance
 
@@ -191,8 +197,9 @@ class HarpsichordMidiDataset(data.Dataset):
         """
         assert sum(split) < 1
 
-        selected_features_indices = [self.index_order_dict[feat_name] for feat_name in self.index_order
-                                     if feat_name not in excluded_features]
+        # Just want this to be chosen when calling dataloaders, not before
+        self.selected_features_indices = [self.index_order_dict[feat_name] for feat_name in self.index_order
+                                          if feat_name not in excluded_features]
 
         num_examples = len(self)
         a, b = split
@@ -200,9 +207,9 @@ class HarpsichordMidiDataset(data.Dataset):
         val_ids = self.list_ids[int(a * num_examples): int((a + b) * num_examples)]
         eval_ids = self.list_ids[int((a + b) * num_examples):]
 
-        train_dataset = self.extract_subset(train_ids, selected_features_indices)
-        val_dataset = self.extract_subset(val_ids, selected_features_indices)
-        eval_dataset = self.extract_subset(eval_ids, selected_features_indices)
+        train_dataset = self.extract_subset(train_ids)
+        val_dataset = self.extract_subset(val_ids)
+        eval_dataset = self.extract_subset(eval_ids)
 
         train_dl = data.DataLoader(
             train_dataset,
@@ -434,6 +441,17 @@ class HarpsichordMidiDataset(data.Dataset):
 
         # values
         sequence = sequence.numpy()
+
+        # Fill in missing features
+        sequence_filled = np.zeros((len(sequence), len(self.index_order)))
+        for feat_name, feat_ind in self.index_order_dict.items():
+            if feat_ind in self.selected_features_indices:
+                seq_ind = self.selected_features_indices.index(feat_ind)
+                sequence_filled[:, feat_ind] = sequence[:, seq_ind]
+            else:
+                sequence_filled[:, feat_ind] = self.value2index[feat_name][self.default_value[feat_name]]
+        sequence = sequence_filled
+
         start_time = 0.0
         for t in range(len(sequence)):
             pitch_ind = sequence[t, self.index_order_dict['pitch']]

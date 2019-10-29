@@ -34,8 +34,6 @@ class HarpsichordMidiDataset(data.Dataset):
     It is highly recommended to run arrangement_statistics before building the database
     """
 
-    excluded_features = ['note_off', 'velocity']
-
     def __init__(self,
                  corpus_it_gen,
                  sequence_size,
@@ -61,7 +59,8 @@ class HarpsichordMidiDataset(data.Dataset):
         assert self.sequence_size // 8, 'sequence_size needs to be a multiple of 8'
         self.last_index = None
 
-        #  ranges
+        #  features
+        self.selected_features_indices = None
         self.time_table = self.get_time_table()
         self.pitch_range = range(21, 109)
         self.velocity_range = range(128)
@@ -129,15 +128,13 @@ class HarpsichordMidiDataset(data.Dataset):
         # for > 10000 ticks (long) 191–370
 
         # Use long ??
-        # smallest_time_shift = 0.001
-        # if insert_zero_time_token:
-        #     short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
-        # else:
-        #     short_time_shifts = np.arange(smallest_time_shift, 1.0, smallest_time_shift)
-        # medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
-        # time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
+        smallest_time_shift = 0.001
+        short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
+        medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
+        time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
 
-        time_shift_bins = np.arange(0, 10.0, 0.01)
+        # time_shift_bins = np.arange(0, 10.0, 0.01)
+
         return time_shift_bins
 
     def save(self):
@@ -157,11 +154,12 @@ class HarpsichordMidiDataset(data.Dataset):
             if k != 'local_parameters':
                 self.__dict__[k] = v
 
-    def extract_subset(self, list_ids):
+    def extract_subset(self, list_ids, selected_features):
         instance = HarpsichordMidiDataset(corpus_it_gen=self.corpus_it_gen,
                                           sequence_size=self.sequence_size,
                                           max_transposition=self.max_transposition,
                                           time_dilation_factor=self.time_dilation_factor)
+        instance.selected_features_indices = selected_features
         instance.list_ids = list_ids
         return instance
 
@@ -176,12 +174,14 @@ class HarpsichordMidiDataset(data.Dataset):
         x = np.load(f'{dataset_dir}/x/{id}.npy')
         # Apply transformations
         x = self.transform(x)
-        return x
+        #  Remove useless dimensions
+        x = x[:, self.selected_features_indices]
+        return x,
 
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
 
-    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, excluded_features, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -191,15 +191,18 @@ class HarpsichordMidiDataset(data.Dataset):
         """
         assert sum(split) < 1
 
+        selected_features_indices = [self.index_order_dict[feat_name] for feat_name in self.index_order
+                                     if feat_name not in excluded_features]
+
         num_examples = len(self)
         a, b = split
         train_ids = self.list_ids[: int(a * num_examples)]
         val_ids = self.list_ids[int(a * num_examples): int((a + b) * num_examples)]
         eval_ids = self.list_ids[int((a + b) * num_examples):]
 
-        train_dataset = self.extract_subset(train_ids)
-        val_dataset = self.extract_subset(val_ids)
-        eval_dataset = self.extract_subset(eval_ids)
+        train_dataset = self.extract_subset(train_ids, selected_features_indices)
+        val_dataset = self.extract_subset(val_ids, selected_features_indices)
+        eval_dataset = self.extract_subset(eval_ids, selected_features_indices)
 
         train_dl = data.DataLoader(
             train_dataset,
@@ -335,7 +338,10 @@ class HarpsichordMidiDataset(data.Dataset):
                 # Compute duration taking sustain
                 sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
                 if sustain_pedal_value[sustained_index_start] == 1:
-                    event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
+                    if (sustained_index_start + 1) >= len(sustain_pedal_time):
+                        event_end_sustained = 0
+                    else:
+                        event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
                     event_end = max(event.end, event_end_sustained)
                 else:
                     event_end = event.end
@@ -353,7 +359,10 @@ class HarpsichordMidiDataset(data.Dataset):
                 duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
 
                 event_values['duration'] = duration_value
-                event_values['pitch'] = event.pitch
+                if event.pitch in self.pitch_range:
+                    event_values['pitch'] = event.pitch
+                else:
+                    continue
                 event_values['velocity'] = event.velocity
                 if event_ind != seq_len - 1:
                     next_event = raw_sequence[event_ind + 1]
@@ -364,7 +373,10 @@ class HarpsichordMidiDataset(data.Dataset):
                 #  Convert to indices
                 this_note = []
                 for feat_name in self.index_order:
-                    this_note.append(self.value2index[feat_name][event_values[feat_name]])
+                    try:
+                        this_note.append(self.value2index[feat_name][event_values[feat_name]])
+                    except:
+                        print('yoyoyo')
                 structured_sequence.append(this_note)
 
             #  Build sequence
@@ -551,7 +563,8 @@ if __name__ == '__main__':
 
     (train_dataloader,
      val_dataloader,
-     test_dataloader) = dataset.data_loaders(batch_size=4, DEBUG_BOOL_SHUFFLE=False)
+     test_dataloader) = dataset.data_loaders(batch_size=4, excluded_features=['velocity', 'duration'],
+                                             DEBUG_BOOL_SHUFFLE=False)
 
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
@@ -564,7 +577,7 @@ if __name__ == '__main__':
         shutil.rmtree(writing_dir)
     os.makedirs(writing_dir)
     for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch = sample_batched
+        piano_batch, = sample_batched
         if i_batch > number_dump:
             break
         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

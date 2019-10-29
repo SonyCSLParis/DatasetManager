@@ -462,45 +462,45 @@ class PianoMidiDataset(data.Dataset):
         return x, messages
 
 
-if __name__ == '__main__':
-
-    excluded_features = ['note_off', 'velocity']
-    # excluded_features = []
-
-    subsets = [
-        'ecomp_piano_dataset',
-        'classic_piano_dataset',
-        # 'debug'
-    ]
-    corpus_it_gen = PianoIteratorGenerator(
-        subsets=subsets,
-        num_elements=None
-    )
-
-    dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-                               sequence_size=200,
-                               max_transposition=6,
-                               time_dilation_factor=0.1,
-                               insert_zero_time_token=True,
-                               excluded_features=excluded_features,
-                               )
-
-    (train_dataloader,
-     val_dataloader,
-     test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
-
-    print('Num Train Batches: ', len(train_dataloader))
-    print('Num Valid Batches: ', len(val_dataloader))
-    print('Num Test Batches: ', len(test_dataloader))
-
-    # Visualise a few examples
-    number_dump = 100
-    writing_dir = f'{os.path.expanduser("~")}/Data/dump/piano_midi/writing'
-    if os.path.isdir(writing_dir):
-        shutil.rmtree(writing_dir)
-    os.makedirs(writing_dir)
-    for i_batch, sample_batched in enumerate(train_dataloader):
-        piano_batch, message_type_batch = sample_batched
-        if i_batch > number_dump:
-            break
-        dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")
+# if __name__ == '__main__':
+#
+#     excluded_features = ['note_off', 'velocity']
+#     # excluded_features = []
+#
+#     subsets = [
+#         'ecomp_piano_dataset',
+#         'classic_piano_dataset',
+#         # 'debug'
+#     ]
+#     corpus_it_gen = PianoIteratorGenerator(
+#         subsets=subsets,
+#         num_elements=None
+#     )
+#
+#     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
+#                                sequence_size=200,
+#                                max_transposition=6,
+#                                time_dilation_factor=0.1,
+#                                insert_zero_time_token=True,
+#                                excluded_features=excluded_features,
+#                                )
+#
+#     (train_dataloader,
+#      val_dataloader,
+#      test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
+#
+#     print('Num Train Batches: ', len(train_dataloader))
+#     print('Num Valid Batches: ', len(val_dataloader))
+#     print('Num Test Batches: ', len(test_dataloader))
+#
+#     # Visualise a few examples
+#     number_dump = 100
+#     writing_dir = f'{os.path.expanduser("~")}/Data/dump/piano_midi/writing'
+#     if os.path.isdir(writing_dir):
+#         shutil.rmtree(writing_dir)
+#     os.makedirs(writing_dir)
+#     for i_batch, sample_batched in enumerate(train_dataloader):
+#         piano_batch, message_type_batch = sample_batched
+#         if i_batch > number_dump:
+#             break
+#         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

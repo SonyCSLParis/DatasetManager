@@ -187,7 +187,7 @@ class HarpsichordMidiDataset(data.Dataset):
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
 
-    def data_loaders(self, batch_size, excluded_features, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -197,6 +197,7 @@ class HarpsichordMidiDataset(data.Dataset):
         """
         assert sum(split) < 1
 
+        excluded_features = ['velocity', 'duration']
         # Just want this to be chosen when calling dataloaders, not before
         self.selected_features_indices = [self.index_order_dict[feat_name] for feat_name in self.index_order
                                           if feat_name not in excluded_features]

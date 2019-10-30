@@ -436,14 +436,10 @@ class HarpsichordMidiDataset(data.Dataset):
 
         selected_features_indices = [self.index_order_dict[feat_name] for feat_name in selected_features]
 
-        # Fill in missing features
-        sequence_filled = np.zeros((len(sequence), len(self.index_order)))
-        for feat_name, feat_ind in self.index_order_dict.items():
-            if feat_ind in selected_features_indices:
-                seq_ind = selected_features_indices.index(feat_ind)
-                sequence_filled[:, feat_ind] = sequence[:, seq_ind]
-            else:
-                sequence_filled[:, feat_ind] = self.value2index[feat_name][self.default_value[feat_name]]
+        # Fill in missing features with default values
+        default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
+        sequence_filled = np.array([default_frame] * len(sequence))
+        sequence_filled[:, selected_features_indices] = sequence[:, selected_features_indices]
         sequence = sequence_filled
 
         start_time = 0.0

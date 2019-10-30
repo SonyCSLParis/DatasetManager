@@ -60,7 +60,6 @@ class HarpsichordMidiDataset(data.Dataset):
         self.last_index = None
 
         #  features
-        self.selected_features_indices = None
         self.time_table = self.get_time_table()
         self.pitch_range = range(21, 109)
         self.velocity_range = range(128)
@@ -165,7 +164,6 @@ class HarpsichordMidiDataset(data.Dataset):
                                           sequence_size=self.sequence_size,
                                           max_transposition=self.max_transposition,
                                           time_dilation_factor=self.time_dilation_factor)
-        instance.selected_features_indices = self.selected_features_indices
         instance.list_ids = list_ids
         return instance
 
@@ -180,8 +178,6 @@ class HarpsichordMidiDataset(data.Dataset):
         x = np.load(f'{dataset_dir}/x/{id}.npy')
         # Apply transformations
         x = self.transform(x)
-        #  Remove useless dimensions
-        x = x[:, self.selected_features_indices]
         return x,
 
     def iterator_gen(self):
@@ -196,11 +192,6 @@ class HarpsichordMidiDataset(data.Dataset):
         :return:
         """
         assert sum(split) < 1
-
-        excluded_features = ['velocity', 'duration']
-        # Just want this to be chosen when calling dataloaders, not before
-        self.selected_features_indices = [self.index_order_dict[feat_name] for feat_name in self.index_order
-                                          if feat_name not in excluded_features]
 
         num_examples = len(self)
         a, b = split
@@ -431,7 +422,7 @@ class HarpsichordMidiDataset(data.Dataset):
                                  unknown_instruments=[], subdivision=None):
         raise NotImplementedError
 
-    def tensor_to_score(self, sequence, midipath):
+    def tensor_to_score(self, sequence, selected_features, midipath):
         # Create score
         score = pretty_midi.PrettyMIDI()
         # 'Acoustic Grand Piano', 'Bright Acoustic Piano',
@@ -443,11 +434,13 @@ class HarpsichordMidiDataset(data.Dataset):
         # values
         sequence = sequence.numpy()
 
+        selected_features_indices = [self.index_order_dict[feat_name] for feat_name in selected_features]
+
         # Fill in missing features
         sequence_filled = np.zeros((len(sequence), len(self.index_order)))
         for feat_name, feat_ind in self.index_order_dict.items():
-            if feat_ind in self.selected_features_indices:
-                seq_ind = self.selected_features_indices.index(feat_ind)
+            if feat_ind in selected_features_indices:
+                seq_ind = selected_features_indices.index(feat_ind)
                 sequence_filled[:, feat_ind] = sequence[:, seq_ind]
             else:
                 sequence_filled[:, feat_ind] = self.value2index[feat_name][self.default_value[feat_name]]

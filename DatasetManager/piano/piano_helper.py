@@ -54,7 +54,10 @@ def extract_cc(control_changes, channel, binarize):
             ret_value.append(value)
             previous_value = value
 
-    if len(ret_time) != 0 and ret_time[0] > 0:
+    if len(ret_time) == 0:
+        ret_time = [0]
+        ret_value = [0]
+    elif ret_time[0] > 0:
         ret_time.insert(0, 0.)
         ret_value.insert(0, 0)
 

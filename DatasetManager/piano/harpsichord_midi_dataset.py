@@ -372,10 +372,7 @@ class HarpsichordMidiDataset(data.Dataset):
                 #  Convert to indices
                 this_note = []
                 for feat_name in self.index_order:
-                    try:
-                        this_note.append(self.value2index[feat_name][event_values[feat_name]])
-                    except:
-                        print('yoyoyo')
+                    this_note.append(self.value2index[feat_name][event_values[feat_name]])
                 structured_sequence.append(this_note)
 
             #  Build sequence
@@ -386,6 +383,9 @@ class HarpsichordMidiDataset(data.Dataset):
             seq_length = math.ceil((prepend_length + raw_seq_len) / self.hop_size) * self.hop_size
             #  Append length (does not count final ts0 - end - ts0, so -3)
             append_length = seq_length - (prepend_length + raw_seq_len)
+            if append_length == 0:
+                append_length = self.hop_size
+                seq_length += self.hop_size
 
             sequence = []
             # prepend
@@ -434,6 +434,8 @@ class HarpsichordMidiDataset(data.Dataset):
         # values
         sequence = sequence.numpy()
 
+        if selected_features is None:
+            selected_features = self.index_order
         selected_features_indices = [self.index_order_dict[feat_name] for feat_name in selected_features]
 
         # Fill in missing features with default values
@@ -477,6 +479,7 @@ class HarpsichordMidiDataset(data.Dataset):
 
         for batch_ind in range(num_batches):
             self.tensor_to_score(sequence=piano_sequences[batch_ind],
+                                 selected_features=None,
                                  midipath=f"{writing_dir}/{filepath}_{batch_ind}.mid")
 
     def transform(self, x):
@@ -571,15 +574,14 @@ if __name__ == '__main__':
 
     (train_dataloader,
      val_dataloader,
-     test_dataloader) = dataset.data_loaders(batch_size=4, excluded_features=['velocity', 'duration'],
-                                             DEBUG_BOOL_SHUFFLE=False)
+     test_dataloader) = dataset.data_loaders(batch_size=4, DEBUG_BOOL_SHUFFLE=False)
 
     print('Num Train Batches: ', len(train_dataloader))
     print('Num Valid Batches: ', len(val_dataloader))
     print('Num Test Batches: ', len(test_dataloader))
 
     # Visualise a few examples
-    number_dump = 100
+    number_dump = 80000
     writing_dir = f'{os.path.expanduser("~")}/Data/dump/piano_midi/writing'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
@@ -588,4 +590,5 @@ if __name__ == '__main__':
         piano_batch, = sample_batched
         if i_batch > number_dump:
             break
+        print(i_batch)
         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

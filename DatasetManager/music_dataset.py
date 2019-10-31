@@ -157,7 +157,7 @@ class MusicDataset(ABC):
     def filepath(self, cache_dir):
         return os.path.join(cache_dir, self.__repr__(), 'dataset')
 
-    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -179,7 +179,7 @@ class MusicDataset(ABC):
             train_dataset,
             batch_size=batch_size,
             shuffle=DEBUG_BOOL_SHUFFLE,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
@@ -188,7 +188,7 @@ class MusicDataset(ABC):
             val_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
@@ -197,7 +197,7 @@ class MusicDataset(ABC):
             eval_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )

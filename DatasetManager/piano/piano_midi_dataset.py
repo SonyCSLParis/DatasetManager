@@ -163,7 +163,7 @@ class PianoMidiDataset(data.Dataset):
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
 
-    def data_loaders(self, batch_size, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -187,7 +187,7 @@ class PianoMidiDataset(data.Dataset):
             train_dataset,
             batch_size=batch_size,
             shuffle=DEBUG_BOOL_SHUFFLE,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
@@ -196,7 +196,7 @@ class PianoMidiDataset(data.Dataset):
             val_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
@@ -205,7 +205,7 @@ class PianoMidiDataset(data.Dataset):
             eval_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=4,
+            num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )

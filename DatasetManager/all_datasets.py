@@ -170,26 +170,26 @@ def get_all_datasets():
         #         ),
         #         'corpus_it_gen_instru_range': None
         #     },
-        'piano_midi':
-            {
-                'dataset_class_name': PianoMidiDataset,
-                'corpus_it_gen': PianoIteratorGenerator(
-                    subsets=[
-                        'classic_piano_dataset',
-                        'ecomp_piano_dataset'
-                    ],
-                    num_elements=None
-                ),
-            },
-        'piano_midi_small':
-            {'dataset_class_name': PianoMidiDataset,
-                'corpus_it_gen': PianoIteratorGenerator(
-                    subsets=[
-                        'debug'
-                    ],
-                    num_elements=None
-                ),
-            },
+        # 'piano_midi':
+        #     {
+        #         'dataset_class_name': PianoMidiDataset,
+        #         'corpus_it_gen': PianoIteratorGenerator(
+        #             subsets=[
+        #                 'classic_piano_dataset',
+        #                 'ecomp_piano_dataset'
+        #             ],
+        #             num_elements=None
+        #         ),
+        #     },
+        # 'piano_midi_small':
+        #     {'dataset_class_name': PianoMidiDataset,
+        #         'corpus_it_gen': PianoIteratorGenerator(
+        #             subsets=[
+        #                 'debug'
+        #             ],
+        #             num_elements=None
+        #         ),
+        #     },
         'bach_chorales':
             {
                 'dataset_class_name': ChoraleDataset,

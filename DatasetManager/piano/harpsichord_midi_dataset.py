@@ -174,10 +174,13 @@ class HarpsichordMidiDataset(data.Dataset):
         dataset_dir = self.local_parameters["dataset_dir"]
         # Select sample
         id = self.list_ids[index]
+
         # Load data and get label
         x = np.load(f'{dataset_dir}/x/{id}.npy')
+
         # Apply transformations
         x = self.transform(x)
+
         return x,
 
     def iterator_gen(self):
@@ -207,7 +210,7 @@ class HarpsichordMidiDataset(data.Dataset):
             train_dataset,
             batch_size=batch_size,
             shuffle=DEBUG_BOOL_SHUFFLE,
-            num_workers=0,
+            num_workers=4,
             pin_memory=True,
             drop_last=True,
         )
@@ -407,8 +410,8 @@ class HarpsichordMidiDataset(data.Dataset):
                 if not edge_chunk:
                     end_time += self.hop_size
                 chunk = sequence[start_time:end_time]
-                x_np = torch.tensor(chunk).long()
-                np.save(f'{dataset_dir}/x/{chunk_counter}', x_np)
+                np.save(f'{dataset_dir}/x/{chunk_counter}', chunk)
+
                 self.list_ids.append(chunk_counter)
                 chunk_counter += 1
 
@@ -581,7 +584,7 @@ if __name__ == '__main__':
     print('Num Test Batches: ', len(test_dataloader))
 
     # Visualise a few examples
-    number_dump = 80000
+    number_dump = 100
     writing_dir = f'{os.path.expanduser("~")}/Data/dump/piano_midi/writing'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)
@@ -590,5 +593,5 @@ if __name__ == '__main__':
         piano_batch, = sample_batched
         if i_batch > number_dump:
             break
-        print(i_batch)
+        # print(i_batch)
         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")

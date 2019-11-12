@@ -49,15 +49,16 @@ class ChoraleDataset(MusicDataset):
         self.voice_ranges = None  # in midi pitch
         self.metadatas = metadatas
         self.subdivision = subdivision
-        self.list_symbol_except_notes = [SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL]
+        self.list_symbol_except_notes = [SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, OUT_OF_RANGE,
+                                         REST_SYMBOL, PAD_SYMBOL]
 
     def __repr__(self):
         return f'ChoraleDataset(' \
-            f'{self.voice_ids},' \
-            f'{self.name},' \
-            f'{[metadata.name for metadata in self.metadatas]},' \
-            f'{self.sequences_size},' \
-            f'{self.subdivision})'
+               f'{self.voice_ids},' \
+               f'{self.name},' \
+               f'{[metadata.name for metadata in self.metadatas]},' \
+               f'{self.sequences_size},' \
+               f'{self.subdivision})'
 
     def iterator_gen(self):
         return (chorale
@@ -71,9 +72,12 @@ class ChoraleDataset(MusicDataset):
         """
         # todo check on chorale with Chord
         print('Making tensor dataset')
-
-        dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
-        index_dict_path = f'{dataset_manager_path}/../dataset_cache/index_dicts/{self.name}.pkl'
+        index_dict_dir = os.path.join(self.cache_dir,
+                                      f'index_dicts')
+        index_dict_path = os.path.join(index_dict_dir,
+                                       f'{self.name}.pkl')
+        if not os.path.exists(index_dict_dir):
+            os.mkdir(index_dict_dir)
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None
@@ -92,7 +96,7 @@ class ChoraleDataset(MusicDataset):
                 index_dicts = {
                     'index2note_dicts': smallest_bach_dataset.index2note_dicts,
                     'note2index_dicts': smallest_bach_dataset.note2index_dicts,
-                    'voice_ranges': smallest_bach_dataset.voice_ranges
+                    'voice_ranges':     smallest_bach_dataset.voice_ranges
                 }
                 with open(index_dict_path, 'wb') as ff:
                     pickle.dump(index_dicts, ff)
@@ -581,22 +585,23 @@ class ChoraleDataset(MusicDataset):
 class ChoraleBeatsDataset(ChoraleDataset):
     def __repr__(self):
         return f'ChoraleBeatsDataset(' \
-            f'{self.voice_ids},' \
-            f'{self.name},' \
-            f'{[metadata.name for metadata in self.metadatas]},' \
-            f'{self.sequences_size},' \
-            f'{self.subdivision})'
+               f'{self.voice_ids},' \
+               f'{self.name},' \
+               f'{[metadata.name for metadata in self.metadatas]},' \
+               f'{self.sequences_size},' \
+               f'{self.subdivision})'
 
     def make_tensor_dataset(self):
         """
         Implementation of the make_tensor_dataset abstract base class
         """
         # todo check on chorale with Chord
-
-        dataset_manager_path = os.path.abspath(DatasetManager.__path__[0])
-        index_dict_path = f'{dataset_manager_path}/dataset_cache/index_dicts/{self.name}.pkl'
-        if not os.path.exists(f'{dataset_manager_path}/dataset_cache/index_dicts/'):
-            os.mkdir(f'{dataset_manager_path}/dataset_cache/index_dicts/')
+        index_dict_dir = os.path.join(self.cache_dir,
+                                      f'index_dicts')
+        index_dict_path = os.path.join(index_dict_dir,
+                                       f'{self.name}.pkl')
+        if not os.path.exists(index_dict_dir):
+            os.mkdir(index_dict_dir)
         if not os.path.isfile(index_dict_path):
             print('Building index dictionnary. Might take some time')
             answer = None
@@ -616,7 +621,7 @@ class ChoraleBeatsDataset(ChoraleDataset):
                 index_dicts = {
                     'index2note_dicts': smallest_bach_dataset.index2note_dicts,
                     'note2index_dicts': smallest_bach_dataset.note2index_dicts,
-                    'voice_ranges': smallest_bach_dataset.voice_ranges
+                    'voice_ranges':     smallest_bach_dataset.voice_ranges
                 }
                 with open(index_dict_path, 'wb') as ff:
                     pickle.dump(index_dicts, ff)
@@ -628,7 +633,6 @@ class ChoraleBeatsDataset(ChoraleDataset):
         self.index2note_dicts = index_dicts['index2note_dicts']
         self.note2index_dicts = index_dicts['note2index_dicts']
         self.voice_ranges = index_dicts['voice_ranges']
-
 
         print('Making tensor dataset')
         one_beat = 1.

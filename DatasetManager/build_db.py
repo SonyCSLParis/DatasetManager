@@ -8,11 +8,54 @@ from DatasetManager.chorale_dataset import ChoraleBeatsDataset
 from DatasetManager.dataset_manager import DatasetManager
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.metadata import FermataMetadata, TickMetadata, KeyMetadata, BeatMarkerMetadata
+from DatasetManager.orchestration.orchestration_dataset import OrchestrationDataset
 from DatasetManager.the_session.folk_dataset import FolkDataset
 
 
 ###########################################################
-# Piano midi
+# Orchestration
+def build_orchestration(dataset_manager, batch_size, subdivision, sequence_size, integrate_discretization,
+                        max_transposition, number_dump, test_bool):
+    name = 'orchestration'
+    if test_bool:
+        name += '_debug'
+
+    arrangement_dataset: OrchestrationDataset = dataset_manager.get_dataset(
+        name=name,
+        transpose_to_sounding_pitch=True,
+        subdivision=subdivision,
+        sequence_size=sequence_size,
+        integrate_discretization=integrate_discretization,
+        max_transposition=max_transposition,
+        velocity_quantization=2,
+        compute_statistics_flag=False,
+    )
+
+    (train_dataloader,
+     val_dataloader,
+     test_dataloader) = arrangement_dataset.data_loaders(
+        batch_size=batch_size,
+        split=(0.85, 0.10),
+        num_workers=0,
+        DEBUG_BOOL_SHUFFLE=True
+    )
+    print('Num Train Batches: ', len(train_dataloader))
+    print('Num Valid Batches: ', len(val_dataloader))
+    print('Num Test Batches: ', len(test_dataloader))
+
+    # Visualise a few examples
+    writing_dir = f"{arrangement_dataset.dump_folder}/arrangement/writing"
+    if os.path.isdir(writing_dir):
+        shutil.rmtree(writing_dir)
+    os.makedirs(writing_dir)
+    for i_batch, sample_batched in enumerate(train_dataloader):
+        piano_batch, orchestra_batch, instrumentation_batch = sample_batched
+        if i_batch > number_dump:
+            break
+        arrangement_dataset.visualise_batch(piano_batch, orchestra_batch, None, writing_dir, filepath=f"{i_batch}",
+                                            writing_tempo='adagio', subdivision=subdivision, only_orchestra=False)
+    return
+
 
 ###########################################################
 # Arrangement
@@ -39,6 +82,7 @@ def build_arrangement(dataset_manager, batch_size, subdivision, sequence_size, i
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
         split=(0.85, 0.10),
+        num_workers=0,
         DEBUG_BOOL_SHUFFLE=True
     )
     print('Num Train Batches: ', len(train_dataloader))
@@ -81,7 +125,7 @@ def build_arrangement_voice(dataset_manager, batch_size, subdivision, sequence_s
      val_dataloader,
      test_dataloader) = arrangement_dataset.data_loaders(
         batch_size=batch_size,
-        cache_dir=dataset_manager.cache_dir,
+        num_workers=0,
         split=(0.85, 0.10),
         DEBUG_BOOL_SHUFFLE=True
     )
@@ -231,10 +275,10 @@ if __name__ == '__main__':
     sequence_size = 7
     integrate_discretization = True
     max_transposition = 2
-    test_bool = True
+    test_bool = False
     dataset_manager = DatasetManager()
 
-    build_arrangement(
+    build_orchestration(
         dataset_manager=dataset_manager,
         batch_size=batch_size,
         subdivision=subdivision,
@@ -244,6 +288,17 @@ if __name__ == '__main__':
         number_dump=number_dump,
         test_bool=test_bool
     )
+
+    # build_arrangement(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
     # build_arrangement_midi(
     #     dataset_manager=dataset_manager,
     #     batch_size=batch_size,

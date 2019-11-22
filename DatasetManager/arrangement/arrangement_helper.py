@@ -121,7 +121,6 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
         except:
             score_soundingPitch = score
 
-
     # Get start/end offsets
     start_offset = int(score.flat.lowestOffset)
     end_offset = 1 + int(score.flat.highestTime)
@@ -176,8 +175,15 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
         if simplify_instrumentation is None:
             instrument_names = ["Piano"]
         else:
-            instrument_names = [instrument_grouping[e] for e in
-                                separate_instruments_names(simplify_instrumentation[part.partName])]
+            if part.partName is None:
+                continue
+            try:
+                instrument_names = [instrument_grouping[e] for e in
+                                    separate_instruments_names(simplify_instrumentation[part.partName])]
+            except:
+                with open('dump/dump.txt', 'a') as ff:
+                    ff.write(f'{part.partName}\n')
+                continue
 
         for instrument_name in instrument_names:
             if instrument_name in pianoroll.keys():

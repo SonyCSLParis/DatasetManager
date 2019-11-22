@@ -12,6 +12,7 @@ from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
 from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
 from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
+from DatasetManager.orchestration.orchestration_dataset import OrchestrationDataset
 from DatasetManager.orchestration.orchestration_helper import OrchestraIteratorGenerator
 from DatasetManager.piano.piano_helper import PianoIteratorGenerator
 # from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
@@ -115,7 +116,6 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': None
             },
         'arrangement_voice_small':
             {
@@ -127,7 +127,6 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': None
             },
         'arrangement_midiPiano':
             {
@@ -139,7 +138,6 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': None
             },
         'arrangement_midiPiano_small':
             {
@@ -151,25 +149,34 @@ def get_all_datasets():
                     ],
                     num_elements=None,
                 ),
-                'corpus_it_gen_instru_range': None
             },
-        # 'orchestration':
-        #     {
-        #         'dataset_class_name': OrchestrationDataset,
-        #         'corpus_it_gen': OrchestrationIteratorGenerator(
-        #             arrangement_path=f"{database_path}/Orchestration/orchestral",
-        #             subsets=[
-        #                 'kunstderfuge',
-        #                 'musicalion',
-        #                 'mutopia',
-        #                 'open_music_scores',
-        #                 'bouliane',
-        #                 'hand_picked_spotify'
-        #             ],
-        #             num_elements=None,
-        #         ),
-        #         'corpus_it_gen_instru_range': None
-        #     },
+        'orchestration':
+            {
+                'dataset_class_name': OrchestrationDataset,
+                'corpus_it_gen': OrchestraIteratorGenerator(
+                    folder_path=f"{database_path}/Orchestration/orchestral",
+                    subsets=[
+                        # 'musicalion',
+                        'kunstderfuge',
+                        'mutopia',
+                        'open_music_scores',
+                        'bouliane',
+                        'hand_picked_spotify'
+                    ],
+                    process_file=True,
+                ),
+            },
+        'orchestration_debug':
+            {
+                'dataset_class_name': OrchestrationDataset,
+                'corpus_it_gen': OrchestraIteratorGenerator(
+                    folder_path=f"{database_path}/Orchestration/orchestral",
+                    subsets=[
+                        'debug'
+                    ],
+                    process_file=True,
+                ),
+            },
         # 'piano_midi':
         #     {
         #         'dataset_class_name': PianoMidiDataset,

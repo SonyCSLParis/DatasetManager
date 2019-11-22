@@ -41,7 +41,12 @@ class OrchestraIteratorGenerator:
             print(music_files)
             # Here parse files and return as a dict containing matrices for piano and orchestra
             if self.process_file:
-                ret = music21.converter.parse(music_files[0])
+                try:
+                    ret = music21.converter.parse(music_files[0])
+                except:
+                    with open('dump/shit_files.txt', 'a') as ff:
+                        ff.write(music_files[0])
+
             else:
                 ret = music_files[0]
 

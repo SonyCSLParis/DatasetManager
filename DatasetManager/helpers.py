@@ -35,7 +35,7 @@ def standard_name(note_or_rest, voice_range=None):
                 return OUT_OF_RANGE
         return note_or_rest.nameWithOctave
     if isinstance(note_or_rest, note.Rest):
-        return note_or_rest.name # == 'rest' := REST_SYMBOL
+        return note_or_rest.name  # == 'rest' := REST_SYMBOL
     if isinstance(note_or_rest, str):
         return note_or_rest
 
@@ -49,18 +49,15 @@ def standard_note(note_or_rest_string):
     if note_or_rest_string == 'rest':
         return note.Rest()
     # treat other additional symbols as rests
-    elif (note_or_rest_string == END_SYMBOL
-          or
-          note_or_rest_string == START_SYMBOL
-          or
-          note_or_rest_string == PAD_SYMBOL):
-        #print('Warning: Special symbol is used in standard_note')
-        return note.Rest()
+    elif note_or_rest_string == END_SYMBOL:
+        return note.Note('D~3', quarterLength=1)
+    elif note_or_rest_string == START_SYMBOL:
+        return note.Note('C~3', quarterLength=1)
+    elif note_or_rest_string == PAD_SYMBOL:
+        return note.Note('E~3', quarterLength=1)
     elif note_or_rest_string == SLUR_SYMBOL:
-        #print('Warning: SLUR_SYMBOL used in standard_note')
         return note.Rest()
     elif note_or_rest_string == OUT_OF_RANGE:
-        #print('Warning: OUT_OF_RANGE used in standard_note')
         return note.Rest()
     else:
         return note.Note(note_or_rest_string)

@@ -312,45 +312,45 @@ class OrchestrationDataset(MusicDataset):
                 with open('dump/shit_files.txt', 'a') as ff:
                     ff.write(f'{score["name"]}\n')
 
-            # events = new_events(pianoroll_orchestra, onsets_orchestra)
-            #
-            # chunks = self.prepare_chunks(events)
-            #
-            # # First get non transposed score
-            # transposition_semi_tone = 0
-            # minimum_transposition_allowed = None
-            # maximum_transposition_allowed = None
-            # minimum_transposition_allowed, maximum_transposition_allowed, \
-            # orchestra_tensor_dataset, orchestra_instruments_presence_tensor_dataset, \
-            # total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
-            #     self.transpose_loop_iteration(pianoroll_orchestra=pianoroll_orchestra,
-            #                                   onsets_orchestra=onsets_orchestra,
-            #                                   transposition_semi_tone=0,
-            #                                   chunks=chunks,
-            #                                   minimum_transposition_allowed=minimum_transposition_allowed,
-            #                                   maximum_transposition_allowed=maximum_transposition_allowed,
-            #                                   orchestra_tensor_dataset=orchestra_tensor_dataset,
-            #                                   orchestra_instruments_presence_tensor_dataset=orchestra_instruments_presence_tensor_dataset,
-            #                                   total_chunk_counter=total_chunk_counter,
-            #                                   too_many_instruments_frame=too_many_instruments_frame,
-            #                                   impossible_transposition=impossible_transposition)
-            #
-            # for transposition_semi_tone in range(-self.max_transposition, self.max_transposition + 1):
-            #     if transposition_semi_tone == 0:
-            #         continue
-            #     _, _, orchestra_tensor_dataset, orchestra_instruments_presence_tensor_dataset, \
-            #     total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
-            #         self.transpose_loop_iteration(pianoroll_orchestra=pianoroll_orchestra,
-            #                                       onsets_orchestra=onsets_orchestra,
-            #                                       transposition_semi_tone=transposition_semi_tone,
-            #                                       chunks=chunks,
-            #                                       minimum_transposition_allowed=minimum_transposition_allowed,
-            #                                       maximum_transposition_allowed=maximum_transposition_allowed,
-            #                                       orchestra_tensor_dataset=orchestra_tensor_dataset,
-            #                                       orchestra_instruments_presence_tensor_dataset=orchestra_instruments_presence_tensor_dataset,
-            #                                       total_chunk_counter=total_chunk_counter,
-            #                                       too_many_instruments_frame=too_many_instruments_frame,
-            #                                       impossible_transposition=impossible_transposition)
+            events = new_events(pianoroll_orchestra, onsets_orchestra)
+
+            chunks = self.prepare_chunks(events)
+
+            # First get non transposed score
+            transposition_semi_tone = 0
+            minimum_transposition_allowed = None
+            maximum_transposition_allowed = None
+            minimum_transposition_allowed, maximum_transposition_allowed, \
+            orchestra_tensor_dataset, orchestra_instruments_presence_tensor_dataset, \
+            total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
+                self.transpose_loop_iteration(pianoroll_orchestra=pianoroll_orchestra,
+                                              onsets_orchestra=onsets_orchestra,
+                                              transposition_semi_tone=0,
+                                              chunks=chunks,
+                                              minimum_transposition_allowed=minimum_transposition_allowed,
+                                              maximum_transposition_allowed=maximum_transposition_allowed,
+                                              orchestra_tensor_dataset=orchestra_tensor_dataset,
+                                              orchestra_instruments_presence_tensor_dataset=orchestra_instruments_presence_tensor_dataset,
+                                              total_chunk_counter=total_chunk_counter,
+                                              too_many_instruments_frame=too_many_instruments_frame,
+                                              impossible_transposition=impossible_transposition)
+
+            for transposition_semi_tone in range(-self.max_transposition, self.max_transposition + 1):
+                if transposition_semi_tone == 0:
+                    continue
+                _, _, orchestra_tensor_dataset, orchestra_instruments_presence_tensor_dataset, \
+                total_chunk_counter, too_many_instruments_frame, impossible_transposition = \
+                    self.transpose_loop_iteration(pianoroll_orchestra=pianoroll_orchestra,
+                                                  onsets_orchestra=onsets_orchestra,
+                                                  transposition_semi_tone=transposition_semi_tone,
+                                                  chunks=chunks,
+                                                  minimum_transposition_allowed=minimum_transposition_allowed,
+                                                  maximum_transposition_allowed=maximum_transposition_allowed,
+                                                  orchestra_tensor_dataset=orchestra_tensor_dataset,
+                                                  orchestra_instruments_presence_tensor_dataset=orchestra_instruments_presence_tensor_dataset,
+                                                  total_chunk_counter=total_chunk_counter,
+                                                  too_many_instruments_frame=too_many_instruments_frame,
+                                                  impossible_transposition=impossible_transposition)
 
         orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
         orchestra_instruments_presence_tensor_dataset = torch.cat(orchestra_instruments_presence_tensor_dataset, 0)

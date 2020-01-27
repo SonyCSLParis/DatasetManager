@@ -16,7 +16,6 @@ from DatasetManager.arrangement.instrument_grouping import get_instrument_groupi
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.orchestration.orchestration_dataset import OrchestrationDataset
@@ -329,7 +328,7 @@ class ArrangementDataset(OrchestrationDataset):
 
         #######################
         #  Create Tensor Dataset
-        dataset = TensorDataset(piano_tensor_dataset,
+        dataset = TensorDatasetIndexed(piano_tensor_dataset,
                                 orchestra_tensor_dataset,
                                 orchestra_instruments_presence_tensor_dataset)
         #######################

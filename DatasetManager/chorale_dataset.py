@@ -6,11 +6,10 @@ import torch
 import numpy as np
 
 from music21 import interval, stream
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.helpers import standard_name, SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \
-    standard_note, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL
+    standard_note, OUT_OF_RANGE, REST_SYMBOL, PAD_SYMBOL, TensorDatasetIndexed
 from DatasetManager.metadata import FermataMetadata
 from DatasetManager.music_dataset import MusicDataset
 
@@ -185,8 +184,8 @@ class ChoraleDataset(MusicDataset):
         chorale_tensor_dataset = torch.cat(chorale_tensor_dataset, 0)
         metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
 
-        dataset = TensorDataset(chorale_tensor_dataset,
-                                metadata_tensor_dataset)
+        dataset = TensorDatasetIndexed(chorale_tensor_dataset,
+                                       metadata_tensor_dataset)
 
         print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
         return dataset
@@ -625,7 +624,7 @@ class ChoraleBeatsDataset(ChoraleDataset):
             if answer == 'y':
                 smallest_bach_dataset = ChoraleBeatsDataset(
                     corpus_it_gen=self.corpus_it_gen,
-                    name='TEMP',
+                        name='TEMP',
                     voice_ids=self.voice_ids,
                     metadatas=[],
                     sequences_size=1,
@@ -720,8 +719,8 @@ class ChoraleBeatsDataset(ChoraleDataset):
         chorale_tensor_dataset = torch.cat(chorale_tensor_dataset, 0)
         metadata_tensor_dataset = torch.cat(metadata_tensor_dataset, 0)
 
-        dataset = TensorDataset(chorale_tensor_dataset,
-                                metadata_tensor_dataset)
+        dataset = TensorDatasetIndexed(chorale_tensor_dataset,
+                                       metadata_tensor_dataset)
 
         print(f'Sizes: {chorale_tensor_dataset.size()}, {metadata_tensor_dataset.size()}')
         return dataset

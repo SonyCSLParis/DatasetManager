@@ -17,7 +17,6 @@ from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 
@@ -355,7 +354,7 @@ class OrchestrationDataset(MusicDataset):
         orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
         orchestra_instruments_presence_tensor_dataset = torch.cat(orchestra_instruments_presence_tensor_dataset, 0)
 
-        dataset = TensorDataset(orchestra_tensor_dataset,
+        dataset = TensorDatasetIndexed(orchestra_tensor_dataset,
                                 orchestra_instruments_presence_tensor_dataset)
 
         print(

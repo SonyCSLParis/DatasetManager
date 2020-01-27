@@ -1,8 +1,10 @@
 import shutil
 from abc import ABC, abstractmethod
 import os
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader
 import torch
+
+from DatasetManager.helpers import TensorDatasetIndexed
 
 
 class MusicDataset(ABC):
@@ -174,10 +176,10 @@ class MusicDataset(ABC):
         dataset = self.get_tensor_dataset(self.cache_dir)
         num_examples = len(dataset)
         a, b = split
-        train_dataset = TensorDataset(*dataset[: int(a * num_examples)])
-        val_dataset = TensorDataset(*dataset[int(a * num_examples):
-                                             int((a + b) * num_examples)])
-        eval_dataset = TensorDataset(*dataset[int((a + b) * num_examples):])
+        train_dataset = TensorDatasetIndexed(*dataset[: int(a * num_examples)][0])
+        val_dataset = TensorDatasetIndexed(*dataset[int(a * num_examples):
+                                             int((a + b) * num_examples)][0])
+        eval_dataset = TensorDatasetIndexed(*dataset[int((a + b) * num_examples):][0])
 
         train_dl = DataLoader(
             train_dataset,

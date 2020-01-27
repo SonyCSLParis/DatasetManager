@@ -10,7 +10,6 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from DatasetManager.arrangement.instrumentation import get_instrumentation
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 import music21
 import numpy as np
@@ -299,7 +298,7 @@ class ArrangementFrameDataset(MusicDataset):
 
         #######################
         # Create Tensor Dataset
-        dataset = TensorDataset(piano_tensor_dataset,
+        dataset = TensorDatasetIndexed(piano_tensor_dataset,
                                 orchestra_tensor_dataset)
         #######################
 

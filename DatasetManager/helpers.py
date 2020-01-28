@@ -1,6 +1,6 @@
 import music21
 from itertools import islice
-
+from torch.utils.data import TensorDataset
 from music21 import note, harmony, expressions
 
 # constants
@@ -80,3 +80,13 @@ class ShortChoraleIteratorGen:
             islice(music21.corpus.chorales.Iterator(), 10)
         )
         return it.__iter__()
+
+
+class TensorDatasetIndexed(TensorDataset):
+    def __init__(self, *tensors):
+        super().__init__(*tensors)
+
+    def __getitem__(self, index):
+        ret = super().__getitem__(index)
+        return ret, index
+        # return ret

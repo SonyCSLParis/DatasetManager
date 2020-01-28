@@ -570,7 +570,7 @@ if __name__ == '__main__':
     )
 
     dataset = HarpsichordMidiDataset(corpus_it_gen=corpus_it_gen,
-                                     sequence_size=200,
+                                     sequence_size=240,
                                      max_transposition=6,
                                      time_dilation_factor=0.1
                                      )

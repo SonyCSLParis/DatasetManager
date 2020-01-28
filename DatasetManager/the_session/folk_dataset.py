@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from music21 import interval
 from scipy import stats
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from DatasetManager.helpers import SLUR_SYMBOL, START_SYMBOL, END_SYMBOL, \

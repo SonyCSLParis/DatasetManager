@@ -204,7 +204,7 @@ def build_bach_beat(dataset_manager, batch_size, subdivision, sequences_size, te
         FermataMetadata(),
         KeyMetadata()
     ]
-    name = 'bach_chorales'
+    name = 'bach_chorales_beats'
     if test_bool:
         name += '_test'
     bach_chorales_dataset: ChoraleBeatsDataset = dataset_manager.get_dataset(
@@ -218,7 +218,7 @@ def build_bach_beat(dataset_manager, batch_size, subdivision, sequences_size, te
      val_dataloader,
      test_dataloader) = bach_chorales_dataset.data_loaders(
         batch_size=batch_size,
-        cache_dir=dataset_manager.cache_dir,
+        num_workers=0,
         split=(0.85, 0.10)
     )
     print('Num Train Batches: ', len(train_dataloader))
@@ -261,6 +261,7 @@ def build_folk(dataset_manager, batch_size, subdivision, sequences_size):
      val_dataloader,
      test_dataloader) = folk_dataset.data_loaders(
         batch_size=batch_size,
+        num_workers=0,
         split=(0.7, 0.2)
     )
     print('Num Train Batches: ', len(train_dataloader))
@@ -275,19 +276,19 @@ if __name__ == '__main__':
     sequence_size = 7
     integrate_discretization = True
     max_transposition = 2
-    test_bool = False
+    test_bool = True
     dataset_manager = DatasetManager()
 
-    build_orchestration(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequence_size=sequence_size,
-        integrate_discretization=integrate_discretization,
-        max_transposition=max_transposition,
-        number_dump=number_dump,
-        test_bool=test_bool
-    )
+    # build_orchestration(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequence_size=sequence_size,
+    #     integrate_discretization=integrate_discretization,
+    #     max_transposition=max_transposition,
+    #     number_dump=number_dump,
+    #     test_bool=test_bool
+    # )
 
     # build_arrangement(
     #     dataset_manager=dataset_manager,
@@ -319,10 +320,10 @@ if __name__ == '__main__':
     #     number_dump=number_dump,
     #     test_bool=test_bool
     # )
-    # build_bach_beat(
-    #     dataset_manager=dataset_manager,
-    #     batch_size=batch_size,
-    #     subdivision=subdivision,
-    #     sequences_size=sequence_size,
-    #     test_bool=test_bool
-    # )
+    build_bach_beat(
+        dataset_manager=dataset_manager,
+        batch_size=batch_size,
+        subdivision=subdivision,
+        sequences_size=sequence_size,
+        test_bool=test_bool
+    )

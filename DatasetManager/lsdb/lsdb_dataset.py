@@ -13,7 +13,6 @@ from DatasetManager.lsdb.LsdbMongo import LsdbMongo
 from DatasetManager.lsdb.lsdb_data_helpers import NC, notes_and_chords, leadsheet_on_ticks
 from DatasetManager.music_dataset import MusicDataset
 from DatasetManager.lsdb.lsdb_exceptions import *
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 

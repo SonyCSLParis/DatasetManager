@@ -6,8 +6,6 @@ import shutil
 import torch
 import matplotlib as mpl
 
-import DatasetManager
-
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -85,11 +83,11 @@ class ArrangementPianorollDataset(MusicDataset):
 
     def __repr__(self):
         return f'ArrangementPR-' \
-            f'{self.name}-' \
-            f'{self.subdivision}-' \
-            f'{self.sequence_size}-' \
-            f'{self.velocity_quantization}-' \
-            f'{self.max_transposition}'
+               f'{self.name}-' \
+               f'{self.subdivision}-' \
+               f'{self.sequence_size}-' \
+               f'{self.velocity_quantization}-' \
+               f'{self.max_transposition}'
 
     def iterator_gen(self):
         return (self.sort_arrangement_pairs(arrangement_pair)
@@ -296,7 +294,7 @@ class ArrangementPianorollDataset(MusicDataset):
 
         #######################
         #  Create Tensor Dataset
-        dataset = TensorDatasetIndexed(piano_tensor_dataset,
+        dataset = TensorDataset(piano_tensor_dataset,
                                 orchestra_tensor_dataset)
         #######################
 

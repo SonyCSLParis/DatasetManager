@@ -1,7 +1,7 @@
 import shutil
 from abc import ABC, abstractmethod
 import os
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 import torch
 
 from DatasetManager.helpers import TensorDatasetIndexed
@@ -163,7 +163,8 @@ class MusicDataset(ABC):
                      num_workers,
                      split=(0.85, 0.10),
                      shuffle_train=True,
-                     shuffle_val=False):
+                     shuffle_val=False,
+                     indexed_dataloaders=False):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -176,10 +177,17 @@ class MusicDataset(ABC):
         dataset = self.get_tensor_dataset(self.cache_dir)
         num_examples = len(dataset)
         a, b = split
-        train_dataset = TensorDatasetIndexed(*dataset[: int(a * num_examples)][0])
-        val_dataset = TensorDatasetIndexed(*dataset[int(a * num_examples):
-                                             int((a + b) * num_examples)][0])
-        eval_dataset = TensorDatasetIndexed(*dataset[int((a + b) * num_examples):][0])
+        if indexed_dataloaders:
+            train_dataset = TensorDatasetIndexed(*dataset[: int(a * num_examples)])
+            val_dataset = TensorDatasetIndexed(*dataset[int(a * num_examples):
+                                                        int((a + b) * num_examples)])
+            eval_dataset = TensorDatasetIndexed(*dataset[int((a + b) * num_examples):])
+        else:
+            train_dataset = TensorDataset(*dataset[: int(a * num_examples)])
+            val_dataset = TensorDataset(*dataset[int(a * num_examples):
+                                                 int((a + b) * num_examples)])
+            eval_dataset = TensorDataset(*dataset[int((a + b) * num_examples):])
+
 
         train_dl = DataLoader(
             train_dataset,

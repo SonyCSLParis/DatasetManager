@@ -354,7 +354,7 @@ class OrchestrationDataset(MusicDataset):
         orchestra_tensor_dataset = torch.cat(orchestra_tensor_dataset, 0)
         orchestra_instruments_presence_tensor_dataset = torch.cat(orchestra_instruments_presence_tensor_dataset, 0)
 
-        dataset = TensorDatasetIndexed(orchestra_tensor_dataset,
+        dataset = TensorDataset(orchestra_tensor_dataset,
                                 orchestra_instruments_presence_tensor_dataset)
 
         print(

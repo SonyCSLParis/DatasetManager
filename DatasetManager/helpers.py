@@ -89,4 +89,3 @@ class TensorDatasetIndexed(TensorDataset):
     def __getitem__(self, index):
         ret = super().__getitem__(index)
         return ret, index
-        # return ret

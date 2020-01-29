@@ -298,7 +298,7 @@ class ArrangementFrameDataset(MusicDataset):
 
         #######################
         # Create Tensor Dataset
-        dataset = TensorDatasetIndexed(piano_tensor_dataset,
+        dataset = TensorDataset(piano_tensor_dataset,
                                 orchestra_tensor_dataset)
         #######################
 

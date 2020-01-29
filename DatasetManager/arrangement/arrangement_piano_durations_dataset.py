@@ -6,6 +6,7 @@ import shutil
 
 import torch
 import matplotlib as mpl
+from torch.utils.data import TensorDataset
 
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -451,7 +452,7 @@ class ArrangementPianoDurationDataset(MusicDataset):
 
         #######################
         #  Create Tensor Dataset
-        dataset = TensorDatasetIndexed(piano_tensor_dataset,
+        dataset = TensorDataset(piano_tensor_dataset,
                                 orchestra_tensor_dataset)
         #######################
 

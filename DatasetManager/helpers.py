@@ -84,9 +84,8 @@ class ShortChoraleIteratorGen:
 
 class TensorDatasetIndexed(TensorDataset):
     def __init__(self, *tensors):
-        super().__init__(*tensors)
+        super().__init__(*tensors[:])
 
     def __getitem__(self, index):
         ret = super().__getitem__(index)
         return ret, index
-        # return ret

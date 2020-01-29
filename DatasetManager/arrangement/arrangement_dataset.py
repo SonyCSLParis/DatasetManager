@@ -67,9 +67,7 @@ class ArrangementDataset(OrchestrationDataset):
 
         self.alignement_type = alignement_type
 
-        dump_folder = f'{dataset_manager_path}/dump'
-        self.dump_folder = dump_folder
-        self.statistic_folder = self.dump_folder + '/arrangement/statistics'
+        self.statistic_folder = f'{self.dump_folder}/arrangement/statistics'
         if os.path.isdir(self.statistic_folder):
             shutil.rmtree(self.statistic_folder)
         os.makedirs(self.statistic_folder)
@@ -328,7 +326,7 @@ class ArrangementDataset(OrchestrationDataset):
 
         #######################
         #  Create Tensor Dataset
-        dataset = TensorDatasetIndexed(piano_tensor_dataset,
+        dataset = TensorDataset(piano_tensor_dataset,
                                 orchestra_tensor_dataset,
                                 orchestra_instruments_presence_tensor_dataset)
         #######################

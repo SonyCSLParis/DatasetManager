@@ -48,9 +48,9 @@ class DatasetManager:
              'corpus_it_gen': corpus_it_gen,
              })
         dataset = dataset_class_name(**kwargs)
-        if os.path.exists(dataset.filepath(cache_dir=self.cache_dir)):
-            print(f'Loading {dataset.__repr__()} from {dataset.filepath(cache_dir=self.cache_dir)}')
-            dataset = torch.load(dataset.filepath(cache_dir=self.cache_dir))
+        if os.path.exists(dataset.filepath(self.cache_dir)):
+            print(f'Loading {dataset.__repr__()} from {dataset.filepath(self.cache_dir)}')
+            dataset = torch.load(dataset.filepath(self.cache_dir))
             print(f'(the corresponding TensorDataset is not loaded)')
         else:
             print(f'Creating {dataset.__repr__()}, '

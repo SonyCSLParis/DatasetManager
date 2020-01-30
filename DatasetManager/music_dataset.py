@@ -159,6 +159,23 @@ class MusicDataset(ABC):
     def filepath(self, cache_dir):
         return os.path.join(cache_dir, self.__repr__(), 'dataset')
 
+    def split_datasets(self, split=(0.85, 0.10), indexed_datasets=False):
+        assert sum(split) < 1
+        dataset = self.get_tensor_dataset(self.cache_dir)
+        num_examples = len(dataset)
+        a, b = split
+        if indexed_datasets:
+            train_dataset = TensorDatasetIndexed(*dataset[: int(a * num_examples)])
+            val_dataset = TensorDatasetIndexed(*dataset[int(a * num_examples):
+                                                        int((a + b) * num_examples)])
+            eval_dataset = TensorDatasetIndexed(*dataset[int((a + b) * num_examples):])
+        else:
+            train_dataset = TensorDataset(*dataset[: int(a * num_examples)])
+            val_dataset = TensorDataset(*dataset[int(a * num_examples):
+                                                 int((a + b) * num_examples)])
+            eval_dataset = TensorDataset(*dataset[int((a + b) * num_examples):])
+        return train_dataset, val_dataset, eval_dataset
+
     def data_loaders(self, batch_size,
                      num_workers,
                      split=(0.85, 0.10),
@@ -172,22 +189,8 @@ class MusicDataset(ABC):
         :param split:
         :return:
         """
-        assert sum(split) < 1
-
-        dataset = self.get_tensor_dataset(self.cache_dir)
-        num_examples = len(dataset)
-        a, b = split
-        if indexed_dataloaders:
-            train_dataset = TensorDatasetIndexed(*dataset[: int(a * num_examples)])
-            val_dataset = TensorDatasetIndexed(*dataset[int(a * num_examples):
-                                                        int((a + b) * num_examples)])
-            eval_dataset = TensorDatasetIndexed(*dataset[int((a + b) * num_examples):])
-        else:
-            train_dataset = TensorDataset(*dataset[: int(a * num_examples)])
-            val_dataset = TensorDataset(*dataset[int(a * num_examples):
-                                                 int((a + b) * num_examples)])
-            eval_dataset = TensorDataset(*dataset[int((a + b) * num_examples):])
-
+        train_dataset, val_dataset, eval_dataset = self.split_datasets(split=split,
+                                                                       indexed_datasets=indexed_dataloaders)
 
         train_dl = DataLoader(
             train_dataset,

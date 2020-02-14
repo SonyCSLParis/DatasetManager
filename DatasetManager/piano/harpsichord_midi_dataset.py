@@ -39,6 +39,7 @@ class HarpsichordMidiDataset(data.Dataset):
                  sequence_size,
                  max_transposition,
                  time_dilation_factor,
+                 transformations
                  ):
         """
         :param corpus_it_gen: calling this function returns an iterator
@@ -68,11 +69,13 @@ class HarpsichordMidiDataset(data.Dataset):
         #  data augmentations
         self.max_transposition = max_transposition
         self.time_dilation_factor = time_dilation_factor
-        self.transformations = {
-            'time_shift': True,
-            'time_dilation': True,
-            'transposition': True
-        }
+        self.transformations = transformations
+        # All transformations
+        # {
+        #     'time_shift': True,
+        #     'time_dilation': True,
+        #     'transposition': True
+        # }
 
         # Index 2 value
         self.index2value = {}
@@ -95,7 +98,7 @@ class HarpsichordMidiDataset(data.Dataset):
         self.end_chunk = None
         self.zero_time_shift = None
 
-        dataset_dir = f'{cache_dir}/{self}'
+        dataset_dir = f'{cache_dir}/{repr(self)}'
         filename = f'{dataset_dir}/dataset.pkl'
         self.local_parameters = {
             'dataset_dir': dataset_dir,
@@ -106,7 +109,7 @@ class HarpsichordMidiDataset(data.Dataset):
         if os.path.isfile(filename):
             self.load()
         else:
-            print(f'Building dataset {self}')
+            print(f'Building dataset {repr(self)}')
             self.make_tensor_dataset()
         return
 
@@ -117,6 +120,9 @@ class HarpsichordMidiDataset(data.Dataset):
                f'{self.sequence_size}-' \
                f'{self.max_transposition}'
         return name
+
+    def __str__(self):
+        return 'HarpsichordMidiDataset'
 
     def __len__(self):
         """Denotes the total number of samples"""
@@ -181,19 +187,12 @@ class HarpsichordMidiDataset(data.Dataset):
         # Apply transformations
         x = self.transform(x)
 
-        return x,
+        return x, index
 
     def iterator_gen(self):
         return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
 
-    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
-        """
-        Returns three data loaders obtained by splitting
-        self.tensor_dataset according to split
-        :param batch_size:
-        :param split:
-        :return:
-        """
+    def split_datasets(self, split=(0.85, 0.10)):
         assert sum(split) < 1
 
         num_examples = len(self)
@@ -206,10 +205,22 @@ class HarpsichordMidiDataset(data.Dataset):
         val_dataset = self.extract_subset(val_ids)
         eval_dataset = self.extract_subset(eval_ids)
 
+        return train_dataset, val_dataset, eval_dataset
+
+    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10)):
+        """
+        Returns three data loaders obtained by splitting
+        self.tensor_dataset according to split
+        :param batch_size:
+        :param split:
+        :return:
+        """
+        train_dataset, val_dataset, eval_dataset = self.split_datasets(split=split)
+
         train_dl = data.DataLoader(
             train_dataset,
             batch_size=batch_size,
-            shuffle=DEBUG_BOOL_SHUFFLE,
+            shuffle=True,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=True,

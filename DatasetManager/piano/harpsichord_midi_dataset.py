@@ -169,7 +169,8 @@ class HarpsichordMidiDataset(data.Dataset):
         instance = HarpsichordMidiDataset(corpus_it_gen=self.corpus_it_gen,
                                           sequence_size=self.sequence_size,
                                           max_transposition=self.max_transposition,
-                                          time_dilation_factor=self.time_dilation_factor)
+                                          time_dilation_factor=self.time_dilation_factor,
+                                          transformations=self.transformations)
         instance.list_ids = list_ids
         return instance
 

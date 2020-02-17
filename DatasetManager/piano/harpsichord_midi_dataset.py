@@ -66,17 +66,6 @@ class HarpsichordMidiDataset(data.Dataset):
         self.velocity_range = range(128)
         self.programs = range(128)
 
-        #  data augmentations
-        self.max_transposition = max_transposition
-        self.time_dilation_factor = time_dilation_factor
-        self.transformations = transformations
-        # All transformations
-        # {
-        #     'time_shift': True,
-        #     'time_dilation': True,
-        #     'transposition': True
-        # }
-
         # Index 2 value
         self.index2value = {}
         self.value2index = {}
@@ -84,7 +73,7 @@ class HarpsichordMidiDataset(data.Dataset):
         self.index_order_dict = {v: k for k, v in enumerate(self.index_order)}
         self.default_value = {
             'pitch': 60,
-            'duration': 0.1,
+            'duration': 0.2,
             'time_shift': 0.1,
             'velocity': 80
         }
@@ -111,14 +100,24 @@ class HarpsichordMidiDataset(data.Dataset):
         else:
             print(f'Building dataset {repr(self)}')
             self.make_tensor_dataset()
+
+        #  data augmentations have to be initialised after loading
+        self.max_transposition = max_transposition
+        self.time_dilation_factor = time_dilation_factor
+        self.transformations = transformations
+        #  All transformations
+        # {
+        #     'time_shift': True,
+        #     'time_dilation': True,
+        #     'transposition': True
+        # }
         return
 
     def __repr__(self):
         prefix = '-'.join(self.corpus_it_gen.subsets)
         name = f'HarpsichordMidi-' \
                f'{prefix}-' \
-               f'{self.sequence_size}-' \
-               f'{self.max_transposition}'
+               f'{self.sequence_size}'
         return name
 
     def __str__(self):
@@ -456,7 +455,7 @@ class HarpsichordMidiDataset(data.Dataset):
         # Fill in missing features with default values
         default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
         sequence_filled = np.array([default_frame] * len(sequence))
-        sequence_filled[:, selected_features_indices] = sequence[:, selected_features_indices]
+        sequence_filled[:, selected_features_indices] = sequence
         sequence = sequence_filled
 
         start_time = 0.0

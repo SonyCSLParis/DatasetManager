@@ -1,20 +1,20 @@
 import os
 import random
-import shutil
-
-import matplotlib.pyplot as plt
+from itertools import islice
+import matplotlib
+import matplotlib.image
 import numpy as np
 import torch
 from torch.utils import data
 
 
-class DSpriteMovieDataset(data.Dataset):
+class DSpriteMovieDataset(data.IterableDataset):
     """
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
     """
 
-    def __init__(self):
+    def __init__(self, width, height, duration, latent_features):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -25,10 +25,10 @@ class DSpriteMovieDataset(data.Dataset):
         super().__init__()
 
         # image dimensions
-        self.width = 32  #  width is x. 0 is left
-        self.height = 32  #  height is y. 0 is top
+        self.width = width  #  width is x. 0 is left
+        self.height = height  #  height is y. 0 is top
         self.channel = 3
-        self.duration = 10
+        self.duration = duration
 
         # latent factors
         # self.shapes = ['triangle', 'square', 'circle']
@@ -39,13 +39,14 @@ class DSpriteMovieDataset(data.Dataset):
         self.size_growths = [-2, -1, 0, 1, 2]
         self.background_colours = ['black', 'white']
         # list of factors actually varying and modeled in the dataset
-        self.latent_factors = {
-            'shape': False,
-            'colour': True,
-            'background_colour': True,
-            'size': True,
-            'size_growth': False,
-        }
+        self.latent_features = latent_features
+        # {
+        #     'shape': True,
+        #     'colour': True,
+        #     'background_colour': True,
+        #     'size': True,
+        #     'size_growth': False,
+        # }
 
         #  mapping symbolic to value
         self.colour_map = {
@@ -67,39 +68,38 @@ class DSpriteMovieDataset(data.Dataset):
     def __str__(self):
         return f'DSpriteMovie'
 
-    def __len__(self):
-        """Denotes the total number of samples"""
-        return len(self.list_ids)
+    def __iter__(self):
+        return self
 
-    def __getitem__(self):
+    def __next__(self):
         """
         Generates one sample of data
         """
         # movie
-        movie = torch.zeros((self.height, self.width, self.channel, self.duration)).long()
+        movie = torch.zeros((self.height, self.width, self.channel, self.duration))
 
         # randomly draw trajectories for latent factors
-        if self.latent_factors['colour']:
+        if self.latent_features['colour']:
             colour = self.colour_map[random.sample(self.colours, 1)[0]]
         else:
             colour = self.colour_map['red']
 
-        if self.latent_factors['background_colour']:
+        if self.latent_features['background_colour']:
             background_colour = self.colour_map[random.sample(self.background_colours, 1)[0]]
         else:
             background_colour = self.colour_map['white']
 
-        if self.latent_factors['shape']:
+        if self.latent_features['shape']:
             shape = random.sample(self.shapes, 1)
         else:
             shape = 'square'
 
-        if self.latent_factors['size']:
+        if self.latent_features['size']:
             initial_size = random.sample(self.initial_sizes, 1)[0]
         else:
             initial_size = 4
 
-        if self.latent_factors['size_growth']:
+        if self.latent_features['size_growth']:
             size_growth = random.sample(self.size_growths)
         else:
             size_growth = 0
@@ -165,27 +165,98 @@ class DSpriteMovieDataset(data.Dataset):
             x_t = x_tp1
             y_t = y_tp1
             direction_t = (direction_x, direction_y)
-        return movie
+
+        movie_norm = movie / 255
+        return movie_norm
+
+    def data_loaders(self, batch_size, num_workers):
+        train_dl = data.DataLoader(
+            self,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=True,
+        )
+
+        val_dl = data.DataLoader(
+            self,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=True,
+        )
+
+        eval_dl = data.DataLoader(
+            self,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=True,
+        )
+        return train_dl, val_dl, eval_dl
+
 
     def visualise_batch(self, movies, writing_dir):
         batch_dim = len(movies)
 
-        if os.path.isdir(writing_dir):
-            shutil.rmtree(writing_dir)
-        os.makedirs(writing_dir)
+        if not os.path.isdir(writing_dir):
+            os.makedirs(writing_dir)
 
         for batch_ind in range(batch_dim):
             for time in range(self.duration):
                 filepath = f'{writing_dir}/{batch_ind}_{time}.png'
                 movie_t = movies[batch_ind, :, :, :, time].numpy()
-                plt.imshow(movie_t)
-                plt.savefig(filepath)
+                matplotlib.image.imsave(filepath, scaler(movie_t, scale=10))
+
+
+def scaler(data, scale):
+    new_data = np.zeros((data.shape[0] * scale, data.shape[1] * scale, 3))
+    for j in range(data.shape[0]):
+        for k in range(data.shape[1]):
+            new_data[j * scale: (j + 1) * scale, k * scale: (k + 1) * scale] = data[j, k]
+    return new_data
 
 
 if __name__ == '__main__':
-    dataset = DSpriteMovieDataset()
-    movies = []
-    for batch_ind in range(100):
-        movies.append(dataset.__getitem__())
-    movies = torch.stack(movies)
-    dataset.visualise_batch(movies, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')
+    # width = 32
+    # height = 32
+    # duration = 10
+    # latent_features = {
+    #     'shape': False,
+    #     'colour': True,
+    #     'background_colour': True,
+    #     'size': False,
+    #     'size_growth': False,
+    # }
+    # dataset = DSpriteMovieDataset(height=height,
+    #                               width=width,
+    #                               duration=duration,
+    #                               latent_features=latent_features
+    #                               )
+    # movies = []
+    # for batch_ind in range(100):
+    #     movies.append(dataset.__getitem__())
+    # movies = torch.stack(movies)
+    # dataset.visualise_batch(movies, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')
+
+    width = 32
+    height = 32
+    duration = 10
+    latent_features = {
+        'shape': False,
+        'colour': True,
+        'background_colour': True,
+        'size': False,
+        'size_growth': False,
+    }
+    dataset = DSpriteMovieDataset(height=height,
+                                  width=width,
+                                  duration=duration,
+                                  latent_features=latent_features
+                                  )
+    dl, _, _ = dataset.data_loaders(batch_size=4, num_workers=4)
+    batches = []
+    for batch in islice(dl, 4):
+        batches.append(batch)
+    batches = torch.cat(batches, 0)
+    dataset.visualise_batch(batches, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')

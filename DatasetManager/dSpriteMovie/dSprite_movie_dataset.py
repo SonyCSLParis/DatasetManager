@@ -205,7 +205,6 @@ class DSpriteMovieDataset(data.IterableDataset):
         )
         return train_dl, val_dl, eval_dl
 
-
     def visualise_batch(self, movies, writing_dir):
         batch_dim = len(movies)
 
@@ -218,7 +217,8 @@ class DSpriteMovieDataset(data.IterableDataset):
             for time in range(self.duration):
                 filepath = f'{writing_dir}/{batch_ind}_{time}.png'
                 movie_t = movies[batch_ind, :, :, :, time].numpy()
-                matplotlib.image.imsave(filepath, scaler(movie_t, scale=10))
+                scale = int(320 // self.width)
+                matplotlib.image.imsave(filepath, self.scaler(movie_t, scale=scale))
 
     @staticmethod
     def scaler(data, scale):

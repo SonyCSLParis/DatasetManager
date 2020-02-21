@@ -166,8 +166,18 @@ class DSpriteMovieDataset(data.IterableDataset):
             y_t = y_tp1
             direction_t = (direction_x, direction_y)
 
-        movie_norm = movie / 255
+        movie_norm = self.normalise(movie)
         return movie_norm
+
+    @staticmethod
+    def normalise(movie):
+        movie_norm = (movie / 255) * 2 - 1
+        return movie_norm
+
+    @staticmethod
+    def unnormalise(movie):
+        movie_unnorm = (movie + 1) / 2
+        return movie_unnorm
 
     def data_loaders(self, batch_size, num_workers):
         train_dl = data.DataLoader(
@@ -199,6 +209,8 @@ class DSpriteMovieDataset(data.IterableDataset):
     def visualise_batch(self, movies, writing_dir):
         batch_dim = len(movies)
 
+        movies = self.unnormalise(movies)
+
         if not os.path.isdir(writing_dir):
             os.makedirs(writing_dir)
 
@@ -208,13 +220,14 @@ class DSpriteMovieDataset(data.IterableDataset):
                 movie_t = movies[batch_ind, :, :, :, time].numpy()
                 matplotlib.image.imsave(filepath, scaler(movie_t, scale=10))
 
-
-def scaler(data, scale):
-    new_data = np.zeros((data.shape[0] * scale, data.shape[1] * scale, 3))
-    for j in range(data.shape[0]):
-        for k in range(data.shape[1]):
-            new_data[j * scale: (j + 1) * scale, k * scale: (k + 1) * scale] = data[j, k]
-    return new_data
+    @staticmethod
+    def scaler(data, scale):
+        # increases the size of an image bfore plotting
+        new_data = np.zeros((data.shape[0] * scale, data.shape[1] * scale, 3))
+        for j in range(data.shape[0]):
+            for k in range(data.shape[1]):
+                new_data[j * scale: (j + 1) * scale, k * scale: (k + 1) * scale] = data[j, k]
+        return new_data
 
 
 if __name__ == '__main__':

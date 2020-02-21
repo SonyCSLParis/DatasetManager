@@ -77,6 +77,12 @@ class HarpsichordMidiDataset(data.Dataset):
             'time_shift': 0.1,
             'velocity': 80
         }
+        self.silence_value = {
+            'pitch': 60,
+            'duration': 0.5,
+            'time_shift': 0.5,
+            'velocity': 0
+        }
 
         # Chunks
         self.hop_size = None
@@ -313,106 +319,10 @@ class HarpsichordMidiDataset(data.Dataset):
         # Iterate over files
         for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
 
-            #  Preprocess midi
-            midi = pretty_midi.PrettyMIDI(midi_file)
-            raw_sequence = list(itertools.chain(*[
-                inst.notes for inst in midi.instruments
-                if inst.program in self.programs and not inst.is_drum]))
-            control_changes = list(itertools.chain(*[
-                inst.control_changes for inst in midi.instruments
-                if inst.program in self.programs and not inst.is_drum]))
-            # sort by starting time
-            raw_sequence.sort(key=lambda x: x.start)
-            control_changes.sort(key=lambda x: x.time)
+            # midi to sequence
+            sequence = self.process_score(midi_file)
 
-            #  pedal, cc = 64
-            sustain_pedal_time, sustain_pedal_value = extract_cc(control_changes=control_changes,
-                                                                 channel=64,
-                                                                 binarize=True)
-
-            # sostenuto pedal, cc = 66
-            sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(control_changes=control_changes,
-                                                                     channel=66,
-                                                                     binarize=True)
-
-            # soft pedal, cc = 67
-            soft_pedal_time, soft_pedal_value = extract_cc(control_changes=control_changes,
-                                                           channel=67,
-                                                           binarize=True)
-
-            seq_len = len(raw_sequence)
-
-            structured_sequence = []
-            for event_ind in range(seq_len):
-                # Get values
-                event = raw_sequence[event_ind]
-                event_values = {}
-
-                # Compute duration taking sustain
-                sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
-                if sustain_pedal_value[sustained_index_start] == 1:
-                    if (sustained_index_start + 1) >= len(sustain_pedal_time):
-                        event_end_sustained = 0
-                    else:
-                        event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
-                    event_end = max(event.end, event_end_sustained)
-                else:
-                    event_end = event.end
-
-                #  also check if pedal is pushed before the end of the note !!
-                sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
-                if sustain_pedal_value[sustained_index_end] == 1:
-                    if (sustained_index_end + 1) >= len(sustain_pedal_time):
-                        # notes: that's a problem, means a sustain pedal is not switched off....
-                        event_end_sustained = 0
-                    else:
-                        event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
-                    event_end = max(event.end, event_end_sustained)
-
-                duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
-
-                event_values['duration'] = duration_value
-                if event.pitch in self.pitch_range:
-                    event_values['pitch'] = event.pitch
-                else:
-                    continue
-                event_values['velocity'] = event.velocity
-                if event_ind != seq_len - 1:
-                    next_event = raw_sequence[event_ind + 1]
-                    event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
-                else:
-                    event_values['time_shift'] = 0
-
-                #  Convert to indices
-                this_note = []
-                for feat_name in self.index_order:
-                    this_note.append(self.value2index[feat_name][event_values[feat_name]])
-                structured_sequence.append(this_note)
-
-            #  Build sequence
-            self.hop_size = self.sequence_size // 4
-            prepend_length = self.hop_size
-            # Ensure seq_length is a multiple of hop_size
-            raw_seq_len = len(structured_sequence)
-            seq_length = math.ceil((prepend_length + raw_seq_len) / self.hop_size) * self.hop_size
-            #  Append length (does not count final ts0 - end - ts0, so -3)
-            append_length = seq_length - (prepend_length + raw_seq_len)
-            if append_length == 0:
-                append_length = self.hop_size
-                seq_length += self.hop_size
-
-            sequence = []
-            # prepend
-            sequence += [self.padding_chunk] * (prepend_length - 1)
-            sequence.append(self.start_chunk)
-            # content
-            sequence += structured_sequence
-            # append
-            sequence.append(self.end_chunk)
-            sequence += [self.padding_chunk] * (append_length - 1)
-            sequence = np.array(sequence)
-
-            # now split in chunks
+            # split in chunks
             for start_time in range(0, len(sequence) - self.sequence_size + 1, self.hop_size):
                 end_time = start_time + self.sequence_size
                 # Take extra size to dynamically shift the chunks to the right when loading them (see def transform)
@@ -432,11 +342,130 @@ class HarpsichordMidiDataset(data.Dataset):
         self.save()
         return
 
+    def process_score(self, midi_file):
+        #  Preprocess midi
+        midi = pretty_midi.PrettyMIDI(midi_file)
+        raw_sequence = list(itertools.chain(*[
+            inst.notes for inst in midi.instruments
+            if inst.program in self.programs and not inst.is_drum]))
+        control_changes = list(itertools.chain(*[
+            inst.control_changes for inst in midi.instruments
+            if inst.program in self.programs and not inst.is_drum]))
+        # sort by starting time
+        raw_sequence.sort(key=lambda x: x.start)
+        control_changes.sort(key=lambda x: x.time)
+
+        #  pedal, cc = 64
+        sustain_pedal_time, sustain_pedal_value = extract_cc(control_changes=control_changes,
+                                                             channel=64,
+                                                             binarize=True)
+
+        # sostenuto pedal, cc = 66
+        sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(control_changes=control_changes,
+                                                                 channel=66,
+                                                                 binarize=True)
+
+        # soft pedal, cc = 67
+        soft_pedal_time, soft_pedal_value = extract_cc(control_changes=control_changes,
+                                                       channel=67,
+                                                       binarize=True)
+
+        seq_len = len(raw_sequence)
+
+        structured_sequence = []
+        for event_ind in range(seq_len):
+            # Get values
+            event = raw_sequence[event_ind]
+            event_values = {}
+
+            # Compute duration taking sustain
+            sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
+            if sustain_pedal_value[sustained_index_start] == 1:
+                if (sustained_index_start + 1) >= len(sustain_pedal_time):
+                    event_end_sustained = 0
+                else:
+                    event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
+                event_end = max(event.end, event_end_sustained)
+            else:
+                event_end = event.end
+
+            #  also check if pedal is pushed before the end of the note !!
+            sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
+            if sustain_pedal_value[sustained_index_end] == 1:
+                if (sustained_index_end + 1) >= len(sustain_pedal_time):
+                    # notes: that's a problem, means a sustain pedal is not switched off....
+                    event_end_sustained = 0
+                else:
+                    event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
+                event_end = max(event.end, event_end_sustained)
+
+            duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
+
+            event_values['duration'] = duration_value
+            if event.pitch in self.pitch_range:
+                event_values['pitch'] = event.pitch
+            else:
+                continue
+            event_values['velocity'] = event.velocity
+            if event_ind != seq_len - 1:
+                next_event = raw_sequence[event_ind + 1]
+                event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
+            else:
+                event_values['time_shift'] = 0
+
+            #  Convert to indices
+            this_note = []
+            for feat_name in self.index_order:
+                this_note.append(self.value2index[feat_name][event_values[feat_name]])
+            structured_sequence.append(this_note)
+
+        #  Build sequence
+        self.hop_size = self.sequence_size // 4
+        prepend_length = self.hop_size
+        # Ensure seq_length is a multiple of hop_size
+        raw_seq_len = len(structured_sequence)
+        seq_length = math.ceil((prepend_length + raw_seq_len) / self.hop_size) * self.hop_size
+        #  Append length (does not count final ts0 - end - ts0, so -3)
+        append_length = seq_length - (prepend_length + raw_seq_len)
+        if append_length == 0:
+            append_length = self.hop_size
+            seq_length += self.hop_size
+
+        sequence = []
+        # prepend
+        sequence += [self.padding_chunk] * (prepend_length - 1)
+        sequence.append(self.start_chunk)
+        # content
+        sequence += structured_sequence
+        # append
+        sequence.append(self.end_chunk)
+        sequence += [self.padding_chunk] * (append_length - 1)
+        sequence = np.array(sequence)
+        return sequence
+
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
                                  unknown_instruments=[], subdivision=None):
         raise NotImplementedError
 
-    def tensor_to_score(self, sequence, selected_features, midipath):
+    def interleave_silences_batch(self, sequences):
+        ret = []
+        silence_frame = torch.tensor([self.value2index[feat_name][self.silence_value[feat_name]] for feat_name in self.index_order])
+        for e in sequences:
+            ret.extend(e)
+            ret.append(silence_frame)
+            ret.append(silence_frame)
+            ret.append(silence_frame)
+        ret_stack = torch.stack(ret, dim=0)
+        return ret_stack
+
+    def fill_missing_features(self, sequence, selected_features_indices):
+        # Fill in missing features with default values
+        default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
+        sequence_filled = torch.tensor([default_frame] * len(sequence))
+        sequence_filled[:, selected_features_indices] = sequence
+        return sequence_filled
+
+    def tensor_to_score(self, sequence, selected_features, fill_features_bool):
         # Create score
         score = pretty_midi.PrettyMIDI()
         # 'Acoustic Grand Piano', 'Bright Acoustic Piano',
@@ -453,10 +482,11 @@ class HarpsichordMidiDataset(data.Dataset):
         selected_features_indices = [self.index_order_dict[feat_name] for feat_name in selected_features]
 
         # Fill in missing features with default values
-        default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
-        sequence_filled = np.array([default_frame] * len(sequence))
-        sequence_filled[:, selected_features_indices] = sequence
-        sequence = sequence_filled
+        if fill_features_bool:
+            default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
+            sequence_filled = np.array([default_frame] * len(sequence))
+            sequence_filled[:, selected_features_indices] = sequence
+            sequence = sequence_filled
 
         start_time = 0.0
         for t in range(len(sequence)):
@@ -480,8 +510,7 @@ class HarpsichordMidiDataset(data.Dataset):
             start_time += time_shift_value
 
         score.instruments.append(piano)
-        score.write(midipath)
-        return
+        return score
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
@@ -492,9 +521,10 @@ class HarpsichordMidiDataset(data.Dataset):
         num_batches = len(piano_sequences)
 
         for batch_ind in range(num_batches):
-            self.tensor_to_score(sequence=piano_sequences[batch_ind],
-                                 selected_features=None,
-                                 midipath=f"{writing_dir}/{filepath}_{batch_ind}.mid")
+            midipath = f"{writing_dir}/{filepath}_{batch_ind}.mid"
+            score = self.tensor_to_score(sequence=piano_sequences[batch_ind],
+                                         selected_features=None)
+            score.write(midipath)
 
     def transform(self, x):
 

@@ -1,7 +1,7 @@
-import music21
 from itertools import islice
-from torch.utils.data import TensorDataset
+import music21
 from music21 import note, harmony, expressions
+from torch.utils.data import TensorDataset
 
 # constants
 SLUR_SYMBOL = '__'

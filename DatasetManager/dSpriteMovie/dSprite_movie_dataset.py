@@ -218,7 +218,8 @@ class DSpriteMovieDataset(data.IterableDataset):
             for time in range(self.duration):
                 filepath = f'{writing_dir}/{batch_ind}_{time}.png'
                 movie_t = movies[batch_ind, :, :, :, time].numpy()
-                matplotlib.image.imsave(filepath, scaler(movie_t, scale=10))
+                scale = int(320 // width)
+                matplotlib.image.imsave(filepath, self.scaler(movie_t, scale=scale))
 
     @staticmethod
     def scaler(data, scale):

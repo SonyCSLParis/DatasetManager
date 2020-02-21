@@ -205,6 +205,7 @@ class DSpriteMovieDataset(data.IterableDataset):
         )
         return train_dl, val_dl, eval_dl
 
+
     def visualise_batch(self, movies, writing_dir):
         batch_dim = len(movies)
 

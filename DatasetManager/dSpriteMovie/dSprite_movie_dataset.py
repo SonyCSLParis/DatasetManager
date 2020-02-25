@@ -77,6 +77,10 @@ class DSpriteMovieDataset(data.IterableDataset):
         """
         # movie
         movie = torch.zeros((self.height, self.width, self.channel, self.duration))
+        positions_x = torch.zeros((self.duration))
+        positions_y = torch.zeros((self.duration))
+        dx = torch.zeros((self.duration))
+        dy = torch.zeros((self.duration))
 
         # randomly draw trajectories for latent factors
         if self.latent_features['colour']:
@@ -126,6 +130,13 @@ class DSpriteMovieDataset(data.IterableDataset):
 
         for t in range(self.duration):
             ########################
+            #  Save latent informations
+            positions_x[t] = x_t
+            positions_y[t] = y_t
+            dx[t] = direction_t[0]
+            dy[t] = direction_t[1]
+
+            ########################
             #  Draw frame
             if shape == 'square':
                 movie[x_t - half_size_t:x_t + half_size_t, y_t - half_size_t:y_t + half_size_t, 0, t] = colour[0]
@@ -167,7 +178,17 @@ class DSpriteMovieDataset(data.IterableDataset):
             direction_t = (direction_x, direction_y)
 
         movie_norm = self.normalise(movie)
-        return movie_norm
+        return {
+            'movie': movie_norm,
+            'shape': shape,
+            'colour': colour,
+            'background_color': background_colour,
+            'initial_size': initial_size,
+            'positions_x': positions_x,
+            'positions_y': positions_y,
+            'dx': dx,
+            'dy': dy
+        }
 
     @staticmethod
     def normalise(movie):
@@ -204,7 +225,6 @@ class DSpriteMovieDataset(data.IterableDataset):
             drop_last=True,
         )
         return train_dl, val_dl, eval_dl
-
 
     def visualise_batch(self, movies, writing_dir):
         batch_dim = len(movies)
@@ -258,8 +278,8 @@ if __name__ == '__main__':
     duration = 10
     latent_features = {
         'shape': False,
-        'colour': True,
-        'background_colour': True,
+        'colour': False,
+        'background_colour': False,
         'size': False,
         'size_growth': False,
     }
@@ -268,9 +288,10 @@ if __name__ == '__main__':
                                   duration=duration,
                                   latent_features=latent_features
                                   )
-    dl, _, _ = dataset.data_loaders(batch_size=4, num_workers=4)
-    batches = []
+    dl, _, _ = dataset.data_loaders(batch_size=4, num_workers=0)
+    movies = []
     for batch in islice(dl, 4):
-        batches.append(batch)
-    batches = torch.cat(batches, 0)
-    dataset.visualise_batch(batches, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')
+        movie = batch['movie']
+        movies.append(movie)
+    movies = torch.cat(movies, 0)
+    dataset.visualise_batch(movies, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')

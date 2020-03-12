@@ -14,7 +14,7 @@ class DSpriteMovieDataset(data.IterableDataset):
     It is highly recommended to run arrangement_statistics before building the database
     """
 
-    def __init__(self, width, height, duration, latent_features):
+    def __init__(self, width, height, duration, latent_features, random_position, random_colour):
         """
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
@@ -47,6 +47,10 @@ class DSpriteMovieDataset(data.IterableDataset):
         #     'size': True,
         #     'size_growth': False,
         # }
+
+        self.random_position = random_position
+        self.random_colour = random_colour
+
 
         #  mapping symbolic to value
         self.colour_map = {
@@ -144,38 +148,46 @@ class DSpriteMovieDataset(data.IterableDataset):
                 movie[x_t - half_size_t:x_t + half_size_t, y_t - half_size_t:y_t + half_size_t, 2, t] = colour[2]
 
             ########################
-            #  Get new direction at t+1
-            left_tp1 = x_t + direction_t[0] - half_size_t
-            right_tp1 = x_t + direction_t[0] + half_size_t
-            up_tp1 = y_t + direction_t[1] - half_size_t
-            down_tp1 = y_t + direction_t[1] + half_size_t
-            if left_tp1 <= 0:
-                direction_x = -direction_t[0]
-                x_tp1 = -left_tp1 + half_size_t
-            elif right_tp1 >= self.width:
-                direction_x = -direction_t[0]
-                x_tp1 = self.width - (right_tp1 - self.width) - half_size_t
-            else:
-                direction_x = direction_t[0]
-                x_tp1 = x_t + direction_x
-
-            if up_tp1 <= 0:
-                direction_y = -direction_t[1]
-                y_tp1 = - up_tp1 + half_size_t
-            elif down_tp1 >= self.height:
-                direction_y = -direction_t[1]
-                y_tp1 = self.height - (down_tp1 - self.height) - half_size_t
-            else:
-                direction_y = direction_t[1]
-                y_tp1 = y_t + direction_y
+            #  Get new parameters at t+1
+            if self.random_colour:
+                colour = self.colour_map[random.sample(self.colours, 1)[0]]
 
             ########################
-            # Compute parameters at t+1
-            size_t = size_t
-            half_size_t = size_t // 2
-            x_t = x_tp1
-            y_t = y_tp1
-            direction_t = (direction_x, direction_y)
+            #  Get new direction at t+1
+            if not self.random_position:
+                left_tp1 = x_t + direction_t[0] - half_size_t
+                right_tp1 = x_t + direction_t[0] + half_size_t
+                up_tp1 = y_t + direction_t[1] - half_size_t
+                down_tp1 = y_t + direction_t[1] + half_size_t
+                if left_tp1 <= 0:
+                    direction_x = -direction_t[0]
+                    x_tp1 = -left_tp1 + half_size_t
+                elif right_tp1 >= self.width:
+                    direction_x = -direction_t[0]
+                    x_tp1 = self.width - (right_tp1 - self.width) - half_size_t
+                else:
+                    direction_x = direction_t[0]
+                    x_tp1 = x_t + direction_x
+
+                if up_tp1 <= 0:
+                    direction_y = -direction_t[1]
+                    y_tp1 = - up_tp1 + half_size_t
+                elif down_tp1 >= self.height:
+                    direction_y = -direction_t[1]
+                    y_tp1 = self.height - (down_tp1 - self.height) - half_size_t
+                else:
+                    direction_y = direction_t[1]
+                    y_tp1 = y_t + direction_y
+
+                size_t = size_t
+                half_size_t = size_t // 2
+                x_t = x_tp1
+                y_t = y_tp1
+                direction_t = (direction_x, direction_y)
+            else:
+                x_t = random.sample(range(initial_size // 2, self.width - initial_size // 2), 1)[0]
+                y_t = random.sample(range(initial_size // 2, self.height - initial_size // 2), 1)[0]
+                direction_t = (0, 0)
 
         movie_norm = self.normalise(movie)
         return {
@@ -278,15 +290,17 @@ if __name__ == '__main__':
     duration = 10
     latent_features = {
         'shape': False,
-        'colour': False,
+        'colour': True,
         'background_colour': False,
-        'size': False,
+        'size': True,
         'size_growth': False,
     }
     dataset = DSpriteMovieDataset(height=height,
                                   width=width,
                                   duration=duration,
-                                  latent_features=latent_features
+                                  latent_features=latent_features,
+                                  random_position=True,
+                                  random_colour=False,
                                   )
     dl, _, _ = dataset.data_loaders(batch_size=4, num_workers=0)
     movies = []

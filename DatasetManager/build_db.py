@@ -290,16 +290,16 @@ if __name__ == '__main__':
     #     test_bool=test_bool
     # )
 
-    # build_arrangement(
-    #     dataset_manager=dataset_manager,
-    #     batch_size=batch_size,
-    #     subdivision=subdivision,
-    #     sequence_size=sequence_size,
-    #     integrate_discretization=integrate_discretization,
-    #     max_transposition=max_transposition,
-    #     number_dump=number_dump,
-    #     test_bool=test_bool
-    # )
+    build_arrangement(
+        dataset_manager=dataset_manager,
+        batch_size=batch_size,
+        subdivision=subdivision,
+        sequence_size=sequence_size,
+        integrate_discretization=integrate_discretization,
+        max_transposition=max_transposition,
+        number_dump=number_dump,
+        test_bool=test_bool
+    )
     # build_arrangement_midi(
     #     dataset_manager=dataset_manager,
     #     batch_size=batch_size,
@@ -320,10 +320,10 @@ if __name__ == '__main__':
     #     number_dump=number_dump,
     #     test_bool=test_bool
     # )
-    build_bach_beat(
-        dataset_manager=dataset_manager,
-        batch_size=batch_size,
-        subdivision=subdivision,
-        sequences_size=sequence_size,
-        test_bool=test_bool
-    )
+    # build_bach_beat(
+    #     dataset_manager=dataset_manager,
+    #     batch_size=batch_size,
+    #     subdivision=subdivision,
+    #     sequences_size=sequence_size,
+    #     test_bool=test_bool
+    # )

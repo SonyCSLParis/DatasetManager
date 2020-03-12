@@ -227,7 +227,7 @@ class DSpriteMovieDataset(data.IterableDataset):
         return train_dl, val_dl, eval_dl
 
     def visualise_batch(self, movies, writing_dir):
-        batch_dim = len(movies)
+        batch_dim, _, _, _, duration = movies.shape
 
         movies = self.unnormalise(movies)
 
@@ -235,7 +235,7 @@ class DSpriteMovieDataset(data.IterableDataset):
             os.makedirs(writing_dir)
 
         for batch_ind in range(batch_dim):
-            for time in range(self.duration):
+            for time in range(duration):
                 filepath = f'{writing_dir}/{batch_ind}_{time}.png'
                 movie_t = movies[batch_ind, :, :, :, time].numpy()
                 scale = int(320 // self.width)
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     #     'shape': False,
     #     'colour': True,
     #     'background_colour': True,
-    #     'size': False,
+    #     'size': False,hierarchy_levels
     #     'size_growth': False,
     # }
     # dataset = DSpriteMovieDataset(height=height,

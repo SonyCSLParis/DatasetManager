@@ -1,23 +1,22 @@
 import json
 import os
-import pickle
 import re
 import shutil
 
-import DatasetManager
-import matplotlib.pyplot as plt
 import music21
 import numpy as np
 import torch
+from torch.utils.data import TensorDataset
+from tqdm import tqdm
 
+import DatasetManager
 from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pianoroll_frame, unquantize_velocity, \
-    shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
+    shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, new_events
 from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
 from DatasetManager.arrangement.instrumentation import get_instrumentation
 from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
     YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.music_dataset import MusicDataset
-from tqdm import tqdm
 
 
 class OrchestrationDataset(MusicDataset):
@@ -710,7 +709,7 @@ class OrchestrationDataset(MusicDataset):
                 if current_velocity != SLUR_SYMBOL:
                     #  Write previous frame if it was not a silence
                     if velocity is not None:
-                        if velocity not in [MASK_SYMBOL, REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
+                        if velocity not in [REST_SYMBOL, START_SYMBOL, END_SYMBOL, PAD_SYMBOL]:
                             f = music21.note.Note(pitch)
                             f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
                             f.quarterLength = duration / subdivision
@@ -729,7 +728,6 @@ class OrchestrationDataset(MusicDataset):
                 current_offset += current_duration
 
             # Don't forget the last note
-            # if velocity not in [REST_SYMBOL, MASK_SYMBOL]:
             if velocity not in [REST_SYMBOL]:
                 f = music21.note.Note(pitch)
                 f.volume.velocity = unquantize_velocity(velocity, self.velocity_quantization)
@@ -773,7 +771,7 @@ class OrchestrationDataset(MusicDataset):
 
             for frame_index, duration in enumerate(durations):
                 symbol = self.index2midi_pitch[instrument_index][orchestra_matrix[frame_index, instrument_index]]
-                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, MASK_SYMBOL, PAD_SYMBOL]:
+                if symbol not in [START_SYMBOL, END_SYMBOL, REST_SYMBOL, PAD_SYMBOL]:
                     if symbol == SLUR_SYMBOL:
                         if len(score_list) == 0:
                             print(f'Slur symbol placed after nothing in {instrument_name}')

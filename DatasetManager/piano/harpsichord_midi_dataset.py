@@ -213,11 +213,8 @@ class HarpsichordMidiDataset(data.Dataset):
 
         return train_dataset, val_dataset, eval_dataset
 
-    def data_loaders(self, batch_size,
-                     num_workers,
-                     shuffle_train=True,
-                     shuffle_val=False,
-                     split=(0.85, 0.10)):
+    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10),
+                     shuffle_train=True, shuffle_val=False):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split

@@ -1,23 +1,20 @@
-import json
 import os
-import pickle
+import os
 import re
 import shutil
 
-import DatasetManager
-import DatasetManager.arrangement.nw_align as nw_align
 import matplotlib.pyplot as plt
 import music21
 import numpy as np
 import torch
-from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pianoroll_frame, unquantize_velocity, \
-    shift_pr_along_pitch_axis, note_to_midiPitch, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
-from DatasetManager.arrangement.instrument_grouping import get_instrument_grouping
-from DatasetManager.arrangement.instrumentation import get_instrumentation
-from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
+from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
+import DatasetManager.arrangement.nw_align as nw_align
+from DatasetManager.arrangement.arrangement_helper import quantize_velocity_pianoroll_frame, unquantize_velocity, \
+    shift_pr_along_pitch_axis, score_to_pianoroll, flatten_dict_pr, new_events, pitch_class_matrix
+from DatasetManager.helpers import REST_SYMBOL, SLUR_SYMBOL, END_SYMBOL, START_SYMBOL, \
+    YES_SYMBOL, NO_SYMBOL, PAD_SYMBOL
 from DatasetManager.orchestration.orchestration_dataset import OrchestrationDataset
 
 """
@@ -77,6 +74,7 @@ class ArrangementDataset(OrchestrationDataset):
         self.index2midi_pitch_piano = {}
         self.value2oneHot_perPianoToken = {}
         self.oneHot2value_perPianoToken = {}
+        self.number_pitch_piano = None
 
         # Often used vectors, computed in compute_index_dicts
         self.precomputed_vectors_piano = {
@@ -103,6 +101,7 @@ class ArrangementDataset(OrchestrationDataset):
         max_pitch_piano = max(set_midiPitch_per_instrument["Piano"])
         #  Use range to avoid "gaps" in the piano tessitura
         list_midiPitch = sorted(list(range(min_pitch_piano, max_pitch_piano + 1)))
+        self.number_pitch_piano = len(list_midiPitch)
         for index, midi_pitch in enumerate(list_midiPitch):
             self.midi_pitch2index_piano[midi_pitch] = index
             self.index2midi_pitch_piano[index] = midi_pitch
@@ -214,9 +213,6 @@ class ArrangementDataset(OrchestrationDataset):
 
             ############################################################
             #  Align (we can use non transposed scores, changes nothing to the alignement
-            if arr_pair is None:
-                continue
-
             corresponding_frames = self.align_score(piano_pr=pianoroll_piano,
                                                     piano_onsets=onsets_piano,
                                                     orchestra_pr=pianoroll_orchestra,
@@ -848,10 +844,10 @@ class ArrangementDataset(OrchestrationDataset):
                             f.quarterLength = duration / subdivision
                             this_part.insert((offset / subdivision), f)
                         # Reinitialise (note that we don't need to write silences, they are handled by the offset)
-                        else:
-                            f = music21.note.Rest()
-                            f.quarterLength = duration / subdivision
-                            this_part.insert((offset / subdivision), f)
+                        # else:
+                        #     f = music21.note.Rest()
+                        #     f.quarterLength = duration / subdivision
+                        #     this_part.insert((offset / subdivision), f)
                     duration = current_duration
                     offset = current_offset
                     velocity = current_velocity
@@ -1111,10 +1107,9 @@ class ArrangementDataset(OrchestrationDataset):
 
 if __name__ == '__main__':
     #  Read
-    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator, OrchestraIteratorGenerator
+    from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 
-    dataset_manager_path = os.path.dirname(os.path.realpath(DatasetManager.__file__))
-    database_path = f'{dataset_manager_path}/databases'
+    database_path = f'{os.path.expanduser("~")}/Data/databases'
 
     # parameters
     sequence_size = 5
@@ -1127,7 +1122,6 @@ if __name__ == '__main__':
         arrangement_path=f'{database_path}/Orchestration/arrangement',
         subsets=[
             'liszt_classical_archives',
-            # 'debug',
         ],
         num_elements=None
     )
@@ -1155,7 +1149,7 @@ if __name__ == '__main__':
 
     dataset.load_index_dicts()
 
-    dump_folder = f'{dataset_manager_path}/dump'
+    dump_folder = dataset.dump_folder
     writing_dir = f'{dump_folder}/arrangement/reconstruction_midi'
     if os.path.isdir(writing_dir):
         shutil.rmtree(writing_dir)

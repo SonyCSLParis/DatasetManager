@@ -193,7 +193,7 @@ def score_to_pianoroll(score, subdivision, simplify_instrumentation,
                 pianoroll[instrument_name] = this_pr
                 onsets[instrument_name] = this_onsets
 
-    if binarize is not None:
+    if binarize:
         pianoroll = binarize_pianoroll(pianoroll)
         onsets = binarize_pianoroll(onsets)
 

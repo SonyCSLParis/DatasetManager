@@ -144,10 +144,11 @@ class HarpsichordMidiDataset(data.Dataset):
         # for > 10000 ticks (long) 191–370
 
         # Use long ??
-        smallest_time_shift = 0.01
+        smallest_time_shift = 0.02
         short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
         medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
-        long_time_shifts = np.arange(5.0, 20., 100 * smallest_time_shift)
+        long_time_shifts = np.arange(5.0, 20., 50 * smallest_time_shift)
+
         time_shift_bins = np.concatenate((short_time_shifts,
                                           medium_time_shifts,
                                           long_time_shifts))

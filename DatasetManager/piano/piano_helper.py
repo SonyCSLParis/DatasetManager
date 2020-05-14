@@ -1,3 +1,4 @@
+import csv
 import glob
 import os
 import numpy as np
@@ -36,6 +37,51 @@ class PianoIteratorGenerator:
         for midi_file in midi_files:
             print(midi_file)
             yield midi_file
+
+
+class MaestroIteratorGenerator:
+    """
+    Object that returns a iterator over xml files when called
+    :return:
+    """
+
+    def __init__(self, composers_filter=[], num_elements=None):
+        self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/maestro-v2.0.0'
+        self.composers_filter = composers_filter
+        self.num_elements = num_elements
+
+    def __str__(self):
+        ret = 'Maestro'
+        if self.num_elements is not None:
+            ret += f'_{self.num_elements}'
+        return ret
+
+    def __call__(self, *args, **kwargs):
+        it = (
+            elem
+            for elem in self.generator()
+        )
+        return it
+
+    def generator(self):
+        midi_files = []
+        splits = []
+        master_csv_path = f'{self.path}/maestro-v2.0.0.csv'
+        with open(master_csv_path, 'r') as csv_file:
+            csv_reader = csv.DictReader(csv_file, delimiter=',')
+            for row in csv_reader:
+                if row['canonical_composer'] in self.composers_filter:
+                    continue
+                else:
+                    midi_name = row["midi_filename"]
+                    midi_files.append(f'{self.path}/{midi_name}')
+                    splits.append(row['split'])
+        if self.num_elements is not None:
+            midi_files = midi_files[:self.num_elements]
+            splits = splits[:self.num_elements]
+        for split, midi_file in zip(splits, midi_files):
+            print(f'{split}: {midi_file}')
+            yield midi_file, split
 
 
 def extract_cc(control_changes, channel, binarize):

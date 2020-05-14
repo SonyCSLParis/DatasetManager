@@ -1,17 +1,17 @@
+import itertools
 import math
 import os
 import pickle
 import random
 import shutil
-
+import copy
 import numpy as np
+import pretty_midi
 import torch
 from torch.utils import data
 from tqdm import tqdm
 
-from DatasetManager.helpers import REST_SYMBOL, END_SYMBOL, START_SYMBOL, \
-    PAD_SYMBOL
-# from DatasetManager.piano.piano_helper import preprocess_midi, EventSeq, PianoIteratorGenerator
+from DatasetManager.piano.piano_helper import extract_cc, find_nearest_value
 
 """
 Typical piano sequence:
@@ -25,6 +25,10 @@ p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
 
 """
 
+START_SYMBOL = 'START'
+END_SYMBOL = 'END'
+PAD_SYMBOL = 'XX'
+
 
 class PianoMidiDataset(data.Dataset):
     """
@@ -35,12 +39,20 @@ class PianoMidiDataset(data.Dataset):
     def __init__(self,
                  corpus_it_gen,
                  sequence_size,
+                 smallest_time_shift,
                  max_transposition,
                  time_dilation_factor,
-                 insert_zero_time_token,
-                 excluded_features,
+                 velocity_shift,
+                 transformations
                  ):
         """
+        All transformations
+        {
+            'time_shift': True,
+            'time_dilation': True,
+            'transposition': True
+        }
+
         :param corpus_it_gen: calling this function returns an iterator
         over chorales (as music21 scores)
         :param name:
@@ -48,49 +60,57 @@ class PianoMidiDataset(data.Dataset):
         :param subdivision: number of sixteenth notes per beat
         """
         super().__init__()
-
         cache_dir = f'{os.path.expanduser("~")}/Data/dataset_cache'
         # create cache dir if it doesn't exist
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
 
-        self.list_ids = []
+        self.split = None
+        self.list_ids = {
+            'train': [],
+            'validation': [],
+            'test': []
+        }
+
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
-        self.last_index = None
+        assert self.sequence_size // 4, 'sequence_size needs to be a multiple of 4'
 
-        self.excluded_features = excluded_features
-        self.insert_zero_time_token = insert_zero_time_token
+        #  features
+        self.smallest_time_shift = smallest_time_shift
+        self.time_table = self.get_time_table()
+        self.pitch_range = range(21, 109)
+        self.velocity_range = range(128)
+        self.programs = range(128)
 
-        #  Data augmentations
-        self.max_transposition = max_transposition
-        self.time_dilation_factor = time_dilation_factor
-        self.transformations = {
-            'time_shift': True,
-            'time_dilation': True,
-            'transposition': True
+        # Index 2 value
+        self.index2value = {}
+        self.value2index = {}
+        self.index_order = ['pitch', 'duration', 'velocity', 'time_shift']
+        self.index_order_dict = {v: k for k, v in enumerate(self.index_order)}
+        self.default_value = {
+            'pitch': 60,
+            'duration': 0.2,
+            'time_shift': 0.1,
+            'velocity': 80
+        }
+        self.silence_value = {
+            'pitch': 60,
+            'duration': 0.5,
+            'time_shift': 0.5,
+            'velocity': 0
         }
 
-        # One hot encoding
-        self.feat_ranges = None
-        self.meta_symbols_to_index = {}
-        self.index_to_meta_symbols = {}
-        self.meta_range = None
-        self.message_type_to_index = {}
-        self.index_to_message_type = {}
-        self.one_hot_dimension = None
-
-        # Chunks
+        # Chunking scores
         self.hop_size = None
 
-        self.precomputed_vectors_piano = {
-            START_SYMBOL: None,
-            END_SYMBOL: None,
-            PAD_SYMBOL: None,
-            REST_SYMBOL: None,
-        }
+        # Precomputed values (for convenience)
+        self.padding_chunk = None
+        self.start_chunk = None
+        self.end_chunk = None
+        self.zero_time_shift = None
 
-        dataset_dir = f'{cache_dir}/{self}'
+        dataset_dir = f'{cache_dir}/{str(self)}'
         filename = f'{dataset_dir}/dataset.pkl'
         self.local_parameters = {
             'dataset_dir': dataset_dir,
@@ -101,22 +121,36 @@ class PianoMidiDataset(data.Dataset):
         if os.path.isfile(filename):
             self.load()
         else:
-            print(f'Building dataset {self}')
+            print(f'Building dataset {str(self)}')
             self.make_tensor_dataset()
+
+        #  data augmentations have to be initialised after loading
+        self.max_transposition = max_transposition
+        self.time_dilation_factor = time_dilation_factor
+        self.velocity_shift = velocity_shift
+        self.transformations = transformations
         return
 
-    def __repr__(self):
-        prefix = '-'.join(self.corpus_it_gen.subsets)
-        prefix += '_' + '-'.join(self.excluded_features)
+    def __str__(self):
+        prefix = str(self.corpus_it_gen)
         name = f'PianoMidi-' \
                f'{prefix}-' \
-               f'{self.sequence_size}-' \
-               f'{self.max_transposition}'
+               f'{self.sequence_size}_' \
+               f'{self.smallest_time_shift}'
         return name
 
     def __len__(self):
         """Denotes the total number of samples"""
-        return len(self.list_ids)
+        return len(self.list_ids[self.split])
+
+    def get_time_table(self):
+        short_time_shifts = np.arange(0, 1.0, self.smallest_time_shift)
+        medium_time_shifts = np.arange(1.0, 5.0, 5.0 * self.smallest_time_shift)
+        long_time_shifts = np.arange(5.0, 20., 50 * self.smallest_time_shift)
+        time_shift_bins = np.concatenate((short_time_shifts,
+                                          medium_time_shifts,
+                                          long_time_shifts))
+        return time_shift_bins
 
     def save(self):
         f = open(self.local_parameters['filename'], 'wb')
@@ -135,148 +169,134 @@ class PianoMidiDataset(data.Dataset):
             if k != 'local_parameters':
                 self.__dict__[k] = v
 
-    def extract_subset(self, list_ids):
-        instance = PianoMidiDataset(corpus_it_gen=self.corpus_it_gen,
-                                    sequence_size=self.sequence_size,
-                                    max_transposition=self.max_transposition,
-                                    time_dilation_factor=self.time_dilation_factor,
-                                    insert_zero_time_token=self.insert_zero_time_token,
-                                    excluded_features=self.excluded_features)
-        instance.list_ids = list_ids
-        return instance
-
     def __getitem__(self, index):
         """
         Generates one sample of data
         """
         dataset_dir = self.local_parameters["dataset_dir"]
         # Select sample
-        id = self.list_ids[index]
-        # Load data and get label
-        x = torch.load(f'{dataset_dir}/x/{id}.pt')
-        messages = torch.load(f'{dataset_dir}/message_type/{id}.pt')
-        # Apply transformations
-        x, messages = self.transform(x, messages)
+        id = self.list_ids[self.split][index]
 
-        return x, messages
+        # Load data and get label
+        x = np.load(f'{dataset_dir}/x/{id}_{self.split}.npy')
+
+        # Apply transformations, only on train dataset
+        if self.split == 'train':
+            x, time_dilation, velocity_dilation = self.transform(x)
+        else:
+            x = x[:self.sequence_size]
+            time_dilation = 1
+            velocity_dilation = 1
+        x = torch.tensor(x)
+        return x, index, time_dilation, velocity_dilation
 
     def iterator_gen(self):
-        return (arrangement_pair for arrangement_pair in self.corpus_it_gen())
+        return (elem for elem in self.corpus_it_gen())
 
-    def data_loaders(self, batch_size, num_workers, split=(0.85, 0.10), DEBUG_BOOL_SHUFFLE=True):
+    def split_datasets(self, split=None, indexed_datasets=None):
+        train_dataset = copy.copy(self)
+        train_dataset.split = 'train'
+        val_dataset = copy.copy(self)
+        val_dataset.split = 'validation'
+        test_dataset = copy.copy(self)
+        test_dataset.split = 'test'
+        return {'train': train_dataset,
+                'val': val_dataset,
+                'test': test_dataset
+                }
+
+    def data_loaders(self, batch_size, num_workers,
+                     shuffle_train=True, shuffle_val=False):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
+        :param num_workers:
+        :param shuffle_val:
+        :param shuffle_train:
         :param batch_size:
         :param split:
         :return:
         """
-        assert sum(split) < 1
 
-        num_examples = len(self)
-        a, b = split
-        train_ids = self.list_ids[: int(a * num_examples)]
-        val_ids = self.list_ids[int(a * num_examples): int((a + b) * num_examples)]
-        eval_ids = self.list_ids[int((a + b) * num_examples):]
-
-        train_dataset = self.extract_subset(train_ids)
-        val_dataset = self.extract_subset(val_ids)
-        eval_dataset = self.extract_subset(eval_ids)
+        datasets = self.split_datasets()
 
         train_dl = data.DataLoader(
-            train_dataset,
+            datasets['train'],
             batch_size=batch_size,
-            shuffle=DEBUG_BOOL_SHUFFLE,
+            shuffle=shuffle_train,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
 
         val_dl = data.DataLoader(
-            val_dataset,
+            datasets['val'],
             batch_size=batch_size,
-            shuffle=False,
+            shuffle=shuffle_val,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
 
-        eval_dl = data.DataLoader(
-            eval_dataset,
+        test_dl = data.DataLoader(
+            datasets['test'],
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
         )
-        return train_dl, val_dl, eval_dl
+        return {'train': train_dl,
+                'val': val_dl,
+                'test': test_dl}
 
     def compute_index_dicts(self):
-        #  From performance rnn
-        # 100 duration from 10ms to 1s
-        # 32 vellocities
-        # dimension = 388
-        # 30 seconds ~ 1200 frames
-        # lowest_note, highest_note = self.reference_tessitura
-        # lowest_pitch = note_to_midiPitch(lowest_note)
-        # highest_pitch = note_to_midiPitch(highest_note)
-        # list_midiPitch = sorted(list(range(lowest_pitch, highest_pitch + 1)))
-        # list_velocity = list(range(self.velocity_quantization))
-        # list_duration = list(self.duration_quantization)
+        ######################################################################
+        #  Index 2 value
+        for feat_name in self.index_order:
+            index2value = {}
+            value2index = {}
+            index = 0
 
-        self.feat_ranges = EventSeq.feat_ranges(excluded_features=self.excluded_features,
-                                                insert_zero_time_token=self.insert_zero_time_token)
-        last_index = 0
-        for k, v in self.feat_ranges.items():
-            if v.stop > last_index:
-                last_index = v.stop
-        index = last_index
-        self.last_index = last_index
-        # Pad
-        self.meta_symbols_to_index[PAD_SYMBOL] = index
-        self.index_to_meta_symbols[index] = PAD_SYMBOL
-        index += 1
-        # Start
-        self.meta_symbols_to_index[START_SYMBOL] = index
-        self.index_to_meta_symbols[index] = START_SYMBOL
-        index += 1
-        # End
-        self.meta_symbols_to_index[END_SYMBOL] = index
-        self.index_to_meta_symbols[index] = END_SYMBOL
-        index += 1
-        self.meta_range = list(range(last_index, index))
+            if feat_name == 'time_shift':
+                values = self.time_table
+            elif feat_name == 'duration':
+                values = self.time_table[1:]
+            elif feat_name == 'pitch':
+                values = self.pitch_range
+            elif feat_name == 'velocity':
+                values = self.velocity_range
+            else:
+                raise Exception
 
-        self.one_hot_dimension = index
-
-        # Message types to index
-        index = 0
-        for message_type in self.feat_ranges.keys():
-            self.message_type_to_index[message_type] = index
-            self.index_to_message_type[index] = message_type
+            for value in values:
+                index2value[index] = value
+                value2index[value] = index
+                index2value[index] = value
+                value2index[value] = index
+                index += 1
+            # Pad
+            index2value[index] = PAD_SYMBOL
+            value2index[PAD_SYMBOL] = index
             index += 1
-        self.message_type_to_index['meta'] = index
-        self.index_to_message_type[index] = 'meta'
-        return
+            # Start
+            index2value[index] = START_SYMBOL
+            value2index[START_SYMBOL] = index
+            index += 1
+            # End
+            index2value[index] = END_SYMBOL
+            value2index[END_SYMBOL] = index
+            index += 1
 
-    def extract_subsequence(self, seq, start, end):
-        """
-        Extract a clean midi subsequence from a sequence, i.e. a sequence starting with a note on
-        :param seq:
-        :param start:
-        :param end:
-        :return:
-        """
-        # subsequence = list(seq[start:end])
-        # ret = []
-        # for i in range(len(subsequence)):
-        #     elem = subsequence.pop(0)
-        #     if elem in self.feat_ranges['note_on']:
-        #         ret.append(elem)
-        #         break
-        #     elif elem in self.feat_ranges['velocity']:
-        #         ret.append(elem)
-        # ret.extend(subsequence)
-        return seq[start:end]
+            self.index2value[feat_name] = index2value
+            self.value2index[feat_name] = value2index
+
+        ######################################################################
+        # Precomputed vectors
+        self.padding_chunk = [self.value2index[feat_name][PAD_SYMBOL] for feat_name in self.index_order]
+        self.start_chunk = [self.value2index[feat_name][START_SYMBOL] for feat_name in self.index_order]
+        self.end_chunk = [self.value2index[feat_name][END_SYMBOL] for feat_name in self.index_order]
+        return
 
     def make_tensor_dataset(self):
         """
@@ -288,99 +308,218 @@ class PianoMidiDataset(data.Dataset):
 
         print('Making tensor dataset')
 
-        chunk_counter = 0
+        chunk_counter = {
+            'train': 0,
+            'validation': 0,
+            'test': 0,
+        }
         dataset_dir = self.local_parameters["dataset_dir"]
         if os.path.isdir(dataset_dir):
             shutil.rmtree(dataset_dir)
         os.makedirs(dataset_dir)
         os.mkdir(f'{dataset_dir}/x')
-        os.mkdir(f'{dataset_dir}/message_type')
 
         # Iterate over files
-        for score_id, midi_file in tqdm(enumerate(self.iterator_gen())):
+        for score_id, (midi_file, split) in tqdm(enumerate(self.iterator_gen())):
 
-            #  Preprocess midi
-            sequence = preprocess_midi(midi_file, excluded_features=self.excluded_features,
-                                       insert_zero_time_token=self.insert_zero_time_token)
+            # midi to sequence
+            sequence, _, _ = self.process_score(midi_file)
 
-            #  Assert only note, velocity and duration are here for now
-            assert sequence.max() < self.last_index
+            # split in chunks
+            for start_time in range(0, len(sequence) - self.sequence_size + 1, self.hop_size):
+                end_time = start_time + self.sequence_size
+                # Take extra size to dynamically shift the chunks to the right when loading them (see def transform)
+                # but not for edges
+                edge_chunk = (start_time == 0) or (end_time == len(sequence))
+                if not edge_chunk:
+                    end_time += self.hop_size
+                chunk = sequence[start_time:end_time]
+                np.save(f'{dataset_dir}/x/{chunk_counter[split]}_{split}', chunk)
 
-            # Splits:
-            # - constant size chunks (no really padding),
-            # - with shift of a constant Half window size
-            # - add a vector which indicate the locations of
-            #       - time_shift
-            #       - notes_on
-            #       - notes_off
-            #       - velocity
-            #       - meta symbols
-            seq_len = len(sequence)
-            self.sequence_size = self.sequence_size
-            self.hop_size = self.sequence_size // 4
+                self.list_ids[split].append(chunk_counter[split])
+                chunk_counter[split] += 1
 
-            for t in range(-self.hop_size, seq_len, self.hop_size):
-                prepend_seq = []
-                append_seq = []
-
-                start = max(0, t)
-                virtual_last_index = t + self.sequence_size + self.hop_size
-                end = min(seq_len, virtual_last_index)
-                subsequence = self.extract_subsequence(sequence, start, end)
-
-                #  Add Start and End plus padding for sides
-                edge_chunk = False  #  This is used to disallow time shift in data augmentations
-                if t < 0:
-                    prepend_seq = [self.meta_symbols_to_index[PAD_SYMBOL]] * (-t - 1) + \
-                                  [self.meta_symbols_to_index[START_SYMBOL]]
-                    edge_chunk = True
-                elif virtual_last_index > seq_len:
-                    append_length = virtual_last_index - seq_len
-                    #  Replace append_seq previously calculated with a new one containing the END symbol
-                    append_seq = [self.meta_symbols_to_index[END_SYMBOL]] + \
-                                 [self.meta_symbols_to_index[PAD_SYMBOL]] * (append_length - 1)
-                    if t + self.sequence_size > seq_len:
-                        edge_chunk = True
-
-                chunk = prepend_seq + list(subsequence) + append_seq
-                if edge_chunk:
-                    chunk = chunk[:self.sequence_size]
-                x_tensor = torch.tensor(np.array(chunk, dtype=np.int64)).long()
-                torch.save(x_tensor, f'{dataset_dir}/x/{chunk_counter}.pt')
-
-                # Build symbol_type sequence
-                message_type_chunk = []
-                for message in chunk:
-                    meta_message = True
-                    for message_type, ranges in self.feat_ranges.items():
-                        if message in ranges:
-                            message_type_chunk.append(self.message_type_to_index[message_type])
-                            meta_message = False
-                            break
-                    if meta_message:
-                        message_type_chunk.append(self.message_type_to_index['meta'])
-                mess_tensor = torch.tensor(message_type_chunk).long()
-                torch.save(mess_tensor, f'{dataset_dir}/message_type/{chunk_counter}.pt')
-
-                self.list_ids.append(chunk_counter)
-                chunk_counter += 1
         print(f'Chunks: {chunk_counter}\n')
+
         # Save class
         self.save()
         return
+
+    def process_score(self, midi_file):
+        #  Preprocess midi
+        midi = pretty_midi.PrettyMIDI(midi_file)
+        raw_sequence = list(itertools.chain(*[
+            inst.notes for inst in midi.instruments
+            if inst.program in self.programs and not inst.is_drum]))
+        control_changes = list(itertools.chain(*[
+            inst.control_changes for inst in midi.instruments
+            if inst.program in self.programs and not inst.is_drum]))
+        # sort by starting time
+        raw_sequence.sort(key=lambda x: x.start)
+        control_changes.sort(key=lambda x: x.time)
+
+        #  pedal, cc = 64
+        sustain_pedal_time, sustain_pedal_value = extract_cc(control_changes=control_changes,
+                                                             channel=64,
+                                                             binarize=True)
+
+        # sostenuto pedal, cc = 66
+        sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(control_changes=control_changes,
+                                                                 channel=66,
+                                                                 binarize=True)
+
+        # soft pedal, cc = 67
+        soft_pedal_time, soft_pedal_value = extract_cc(control_changes=control_changes,
+                                                       channel=67,
+                                                       binarize=True)
+
+        seq_len = len(raw_sequence)
+
+        structured_sequence = []
+        for event_ind in range(seq_len):
+            # Get values
+            event = raw_sequence[event_ind]
+            event_values = {}
+
+            # Compute duration taking sustain
+            sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
+            if sustain_pedal_value[sustained_index_start] == 1:
+                if (sustained_index_start + 1) >= len(sustain_pedal_time):
+                    event_end_sustained = 0
+                else:
+                    event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
+                event_end = max(event.end, event_end_sustained)
+            else:
+                event_end = event.end
+
+            #  also check if pedal is pushed before the end of the note !!
+            sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
+            if sustain_pedal_value[sustained_index_end] == 1:
+                if (sustained_index_end + 1) >= len(sustain_pedal_time):
+                    # notes: that's a problem, means a sustain pedal is not switched off....
+                    event_end_sustained = 0
+                else:
+                    event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
+                event_end = max(event.end, event_end_sustained)
+
+            duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
+
+            event_values['duration'] = duration_value
+            if event.pitch in self.pitch_range:
+                event_values['pitch'] = event.pitch
+            else:
+                continue
+            event_values['velocity'] = event.velocity
+            if event_ind != seq_len - 1:
+                next_event = raw_sequence[event_ind + 1]
+                event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
+            else:
+                event_values['time_shift'] = 0
+
+            #  Convert to indices
+            this_note = []
+            for feat_name in self.index_order:
+                this_note.append(self.value2index[feat_name][event_values[feat_name]])
+            structured_sequence.append(this_note)
+
+        #  Build sequence
+        self.hop_size = self.sequence_size // 4
+        prepend_length = self.hop_size
+        # Ensure seq_length is a multiple of hop_size
+        raw_seq_len = len(structured_sequence)
+        seq_length = math.ceil((prepend_length + raw_seq_len) / self.hop_size) * self.hop_size
+        #  Append length (does not count final ts0 - end - ts0, so -3)
+        append_length = seq_length - (prepend_length + raw_seq_len)
+        if append_length == 0:
+            append_length = self.hop_size
+            seq_length += self.hop_size
+
+        sequence = []
+        # prepend
+        sequence += [self.padding_chunk] * (prepend_length - 1)
+        sequence.append(self.start_chunk)
+        # content
+        sequence += structured_sequence
+        # append
+        sequence.append(self.end_chunk)
+        sequence += [self.padding_chunk] * (append_length - 1)
+        sequence = np.array(sequence)
+        return sequence, prepend_length, append_length
 
     def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
                                  unknown_instruments=[], subdivision=None):
         raise NotImplementedError
 
-    def tensor_to_score(self, sequence, midipath):
-        zero_time_event = self.feat_ranges['time_shift'][0]
-        #  Filter out meta events
-        removed_tokens = [zero_time_event] + self.meta_range
-        sequence_clean = [int(e) for e in sequence if e not in removed_tokens]
-        # Create EventSeq
-        note_seq = EventSeq.from_array(sequence_clean, self.excluded_features, self.insert_zero_time_token).to_note_seq(self.insert_zero_time_token)
-        note_seq.to_midi_file(midipath)
+    def interleave_silences_batch(self, sequences):
+        ret = []
+        silence_frame = torch.tensor(
+            [self.value2index[feat_name][self.silence_value[feat_name]] for feat_name in self.index_order])
+        for e in sequences:
+            ret.extend(e)
+            ret.append(silence_frame)
+            ret.append(silence_frame)
+            ret.append(silence_frame)
+        ret_stack = torch.stack(ret, dim=0)
+        return ret_stack
+
+    def fill_missing_features(self, sequence, selected_features_indices):
+        # Fill in missing features with default values
+        default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
+        sequence_filled = torch.tensor([default_frame] * len(sequence))
+        sequence_filled[:, selected_features_indices] = sequence
+        return sequence_filled
+
+    def tensor_to_score(self, sequence, selected_features, fill_features_bool):
+        # Create score
+        score = pretty_midi.PrettyMIDI()
+        # 'Acoustic Grand Piano', 'Bright Acoustic Piano',
+        #                   'Electric Grand Piano', 'Honky-tonk Piano',
+        #                   'Electric Piano 1', 'Electric Piano 2', 'Harpsichord',
+        piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+        piano = pretty_midi.Instrument(program=piano_program)
+
+        # values
+        sequence = sequence.numpy()
+
+        if selected_features is None:
+            selected_features = self.index_order
+        selected_features_indices = [self.index_order_dict[feat_name] for feat_name in selected_features]
+
+        # Fill in missing features with default values
+        if fill_features_bool:
+            default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in
+                             self.index_order]
+            sequence_filled = np.array([default_frame] * len(sequence))
+            sequence_filled[:, selected_features_indices] = sequence
+            sequence = sequence_filled
+
+        start_time = 0.0
+        for t in range(len(sequence)):
+            pitch_ind = sequence[t, self.index_order_dict['pitch']]
+            duration_ind = sequence[t, self.index_order_dict['duration']]
+            velocity_ind = sequence[t, self.index_order_dict['velocity']]
+            time_shift_ind = sequence[t, self.index_order_dict['time_shift']]
+
+            pitch_value = self.index2value['pitch'][pitch_ind]
+            duration_value = self.index2value['duration'][duration_ind]
+            velocity_value = self.index2value['velocity'][velocity_ind]
+            time_shift_value = self.index2value['time_shift'][time_shift_ind]
+
+            if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
+                    duration_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
+                    velocity_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
+                    time_shift_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                continue
+
+            note = pretty_midi.Note(
+                velocity=velocity_value, pitch=pitch_value, start=start_time, end=start_time + duration_value)
+
+            piano.notes.append(note)
+
+            start_time += time_shift_value
+
+        score.instruments.append(piano)
+        return score
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
@@ -391,116 +530,93 @@ class PianoMidiDataset(data.Dataset):
         num_batches = len(piano_sequences)
 
         for batch_ind in range(num_batches):
-            self.tensor_to_score(sequence=piano_sequences[batch_ind],
-                                 midipath=f"{writing_dir}/{filepath}_{batch_ind}.mid")
+            midipath = f"{writing_dir}/{filepath}_{batch_ind}.mid"
+            score = self.tensor_to_score(sequence=piano_sequences[batch_ind],
+                                         selected_features=None)
+            score.write(midipath)
 
-    def transform(self, x, messages):
+    def transform(self, x):
+
+        ts_pos = self.index_order_dict['time_shift']
+        vel_pos = self.index_order_dict['velocity']
+        duration_pos = self.index_order_dict['duration']
+        pitch_pos = self.index_order_dict['pitch']
+
         ############################
         #  Time shift
         if self.transformations['time_shift']:
             if len(x) > self.sequence_size:
                 time_shift = math.floor(random.uniform(0, self.hop_size))
                 x = x[time_shift:time_shift + self.sequence_size]
-                messages = messages[time_shift:time_shift + self.sequence_size]
+        else:
+            x = x[:self.sequence_size]
 
         ############################
         #  Time dilation
+        time_dilation_factor = 1
         if self.transformations['time_dilation']:
-            avoid_dilation = False
-            dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
-            # print(dilation_factor)
-            new_x = []
-            for ind in range(len(x)):
-                event_index = x[ind]
-                feat_range = self.feat_ranges['time_shift']
-                if feat_range.start <= event_index < feat_range.stop:
-                    event_value = event_index - feat_range.start
-                    abs_time = EventSeq.time_shift_bins(self.insert_zero_time_token)[event_value]
-                    # scale time
-                    scaled_abs_time = abs_time * dilation_factor
-                    # if scaled_abs_time > EventSeq.time_shift_bins[-1]:
-                    #     avoid_dilation = True
-                    #     break
-                    new_event_value = np.searchsorted(EventSeq.time_shift_bins(self.insert_zero_time_token),
-                                                      scaled_abs_time, side='right') - 1
-                    new_event_index = new_event_value + feat_range.start
+            time_dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
+            #  todo: version matricielle ??? Ca parait chaud quand meme...
+            for t in range(len(x)):
+                # time_shift
+                old_ts = x[t, ts_pos]
+                ts_value = self.index2value['time_shift'][old_ts]
+                if ts_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                    continue
+                ts_dilated = find_nearest_value(self.time_table, ts_value * time_dilation_factor)
+                new_ts = self.value2index['time_shift'][ts_dilated]
+                x[t, ts_pos] = new_ts
+
+                #  duration
+                old_duration = x[t, duration_pos]
+                duration_value = self.index2value['duration'][old_duration]
+                if duration_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                    continue
+                duration_dilated = find_nearest_value(self.time_table, duration_value * time_dilation_factor)
+                if duration_dilated == 0.0:
+                    # smallest duration
+                    new_duration = 0
                 else:
-                    new_event_index = event_index
-                new_x.append(new_event_index)
-            if not avoid_dilation:
-                x = torch.tensor(new_x).long()
+                    new_duration = self.value2index['duration'][duration_dilated]
+                x[t, duration_pos] = new_duration
+
+        ############################
+        #  Velocity dilation
+        if self.transformations['velocity_shift']:
+            velocity_shift = int(self.velocity_shift * (2 * random.random() - 1))
+            for t in range(len(x)):
+                # velocity
+                old_vel = x[t, vel_pos]
+                vel_value = self.index2value['velocity'][old_vel]
+                if vel_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                    continue
+                # Quantized here
+                vel_dilated = round(vel_value + velocity_shift)
+                vel_dilated = max(self.velocity_range[0], min(self.velocity_range[-1]-1, vel_dilated))
+                new_vel = self.value2index['velocity'][vel_dilated]
+                x[t, vel_pos] = new_vel
 
         ############################
         # Transposition
-        # Draw a random transposition
         if self.transformations['transposition']:
+            # Draw a random transposition
             transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
-            if transposition == 0:
-                return x, messages
 
-            x_trans = x
+            if transposition != 0:
+                x_trans = x
+                for t in range(len(x)):
+                    # pitch
+                    old_pitch = x[t, pitch_pos]
+                    pitch_value = self.index2value['pitch'][old_pitch]
+                    if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
+                        continue
+                    pitch_transposed = pitch_value + transposition
+                    if pitch_transposed not in self.value2index['pitch'].keys():
+                        # Transposition not allowed for that chunk... don't transpose then
+                        x_trans = x
+                        break
+                    new_pitch = self.value2index['pitch'][pitch_transposed]
+                    x_trans[t, pitch_pos] = new_pitch
+                x = x_trans
 
-            # First check transposition is possible
-            transposable_types = [e for e in ['note_on', 'note_off'] if e not in self.excluded_features]
-            for message_type in transposable_types:
-                ranges = self.feat_ranges[message_type]
-                min_value, max_value = min(ranges), max(ranges)
-                authorized_transposition = torch.all((self.message_type_to_index[message_type] != messages) +
-                                                     ((x + transposition <= max_value) * (
-                                                                 x + transposition >= min_value)))
-                if not authorized_transposition:
-                    return x, messages
-
-            # Then transpose
-            for message_type in transposable_types:
-                # Mask
-                x_trans = torch.where(self.message_type_to_index[message_type] == messages,
-                                      x_trans + transposition,
-                                      x_trans)
-            x = x_trans
-
-        return x, messages
-
-
-# if __name__ == '__main__':
-#
-#     excluded_features = ['note_off', 'velocity']
-#     # excluded_features = []
-#
-#     subsets = [
-#         'ecomp_piano_dataset',
-#         'classic_piano_dataset',
-#         # 'debug'
-#     ]
-#     corpus_it_gen = PianoIteratorGenerator(
-#         subsets=subsets,
-#         num_elements=None
-#     )
-#
-#     dataset = PianoMidiDataset(corpus_it_gen=corpus_it_gen,
-#                                sequence_size=200,
-#                                max_transposition=6,
-#                                time_dilation_factor=0.1,
-#                                insert_zero_time_token=True,
-#                                excluded_features=excluded_features,
-#                                )
-#
-#     (train_dataloader,
-#      val_dataloader,
-#      test_dataloader) = dataset.data_loaders(batch_size=16, DEBUG_BOOL_SHUFFLE=False)
-#
-#     print('Num Train Batches: ', len(train_dataloader))
-#     print('Num Valid Batches: ', len(val_dataloader))
-#     print('Num Test Batches: ', len(test_dataloader))
-#
-#     # Visualise a few examples
-#     number_dump = 100
-#     writing_dir = f'{os.path.expanduser("~")}/Data/dump/piano_midi/writing'
-#     if os.path.isdir(writing_dir):
-#         shutil.rmtree(writing_dir)
-#     os.makedirs(writing_dir)
-#     for i_batch, sample_batched in enumerate(train_dataloader):
-#         piano_batch, message_type_batch = sample_batched
-#         if i_batch > number_dump:
-#             break
-#         dataset.visualise_batch(piano_batch, writing_dir, filepath=f"{i_batch}")
+        return x, time_dilation_factor, velocity_shift

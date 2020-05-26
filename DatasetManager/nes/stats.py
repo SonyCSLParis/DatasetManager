@@ -1,4 +1,4 @@
-from math import sqrt
+from math import ceil, sqrt
 import matplotlib.pyplot as plt
 
 class Stats(dict):
@@ -56,7 +56,7 @@ class Stats(dict):
         return f'Stats({super(Stats, self).__repr__()})'
 
     def __str__(self):
-        methods = [self.min, self.max, self.mean, self.std, self.median]
+        methods = [self.min, self.max, self.mean, self.std, self.q1, self.median, self.q3]
         stats = [f'{method.__name__}: {round(method(), 3)}' for method in methods]
         return '\t'.join(stats)
 
@@ -117,6 +117,11 @@ class Stats(dict):
     def median(self):
         return self.quantile(0.5)
 
+    def q1(self):
+        return self.quantile(0.25)
+
+    def q3(self):
+        return self.quantile(0.75)
 
 
 
@@ -137,6 +142,7 @@ class Stats(dict):
 
 
 if __name__ == '__main__':
+    import inspect
     import sys
     import time
     from tqdm import tqdm
@@ -145,7 +151,32 @@ if __name__ == '__main__':
 
     from nes_dataset import NESDataset
 
-    def split_sequence(sequence, interval=1):
+
+    ## HERE ARE REGISTERED THE UPDATING RULES
+
+    def update_duration(stats, sequence):
+        r"""Compute the duration (in seconds) of the sequence
+        """
+        duration = ceil(sequence[:,0,3].max().item())
+        stats[duration] += 1
+
+    def update_lengths(stats, sequence):
+        r"""Compute the number of musical events in the sequence
+        """
+        stats[len(sequence)] += 1
+
+    def update_num_events(stats, sequence):
+        r"""Compute the number of musical events per block in the sequence
+        """
+        lengths = [len(block) for block in split_sequence(sequence)]
+        stats.update(lengths)
+
+    # magic trick to automatically assign names to functions
+    update_rules = {
+        name[7:]: func for name, func in inspect.getmembers(sys.modules[__name__], inspect.isfunction)
+    }
+
+    def split_sequence(sequence, interval=2):
         r"""Splits a sequence of events into a sequence of blocks, where each block
         contains all events for one voice during a time interval
 
@@ -183,44 +214,30 @@ if __name__ == '__main__':
 
         return all_blocks
 
+    # handling cli args
+    argv = sys.argv[1:]
+    if len(argv) == 0:
+        print('Please indicate the stats you want to compute as command-line arguments.')
+        print('Use -h/--help for more information about the available stats.')
+        exit(1)
 
-    def update_lengths(stats, sequence):
-        stats[len(sequence)] += 1
+    if '-h' in argv or '--help' in argv:
+        print('The statistics of the following quantities can be computed:')
+        for name, func in update_rules.items():
+            print(f'{name}:\n{inspect.getdoc(func)}')
+        exit(0)
 
-    def update_num_events(stats, sequence):
-        lengths = [len(block) for block in split_sequence(sequence)]
-        stats.update(lengths)
-
-
-    update_rules = dict(
-        lengths=update_lengths,
-        num_events=update_num_events
-    )
 
     dataset = NESDataset('train')
 
-    stats_dict = {field: Stats() for field in sys.argv[1:]}
-    #
-    # for sequence in tqdm(dataset):
-    #     for field, stats in stats_dict.items():
-    #         update_rules[field](stats, sequence)
-    #
-    #
-    # for field, stats in stats_dict.items():
-    #     print(field)
-    #     print(stats)
+    stats_dict = {field: Stats() for field in argv}
+
+    for sequence in tqdm(dataset):
+        for field, stats in stats_dict.items():
+            update_rules[field](stats, sequence)
 
 
-
-
-
-
-    a = torch.randn(1000000).numpy()
-    print(Stats(a))
-    #
-    # t0 = time.time()
-    # stats.hist()
-    # plt.yscale('log')
-    # plt.show()
-    # t1 = time.time()
-    # print(t1-t0)
+    for field, stats in stats_dict.items():
+        print(field)
+        print(stats)
+        stats.hist(title=str(stats), show=True)

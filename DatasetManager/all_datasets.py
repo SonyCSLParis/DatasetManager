@@ -10,14 +10,14 @@ from DatasetManager.arrangement.arrangement_frame_dataset import ArrangementFram
 from DatasetManager.arrangement.arrangement_helper import ArrangementIteratorGenerator
 from DatasetManager.chorale_dataset import ChoraleDataset, ChoraleBeatsDataset
 from DatasetManager.helpers import ShortChoraleIteratorGen
-from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
-from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
+# from DatasetManager.lsdb.lsdb_data_helpers import LeadsheetIteratorGenerator
+# from DatasetManager.lsdb.lsdb_dataset import LsdbDataset
 from DatasetManager.orchestration.orchestration_dataset import OrchestrationDataset
 from DatasetManager.orchestration.orchestration_helper import OrchestraIteratorGenerator
 from DatasetManager.piano.piano_helper import PianoIteratorGenerator
 # from DatasetManager.piano.piano_midi_dataset import PianoMidiDataset
-from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
-from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDataset, FolkMeasuresDatasetTranspose, FolkDatasetNBars
+# from DatasetManager.the_session.folk_data_helpers import FolkIteratorGenerator
+# from DatasetManager.the_session.folk_dataset import FolkDataset, FolkMeasuresDataset, FolkMeasuresDatasetTranspose, FolkDatasetNBars
 
 
 def get_all_datasets():
@@ -217,146 +217,146 @@ def get_all_datasets():
                 'dataset_class_name': ChoraleDataset,
                 'corpus_it_gen':      ShortChoraleIteratorGen()
             },
-        'lsdb_test':
-            {
-                'dataset_class_name': LsdbDataset,
-                'corpus_it_gen':      LeadsheetIteratorGenerator(
-                    num_elements=10
-                )
-            },
-        'lsdb':
-            {
-                'dataset_class_name': LsdbDataset,
-                'corpus_it_gen':      LeadsheetIteratorGenerator(
-                    num_elements=None
-                )
-            },
-        'folk':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(3, 4), (4, 4)]
-                )
-            },
-        'folk_test':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=10,
-                    has_chords=False,
-                    time_sigs=[(3, 4), (4, 4)]
-                )
-            },
-        'folk_4by4_test':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=100,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_3by4_test':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=100,
-                    has_chords=False,
-                    time_sigs=[(3, 4)]
-                )
-            },
-        'folk_3by4':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen':      FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(3, 4)]
-                )
-            },
-        'folk_4by4chords':
-            {
-                'dataset_class_name': FolkDataset,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=True,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4measures_test':
-            {
-                'dataset_class_name': FolkMeasuresDataset,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=100,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4measures_test2':
-            {
-                'dataset_class_name': FolkMeasuresDataset,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=1,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4measures':
-            {
-                'dataset_class_name': FolkMeasuresDataset,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4measurestr_test':
-            {
-                'dataset_class_name': FolkMeasuresDatasetTranspose,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=1000,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4measurestr':
-            {
-                'dataset_class_name': FolkMeasuresDatasetTranspose,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4nbars_test':
-            {
-                'dataset_class_name': FolkDatasetNBars,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=100,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
-        'folk_4by4nbars':
-            {
-                'dataset_class_name': FolkDatasetNBars,
-                'corpus_it_gen': FolkIteratorGenerator(
-                    num_elements=None,
-                    has_chords=False,
-                    time_sigs=[(4, 4)]
-                )
-            },
+        # 'lsdb_test':
+        #     {
+        #         'dataset_class_name': LsdbDataset,
+        #         'corpus_it_gen':      LeadsheetIteratorGenerator(
+        #             num_elements=10
+        #         )
+        #     },
+        # 'lsdb':
+        #     {
+        #         'dataset_class_name': LsdbDataset,
+        #         'corpus_it_gen':      LeadsheetIteratorGenerator(
+        #             num_elements=None
+        #         )
+        #     },
+        # 'folk':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(3, 4), (4, 4)]
+        #         )
+        #     },
+        # 'folk_test':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=10,
+        #             has_chords=False,
+        #             time_sigs=[(3, 4), (4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4_test':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=100,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_3by4_test':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=100,
+        #             has_chords=False,
+        #             time_sigs=[(3, 4)]
+        #         )
+        #     },
+        # 'folk_3by4':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen':      FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(3, 4)]
+        #         )
+        #     },
+        # 'folk_4by4chords':
+        #     {
+        #         'dataset_class_name': FolkDataset,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=True,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4measures_test':
+        #     {
+        #         'dataset_class_name': FolkMeasuresDataset,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=100,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4measures_test2':
+        #     {
+        #         'dataset_class_name': FolkMeasuresDataset,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=1,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4measures':
+        #     {
+        #         'dataset_class_name': FolkMeasuresDataset,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4measurestr_test':
+        #     {
+        #         'dataset_class_name': FolkMeasuresDatasetTranspose,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=1000,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4measurestr':
+        #     {
+        #         'dataset_class_name': FolkMeasuresDatasetTranspose,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4nbars_test':
+        #     {
+        #         'dataset_class_name': FolkDatasetNBars,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=100,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
+        # 'folk_4by4nbars':
+        #     {
+        #         'dataset_class_name': FolkDatasetNBars,
+        #         'corpus_it_gen': FolkIteratorGenerator(
+        #             num_elements=None,
+        #             has_chords=False,
+        #             time_sigs=[(4, 4)]
+        #         )
+        #     },
         # 'mnist':
         #     {
         #         'dataset_class_name': MNISTDataset,

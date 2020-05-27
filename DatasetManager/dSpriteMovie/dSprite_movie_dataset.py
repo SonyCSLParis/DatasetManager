@@ -204,7 +204,7 @@ class DSpriteMovieDataset(data.IterableDataset):
 
     @staticmethod
     def normalise(movie):
-        movie_norm = (movie / 255) * 2 - 1
+        movie_norm = (movie / 255.) * 2 - 1
         return movie_norm
 
     @staticmethod

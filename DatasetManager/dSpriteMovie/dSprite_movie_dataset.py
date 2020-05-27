@@ -113,8 +113,8 @@ class DSpriteMovieDataset(data.IterableDataset):
             size_growth = 0
 
         # init position
-        initial_delta_x = random.sample(range(-self.max_delta_position, self.max_delta_position), 1)[0]
-        initial_delta_y = random.sample(range(-self.max_delta_position, self.max_delta_position), 1)[0]
+        initial_delta_x = random.randint(-self.max_delta_position, self.max_delta_position)
+        initial_delta_y = random.randint(-self.max_delta_position, self.max_delta_position)
         initial_direction = (initial_delta_x, initial_delta_y)
 
         # draw background
@@ -123,8 +123,8 @@ class DSpriteMovieDataset(data.IterableDataset):
         movie[:, :, 2, :] = background_colour[2]
 
         # initial position
-        x_init = random.sample(range(initial_size // 2, self.width - initial_size // 2), 1)[0]
-        y_init = random.sample(range(initial_size // 2, self.height - initial_size // 2), 1)[0]
+        x_init = random.randint(initial_size // 2, self.width - initial_size // 2)
+        y_init = random.randint(initial_size // 2, self.width - initial_size // 2)
 
         x_t = x_init
         y_t = y_init
@@ -185,8 +185,8 @@ class DSpriteMovieDataset(data.IterableDataset):
                 y_t = y_tp1
                 direction_t = (direction_x, direction_y)
             else:
-                x_t = random.sample(range(initial_size // 2, self.width - initial_size // 2), 1)[0]
-                y_t = random.sample(range(initial_size // 2, self.height - initial_size // 2), 1)[0]
+                x_t = random.randint(initial_size // 2, self.width - initial_size // 2)
+                y_t = random.randint(initial_size // 2, self.width - initial_size // 2)
                 direction_t = (0, 0)
 
         movie_norm = self.normalise(movie)
@@ -287,25 +287,25 @@ if __name__ == '__main__':
 
     width = 32
     height = 32
-    duration = 10
+    duration = 1
     latent_features = {
         'shape': False,
-        'colour': True,
+        'colour': False,
         'background_colour': False,
-        'size': True,
+        'size': False,
         'size_growth': False,
     }
     dataset = DSpriteMovieDataset(height=height,
                                   width=width,
                                   duration=duration,
                                   latent_features=latent_features,
-                                  random_position=True,
+                                  random_position=False,
                                   random_colour=False,
                                   )
     dl, _, _ = dataset.data_loaders(batch_size=4, num_workers=0)
     movies = []
-    for batch in islice(dl, 4):
+    for batch in islice(dl, 20):
         movie = batch['movie']
         movies.append(movie)
     movies = torch.cat(movies, 0)
-    dataset.visualise_batch(movies, '/home/leo/Recherche/Code/DatasetManager/DatasetManager/dump/dSprite_movie')
+    dataset.visualise_batch(movies, '/home/gaetan/Downloads/tmp')

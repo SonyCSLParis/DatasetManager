@@ -1,13 +1,11 @@
 import copy
 import glob
 import itertools
-import math
 import os
 import pickle
 import random
 import re
 import shutil
-import time
 
 import numpy as np
 import pretty_midi
@@ -15,7 +13,8 @@ import torch
 from torch.utils import data
 from tqdm import tqdm
 
-from DatasetManager.piano.piano_helper import extract_cc, find_nearest_value, MaestroIteratorGenerator
+from DatasetManager.piano.piano_helper import extract_cc, find_nearest_value, MaestroIteratorGenerator, \
+    get_time_table_ts, get_time_table_duration
 
 """
 Typical piano sequence:
@@ -47,7 +46,8 @@ class PianoMidiDataset(data.Dataset):
                  max_transposition,
                  time_dilation_factor,
                  velocity_shift,
-                 transformations
+                 transformations,
+                 different_time_table_ts_duration
                  ):
         """
         All transformations
@@ -77,7 +77,13 @@ class PianoMidiDataset(data.Dataset):
 
         #  features
         self.smallest_time_shift = smallest_time_shift
-        self.time_table = self.get_time_table()
+        if different_time_table_ts_duration:
+            # Legacy... REMOVE IT one day
+            self.time_table_duration = get_time_table_duration(self.smallest_time_shift)
+            self.time_table_time_shift = get_time_table_ts(self.smallest_time_shift)
+        else:
+            self.time_table_duration = get_time_table_duration(self.smallest_time_shift)
+            self.time_table_time_shift = get_time_table_duration(self.smallest_time_shift)
         self.pitch_range = range(21, 109)
         self.velocity_range = range(128)
         self.programs = range(128)
@@ -105,6 +111,10 @@ class PianoMidiDataset(data.Dataset):
             print(f'Building dataset {str(self)}')
             self.make_tensor_dataset()
 
+        print('Loading index dictionnary')
+        # Can be different for every instance, so compute after loading
+        self.compute_index_dicts()
+
         #  data augmentations have to be initialised after loading
         self.max_transposition = max_transposition
         self.time_dilation_factor = time_dilation_factor
@@ -123,15 +133,6 @@ class PianoMidiDataset(data.Dataset):
     def __len__(self):
         """Denotes the total number of samples"""
         return len(self.list_ids[self.split])
-
-    def get_time_table(self):
-        short_time_shifts = np.arange(0, 1.0, self.smallest_time_shift)
-        medium_time_shifts = np.arange(1.0, 5.0, 5.0 * self.smallest_time_shift)
-        long_time_shifts = np.arange(5.0, 20., 50 * self.smallest_time_shift)
-        time_shift_bins = np.concatenate((short_time_shifts,
-                                          medium_time_shifts,
-                                          long_time_shifts))
-        return time_shift_bins
 
     @property
     def data_folder_name(self):
@@ -152,21 +153,18 @@ class PianoMidiDataset(data.Dataset):
         return dataset_dir
 
     def save(self):
-        f = open(self.dataset_file, 'wb')
-        pickle.dump(self.__dict__, f, 2)
-        f.close()
+        # Only save list_ids
+        with open(self.dataset_file, 'wb') as ff:
+            pickle.dump(self.list_ids, ff, 2)
 
     def load(self):
         """
         Load a dataset while avoiding local parameters specific to the machine used
         :return:
         """
-        f = open(self.dataset_file, 'rb')
-        tmp_dict = pickle.load(f)
-        f.close()
-        for k, v in tmp_dict.items():
-            if k != 'local_parameters':
-                self.__dict__[k] = v
+        with open(self.dataset_file, 'rb') as ff:
+            list_ids = pickle.load(ff)
+        self.list_ids = list_ids
 
     def __getitem__(self, index):
         """
@@ -179,79 +177,50 @@ class PianoMidiDataset(data.Dataset):
         print(f'Get indices: {ttt}')
         ttt = time.time()"""
 
-        ################################################################################################
-        ################################################################################################
-        ################################################################################################
         # Load data and extract subsequence
+        sequence = {}
         with open(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt') as ff:
             sequence_length = int(ff.read())
         start_time = id['start_time']
         end_time = min(id['start_time'] + self.sequence_size, sequence_length)
         fpr_pitch = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
                               dtype=int, mode='r', shape=(sequence_length))
-        pitch = fpr_pitch[start_time:end_time]
+        sequence['pitch'] = fpr_pitch[start_time:end_time]
         del fpr_pitch
         fpr_velocity = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity',
                               dtype=int, mode='r', shape=(sequence_length))
-        velocity = fpr_velocity[start_time:end_time]
+        sequence['velocity'] = fpr_velocity[start_time:end_time]
         del fpr_velocity
         fpr_duration = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration',
                               dtype='float32', mode='r', shape=(sequence_length))
-        duration = fpr_duration[start_time:end_time]
+        sequence['duration'] = fpr_duration[start_time:end_time]
         del fpr_duration
         fpr_time_shift = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift',
                               dtype='float32', mode='r', shape=(sequence_length))
-        time_shift = fpr_time_shift[start_time:end_time]
+        sequence['time_shift'] = fpr_time_shift[start_time:end_time]
         del fpr_time_shift
         """ttt = time.time() - ttt
         print(f'Loading text files: {ttt}')
         ttt = time.time()"""
-        ################################################################################################
-        ################################################################################################
-        ################################################################################################
-
-        # pitch = np.loadtxt(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch.txt',
-        #                    dtype=int)
-        # velocity = np.loadtxt(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity.txt',
-        #                       dtype=int)
-        # duration = np.loadtxt(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration.txt',
-        #                       dtype=np.float32)
-        # time_shift = np.loadtxt(
-        #     f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift.txt',
-        #     dtype=np.float32)
-        # ttt = time.time() - ttt
-        # print(f'Loading text files: {ttt}')
-        # ttt = time.time()
-        #
-        # start_time = id['start_time']
-        # end_time = min(id['start_time'] + self.sequence_size, len(pitch))
-        # pitch = pitch[start_time:end_time]
-        # velocity = velocity[start_time:end_time]
-        # duration = duration[start_time:end_time]
-        # time_shift = time_shift[start_time:end_time]
-        #
-        # ttt = time.time() - ttt
-        # print(f'Chunking: {ttt}')
-        # ttt = time.time()
 
         # Perform data augmentations (only for train split)
         if (self.transformations['velocity_shift']) and (self.split == 'train'):
             velocity_shift = int(self.velocity_shift * (2 * random.random() - 1))
-            velocity = np.maximum(0, np.minimum(127, velocity + velocity_shift))
+            sequence['velocity'] = np.maximum(0, np.minimum(127, sequence['velocity'] + velocity_shift))
         else:
             velocity_shift = 0
         if (self.transformations['time_dilation']) and (self.split == 'train'):
             time_dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
-            duration = duration * time_dilation_factor
-            time_shift = time_shift * time_dilation_factor
+            sequence['duration'] = sequence['duration'] * time_dilation_factor
+            sequence['time_shift'] = sequence['time_shift'] * time_dilation_factor
         else:
             time_dilation_factor = 1
         if (self.transformations['transposition']) and (self.split == 'train'):
             transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
-            pitch = pitch + transposition
-            pitch = np.where(pitch > self.pitch_range.stop - 1, pitch - 12,
-                             pitch)  # lower one octave for pitch too high
-            pitch = np.where(pitch < self.pitch_range.start, pitch + 12, pitch)  # raise one octave for pitch too low
+            sequence['pitch'] = sequence['pitch'] + transposition
+            sequence['pitch'] = np.where(sequence['pitch'] > self.pitch_range.stop - 1, sequence['pitch'] - 12,
+                             sequence['pitch'])  # lower one octave for sequence['pitch'] too high
+            sequence['pitch'] = np.where(sequence['pitch'] < self.pitch_range.start, sequence['pitch'] + 12, sequence['pitch'])  # raise one octave for pitch too low
         else:
             transposition = 0
         """ttt = time.time() - ttt
@@ -259,45 +228,24 @@ class PianoMidiDataset(data.Dataset):
         ttt = time.time()"""
 
         # Add pad, start and end symbols
-        pitch = list(pitch)
-        velocity = list(velocity)
-        duration = list(duration)
-        time_shift = list(time_shift)
-        if start_time == 0:
-            pitch = [START_SYMBOL] + pitch[:-1]
-            velocity = [START_SYMBOL] + velocity[:-1]
-            duration = [START_SYMBOL] + duration[:-1]
-            time_shift = [START_SYMBOL] + time_shift[:-1]
-        end_padding_length = self.sequence_size - len(pitch)
-        if end_padding_length > 0:
-            pitch += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            velocity += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            duration += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            time_shift += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+        sequence = self.add_start_end_symbols(sequence, start_time=start_time, sequence_size=self.sequence_size)
 
         """ttt = time.time() - ttt
         print(f'Adding meta symbols: {ttt}')
         ttt = time.time()"""
 
         # Tokenize
-        pitch = [self.value2index['pitch'][e] for e in pitch]
-        velocity = [self.value2index['velocity'][e] for e in velocity]
-        duration = [self.value2index['duration'][find_nearest_value(self.time_table, e)]
-                    if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else self.value2index['duration'][e]
-                    for e in duration]
-        time_shift = [self.value2index['time_shift'][find_nearest_value(self.time_table, e)]
-                      if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else self.value2index['time_shift'][e]
-                      for e in time_shift]
+        sequence = self.tokenize(sequence)
 
         """ttt = time.time() - ttt
         print(f'Tokenizing: {ttt}')
 
         print(f'###################################')"""
 
-        return {'pitch': torch.tensor(pitch).long(),
-                'velocity': torch.tensor(velocity).long(),
-                'duration': torch.tensor(duration).long(),
-                'time_shift': torch.tensor(time_shift).long(),
+        return {'pitch': torch.tensor(sequence['pitch']).long(),
+                'velocity': torch.tensor(sequence['velocity']).long(),
+                'duration': torch.tensor(sequence['duration']).long(),
+                'time_shift': torch.tensor(sequence['time_shift']).long(),
                 'index': index,
                 'data_augmentations': {
                     'time_dilation': time_dilation_factor,
@@ -305,6 +253,48 @@ class PianoMidiDataset(data.Dataset):
                     'transposition': transposition
                 }
                 }
+
+    def add_start_end_symbols(self, sequence, start_time, sequence_size):
+        sequence = {k: list(v) for k, v in sequence.items()}
+        if start_time == 0:
+            sequence = {k: [START_SYMBOL] + v[:-1] for k, v in sequence.items()}
+            # pitch = [START_SYMBOL] + pitch[:-1]
+            # velocity = [START_SYMBOL] + velocity[:-1]
+            # duration = [START_SYMBOL] + duration[:-1]
+            # time_shift = [START_SYMBOL] + time_shift[:-1]
+        end_padding_length = sequence_size - len(sequence['pitch'])
+        if end_padding_length > 0:
+            sequence = {k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+                        for k, v in sequence.items()}
+            # pitch += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+            # velocity += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+            # duration += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+            # time_shift += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+        return sequence
+
+    def tokenize(self, sequence):
+        sequence['pitch'] = [self.value2index['pitch'][e] for e in sequence['pitch']]
+        sequence['velocity'] = [self.value2index['velocity'][e] for e in sequence['velocity']]
+        # legacy...
+        if hasattr(self, 'time_table_duration'):
+            sequence['duration'] = [self.value2index['duration'][find_nearest_value(self.time_table_duration, e)]
+                                    if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
+                                    self.value2index['duration'][e]
+                                    for e in sequence['duration']]
+            sequence['time_shift'] = [self.value2index['time_shift'][find_nearest_value(self.time_table_time_shift, e)]
+                                      if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
+                                      self.value2index['time_shift'][e]
+                                      for e in sequence['time_shift']]
+        else:
+            sequence['duration'] = [self.value2index['duration'][find_nearest_value(self.time_table, e)]
+                                    if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
+                                    self.value2index['duration'][e]
+                                    for e in sequence['duration']]
+            sequence['time_shift'] = [self.value2index['time_shift'][find_nearest_value(self.time_table, e)]
+                                      if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
+                                      self.value2index['time_shift'][e]
+                                      for e in sequence['time_shift']]
+        return sequence
 
     def iterator_gen(self):
         return (elem for elem in self.corpus_it_gen())
@@ -375,9 +365,9 @@ class PianoMidiDataset(data.Dataset):
             index = 0
 
             if feat_name == 'time_shift':
-                values = self.time_table
+                values = self.time_table_time_shift
             elif feat_name == 'duration':
-                values = self.time_table[1:]
+                values = self.time_table_duration[1:]
             elif feat_name == 'pitch':
                 values = self.pitch_range
             elif feat_name == 'velocity':
@@ -412,10 +402,6 @@ class PianoMidiDataset(data.Dataset):
         """
         Implementation of the make_tensor_dataset abstract base class
         """
-        print('Loading index dictionnary')
-
-        self.compute_index_dicts()
-
         print('Making tensor dataset')
 
         chunk_counter = {
@@ -547,7 +533,7 @@ class PianoMidiDataset(data.Dataset):
                     event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
                 event_end = max(event.end, event_end_sustained)
 
-            duration_value = find_nearest_value(self.time_table[1:], event_end - event.start)
+            duration_value = find_nearest_value(self.time_table_duration[1:], event_end - event.start)
 
             event_values['duration'] = duration_value
             if event.pitch in self.pitch_range:
@@ -557,7 +543,7 @@ class PianoMidiDataset(data.Dataset):
             event_values['velocity'] = event.velocity
             if event_ind != seq_len - 1:
                 next_event = raw_sequence[event_ind + 1]
-                event_values['time_shift'] = find_nearest_value(self.time_table, next_event.start - event.start)
+                event_values['time_shift'] = find_nearest_value(self.time_table_time_shift, next_event.start - event.start)
             else:
                 event_values['time_shift'] = 0
 
@@ -610,7 +596,9 @@ class PianoMidiDataset(data.Dataset):
         sequence_length = len(sequences[a_key])
         if fill_features is not None:
             for feature in fill_features:
-                sequences[feature] = [self.default_value[feature]] * sequence_length
+                sequences[feature] = [0] * sequence_length
+        else:
+            fill_features = []
 
         start_time = 0.0
         for t in range(sequence_length):
@@ -619,10 +607,22 @@ class PianoMidiDataset(data.Dataset):
             velocity_ind = int(sequences['velocity'][t])
             time_shift_ind = int(sequences['time_shift'][t])
 
-            pitch_value = self.index2value['pitch'][pitch_ind]
-            duration_value = self.index2value['duration'][duration_ind]
-            velocity_value = self.index2value['velocity'][velocity_ind]
-            time_shift_value = self.index2value['time_shift'][time_shift_ind]
+            if 'pitch' in fill_features:
+                pitch_value = self.default_value['pitch']
+            else:
+                pitch_value = self.index2value['pitch'][pitch_ind]
+            if 'duration' in fill_features:
+                duration_value = self.default_value['duration']
+            else:
+                duration_value = self.index2value['duration'][duration_ind]
+            if 'velocity' in fill_features:
+                velocity_value = self.default_value['velocity']
+            else:
+                velocity_value = self.index2value['velocity'][velocity_ind]
+            if 'time_shift' in fill_features:
+                time_shift_value = self.default_value['time_shift']
+            else:
+                time_shift_value = self.index2value['time_shift'][time_shift_ind]
 
             if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
                     duration_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \

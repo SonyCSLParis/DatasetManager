@@ -121,3 +121,21 @@ def find_nearest_value(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return array[idx]
+
+
+def get_time_table_ts(smallest_time_shift):
+    short_time_shifts = np.arange(0, 0.5, smallest_time_shift)
+    medium_time_shifts = np.arange(0.5, 5.0, 5.0 * smallest_time_shift)
+    time_shift_bins = np.concatenate((short_time_shifts,
+                                      medium_time_shifts))
+    return time_shift_bins
+
+
+def get_time_table_duration(smallest_time_shift):
+    short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
+    medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
+    long_time_shifts = np.arange(5.0, 20., 50 * smallest_time_shift)
+    time_shift_bins = np.concatenate((short_time_shifts,
+                                      medium_time_shifts,
+                                      long_time_shifts))
+    return time_shift_bins

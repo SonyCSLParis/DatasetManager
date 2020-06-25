@@ -149,8 +149,11 @@ class NESDataset(Dataset):
             target_dir.mkdir(exist_ok=True)
 
             # compute musical events as tensor
-            midi = pretty_midi.PrettyMIDI(str(src_file))
-            tensor = self.parse_midi(midi)
+            try:
+                midi = pretty_midi.PrettyMIDI(str(src_file))
+                tensor = self.parse_midi(midi)
+            except ValueError:
+                warnings.warn(f"Some error occurred during the preprocessing of {src_file}")
 
             # save the computed tensor
             np.save(target_file, tensor, allow_pickle=False)

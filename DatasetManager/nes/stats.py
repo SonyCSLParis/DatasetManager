@@ -171,6 +171,15 @@ if __name__ == '__main__':
         lengths = [len(block) for block in split_sequence(sequence)]
         stats.update(lengths)
 
+    def update_voices(stats, sequence):
+        r"""Compute which voices are actually present in the sequence
+        """
+        actual_voices = [i for i in range(sequence.shape[1]) if sequence[0,i,0] >= 0]
+        stats.update(actual_voices)
+
+
+
+
     # magic trick to automatically assign names to functions
     update_rules = {
         name[7:]: func for name, func in inspect.getmembers(sys.modules[__name__], inspect.isfunction)
@@ -224,11 +233,12 @@ if __name__ == '__main__':
     if '-h' in argv or '--help' in argv:
         print('The statistics of the following quantities can be computed:')
         for name, func in update_rules.items():
-            print(f'{name}:\n{inspect.getdoc(func)}')
+            print(f'  {name}:\n    {inspect.getdoc(func)}')
         exit(0)
 
 
     dataset = NESDataset('train')
+    dataset.train = False
 
     stats_dict = {field: Stats() for field in argv}
 

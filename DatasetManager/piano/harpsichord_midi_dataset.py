@@ -22,10 +22,10 @@ from DatasetManager.piano.piano_helper import PianoIteratorGenerator, find_neare
 Typical piano sequence:
 p0 p1 TS p0 p1 p2 TS p0 STOP X X X X
 
-If beginning: 
+If beginning:
 START p0 p1 TS p0 p1 p2 TS p0 STOP X X X
 
-If end: 
+If end:
 p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
 
 """

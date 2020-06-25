@@ -7,15 +7,17 @@ import time
 from tqdm import tqdm
 
 import pretty_midi
+
 pretty_midi.pretty_midi.MAX_TICK = 1e16
 
 import torch
 from torch.utils.data import Dataset
 
+
 class NESDataset(Dataset):
-    def __init__(self, phase='train', num_blocks=None, voices=None):
+    def __init__(self, phase='train', voices=None):
         self.root = (Path(__file__) / '../../../../data/nesmdb_midi').resolve()
-        self.voices = voices if voices is not None else [0,1,2,3]
+        self.voices = voices if voices is not None else [0, 1, 2, 3]
 
         self.train = phase == 'train'
 
@@ -23,17 +25,18 @@ class NESDataset(Dataset):
             raise ValueError(
                 f"The dataset could not be found in this folder: {self.root}.\n"
                 "Move it to that folder or create a link if you already have it elsewhere.\n"
-                "Otherwise run ./DatasetManager/datasets/init_nes_dataset.sh to download and extract it (72 MB)."
+                "Otherwise run ./DatasetManager/nes/init_nes_dataset.sh to download and extract it (72 MB)."
             )
 
         self.processed = self.root / 'processed'
+        self.processed.mkdir(exist_ok=True)
 
         # assign an id to each instrument
         self.instrument_to_id = {
             80: 0,
             81: 1,
             38: 2,
-            121:3
+            121: 3
         }
         self.id_to_instrument = {v: k for k, v in self.instrument_to_id.items()}
 
@@ -46,7 +49,8 @@ class NESDataset(Dataset):
                 self.pitches_dict = {int(k): v for k, v in pitches_dict.items()}
 
         else:
-            self.pitches_dict = defaultdict(lambda: len(self.pitches_dict.keys()), {-1: -1, 0: 0}) # enable automatic updating of keys
+            self.pitches_dict = defaultdict(lambda: len(self.pitches_dict.keys()),
+                                            {-1: -1, 0: 0})  # enable automatic updating of keys
 
             shutil.rmtree(self.processed)
 
@@ -58,17 +62,16 @@ class NESDataset(Dataset):
             self.preprocess_dataset()
             t1 = time.time()
             d = t1 - t0
-            print('Done. Time elapsed:', '{:.0f} s.'.format(d) if d < 60 else '{:.0f} min {:.0f} s.'.format(*divmod(d, 60)))
+            print('Done. Time elapsed:',
+                  '{:.0f} s.'.format(d) if d < 60 else '{:.0f} min {:.0f} s.'.format(*divmod(d, 60)))
 
-            self.pitches_dict = dict(self.pitches_dict) # remove defaultdict behaviour
+            self.pitches_dict = dict(self.pitches_dict)  # remove defaultdict behaviour
             with open(self.dict_path, 'w') as f:
                 json.dump(self.pitches_dict, f)
 
         self.paths = list((self.processed / phase).glob('*.npy'))
 
         self.data_augmentation = lambda x: x
-
-
 
     def __getitem__(self, idx):
 
@@ -82,23 +85,22 @@ class NESDataset(Dataset):
             padding_mask = (score == -1)
 
             # 1. transpose melodic voices by a random number of semitones between -6 and 5
-            actual_voices = [i for i in range(score.shape[1]) if score[0,i,0] >= 0]
-            melodic_voices = [i for i in actual_voices if self.id_to_instrument[self.voices[i]] < 112] # TODO:
+            actual_voices = [i for i in range(score.shape[1]) if score[0, i, 0] >= 0]
+            melodic_voices = [i for i in actual_voices if self.id_to_instrument[self.voices[i]] < 112]  # TODO:
 
             if melodic_voices != []:
-                melodic_pitches = score[:,melodic_voices,0] % 128
+                melodic_pitches = score[:, melodic_voices, 0] % 128
                 pitch_shift = np.random.randint(
-                    -min(6, melodic_pitches[melodic_pitches>0].min()),
-                    min(6, 128-melodic_pitches.max())
+                    -min(6, melodic_pitches[melodic_pitches > 0].min()),
+                    min(6, 128 - melodic_pitches.max())
                 )
-                score[:,melodic_voices,0] += pitch_shift        # TODO: correct pitch -> skip rests
-
+                score[:, melodic_voices, 0] += pitch_shift
 
             # 2. adjust the speed of the piece by a random percentage between +/- 5%
-            time_speed = 1 + (np.random.random()-0.5) / 10
+            time_speed = 1 + (np.random.random() - 0.5) / 10
 
-            score[:,:,1] *= time_speed
-            score[:,:,3] *= time_speed
+            score[:, :, 1] *= time_speed
+            score[:, :, 3] *= time_speed
             #
             # actual_num_voices = sum(data[0,:,0] == 0)
             # if actual_num_voices > 1 and np.random.random() < 0.5:
@@ -113,7 +115,7 @@ class NESDataset(Dataset):
             score[padding_mask] = -1
 
         # replace midi pitches by an id so that every id between 0 and id_max are used
-        score[:,:,0] = np.vectorize(self.pitches_dict.__getitem__)(score[:,:,0].astype(np.int32))
+        score[:, :, 0] = np.vectorize(self.pitches_dict.__getitem__)(score[:, :, 0].astype(np.int32))
         return torch.from_numpy(score)
 
     def __len__(self):
@@ -125,7 +127,6 @@ class NESDataset(Dataset):
     def __str__(self):
         return 'NES-MDB Dataset'
 
-
     # PREPROCESSING
 
     def preprocess_dataset(self):
@@ -135,7 +136,7 @@ class NESDataset(Dataset):
         bar = tqdm(sorted(list(self.root.glob('**/*.mid'))), leave=False)
         for src_file in bar:
             fname = src_file.name
-            bar.set_description(fname[:29] + '...' if len(fname) > 32 else fname + (32-len(fname))*' ')
+            bar.set_description(fname[:29] + '...' if len(fname) > 32 else fname + (32 - len(fname)) * ' ')
 
             target_dir = self.processed / src_file.relative_to(self.root).parent
             target_name = src_file.stem + '.npy'
@@ -180,13 +181,13 @@ class NESDataset(Dataset):
 
             # add notes in the requested format
             for n in instrument.notes:
-                pitch = 128*instrument_id + n.pitch
+                pitch = 128 * instrument_id + n.pitch
                 assert pitch > 0, str(n)
                 # add the note to the list of notes
                 voice.append([pitch, n.duration, n.velocity, n.start])
 
                 # associate to the pitch a unique id if not done yet
-                for p in range(max(128*instrument_id, pitch-6), min(128*(instrument_id+1), pitch+6)):
+                for p in range(max(128 * instrument_id, pitch - 6), min(128 * (instrument_id + 1), pitch + 6)):
                     _ = self.pitches_dict[p]
 
             # ensure that notes are sorted by increasing starts
@@ -222,32 +223,27 @@ class NESDataset(Dataset):
 
         end = start + duration
 
-        for id, v, p, s, e in zip(instrument_id, velocity, pitch, start, end):
-            notes_per_instrument[id].append(pretty_midi.Note(velocity=v, pitch=p, start=s, end=e))
+        for i, v, p, s, e in zip(instrument_id, velocity, pitch, start, end):
+            notes_per_instrument[i].append(pretty_midi.Note(velocity=v, pitch=p, start=s, end=e))
 
         midi = pretty_midi.PrettyMIDI(initial_tempo=120, resolution=22050)
 
         for instrument_id, notes in notes_per_instrument.items():
             prog = self.id_to_instrument[instrument_id]
-            instrument = pretty_midi.Instrument(program=prog, is_drum=(prog>=112))
+            instrument = pretty_midi.Instrument(program=prog, is_drum=(prog >= 112))
 
             instrument.notes = notes
 
             midi.instruments.append(instrument)
 
         ts = pretty_midi.TimeSignature(4, 4, 0)
-        eos = pretty_midi.TimeSignature(1, 1, float(max(end)-min(start)))
+        eos = pretty_midi.TimeSignature(1, 1, float(max(end) - min(start)))
         midi.time_signature_changes.extend([ts, eos])
         # print(midi.instruments[0].notes)
         # print(midi.instruments)
         # print(midi.time_signature_changes)
         # raise IndexError
         return midi
-
-
-
-
-
 
 
 if __name__ == '__main__':

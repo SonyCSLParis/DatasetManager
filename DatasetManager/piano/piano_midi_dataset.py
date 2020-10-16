@@ -120,7 +120,6 @@ class PianoMidiDataset(data.Dataset):
         self.time_dilation_factor = time_dilation_factor
         self.velocity_shift = velocity_shift
         self.transformations = transformations
-        return
 
     def __str__(self):
         prefix = str(self.corpus_it_gen)
@@ -424,7 +423,12 @@ class PianoMidiDataset(data.Dataset):
                 sequences = self.process_score(midi_file)
                 midi_name = os.path.splitext(re.split('/', midi_file)[-1])[0]
                 folder_name = f'{self.cache_dir}/{self.data_folder_name}/{split}/{midi_name}'
+                if os.path.exists(folder_name):
+                    print(f'Skipped {folder_name}')
+                    continue
+                
                 os.mkdir(folder_name)
+                
                 # np.savetxt(f'{folder_name}/pitch.txt', np.asarray(sequences['pitch']).astype(int), fmt='%d')
                 # np.savetxt(f'{folder_name}/velocity.txt', np.asarray(sequences['velocity']).astype(int), fmt='%d')
                 # np.savetxt(f'{folder_name}/duration.txt', np.asarray(sequences['duration']).astype(np.float32),

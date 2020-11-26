@@ -11,9 +11,12 @@ class PianoIteratorGenerator:
     """
 
     def __init__(self, subsets, num_elements=None):
+        # TODO hard coded: create multiple IteratorGenerators
         # self.path = f'{os.path.expanduser("~")}/Data/databases/Piano'
         # trains on transcriptions only:
         self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/transcriptions/midi'
+        # trains on piano relax
+        # self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/transcriptions/relax_piano'
         self.subsets = subsets
         self.num_elements = num_elements
 
@@ -27,6 +30,7 @@ class PianoIteratorGenerator:
     def __str__(self) -> str:
         # TODO take into account subsets?
         ret = 'PianoIterator'
+        # ret = 'PianoRelax'
         if self.num_elements is not None:
             ret += f'_{self.num_elements}'
         return ret
@@ -174,6 +178,8 @@ def get_time_table_ts(smallest_time_shift):
 
 
 def get_time_table_duration(smallest_time_shift):
+    # WARNING any change here must be done in 
+    # PianoMidiDataset.timeshift_indices_to_elapsed_time for consistency
     short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
     medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
     long_time_shifts = np.arange(5.0, 20., 50 * smallest_time_shift)

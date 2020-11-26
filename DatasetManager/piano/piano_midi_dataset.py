@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 from DatasetManager.piano.piano_helper import extract_cc, find_nearest_value, MaestroIteratorGenerator, \
     get_time_table_ts, get_time_table_duration
-
 """
 Typical piano sequence:
 p0 p1 TS p0 p1 p2 TS p0 STOP X X X X
@@ -38,17 +37,9 @@ class PianoMidiDataset(data.Dataset):
     Class for all arrangement dataset
     It is highly recommended to run arrangement_statistics before building the database
     """
-
-    def __init__(self,
-                 corpus_it_gen,
-                 sequence_size,
-                 smallest_time_shift,
-                 max_transposition,
-                 time_dilation_factor,
-                 velocity_shift,
-                 transformations,
-                 different_time_table_ts_duration
-                 ):
+    def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
+                 max_transposition, time_dilation_factor, velocity_shift,
+                 transformations, different_time_table_ts_duration):
         """
         All transformations
         {
@@ -65,11 +56,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
         self.split = None
-        self.list_ids = {
-            'train': [],
-            'validation': [],
-            'test': []
-        }
+        self.list_ids = {'train': [], 'validation': [], 'test': []}
 
         self.corpus_it_gen = corpus_it_gen
         self.sequence_size = sequence_size
@@ -79,11 +66,15 @@ class PianoMidiDataset(data.Dataset):
         self.smallest_time_shift = smallest_time_shift
         if different_time_table_ts_duration:
             # Legacy... REMOVE IT one day
-            self.time_table_duration = get_time_table_duration(self.smallest_time_shift)
-            self.time_table_time_shift = get_time_table_ts(self.smallest_time_shift)
+            self.time_table_duration = get_time_table_duration(
+                self.smallest_time_shift)
+            self.time_table_time_shift = get_time_table_ts(
+                self.smallest_time_shift)
         else:
-            self.time_table_duration = get_time_table_duration(self.smallest_time_shift)
-            self.time_table_time_shift = get_time_table_duration(self.smallest_time_shift)
+            self.time_table_duration = get_time_table_duration(
+                self.smallest_time_shift)
+            self.time_table_time_shift = get_time_table_duration(
+                self.smallest_time_shift)
         self.pitch_range = range(21, 109)
         self.velocity_range = range(128)
         self.programs = range(128)
@@ -178,24 +169,38 @@ class PianoMidiDataset(data.Dataset):
 
         # Load data and extract subsequence
         sequence = {}
-        with open(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt') as ff:
+        with open(
+                f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt'
+        ) as ff:
             sequence_length = int(ff.read())
         start_time = id['start_time']
         end_time = min(id['start_time'] + self.sequence_size, sequence_length)
-        fpr_pitch = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
-                              dtype=int, mode='r', shape=(sequence_length))
+        fpr_pitch = np.memmap(
+            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
+            dtype=int,
+            mode='r',
+            shape=(sequence_length))
         sequence['pitch'] = fpr_pitch[start_time:end_time]
         del fpr_pitch
-        fpr_velocity = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity',
-                              dtype=int, mode='r', shape=(sequence_length))
+        fpr_velocity = np.memmap(
+            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity',
+            dtype=int,
+            mode='r',
+            shape=(sequence_length))
         sequence['velocity'] = fpr_velocity[start_time:end_time]
         del fpr_velocity
-        fpr_duration = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration',
-                              dtype='float32', mode='r', shape=(sequence_length))
+        fpr_duration = np.memmap(
+            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration',
+            dtype='float32',
+            mode='r',
+            shape=(sequence_length))
         sequence['duration'] = fpr_duration[start_time:end_time]
         del fpr_duration
-        fpr_time_shift = np.memmap(f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift',
-                              dtype='float32', mode='r', shape=(sequence_length))
+        fpr_time_shift = np.memmap(
+            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift',
+            dtype='float32',
+            mode='r',
+            shape=(sequence_length))
         sequence['time_shift'] = fpr_time_shift[start_time:end_time]
         del fpr_time_shift
         """ttt = time.time() - ttt
@@ -203,23 +208,35 @@ class PianoMidiDataset(data.Dataset):
         ttt = time.time()"""
 
         # Perform data augmentations (only for train split)
-        if (self.transformations['velocity_shift']) and (self.split == 'train'):
-            velocity_shift = int(self.velocity_shift * (2 * random.random() - 1))
-            sequence['velocity'] = np.maximum(0, np.minimum(127, sequence['velocity'] + velocity_shift))
+        if (self.transformations['velocity_shift']) and (self.split
+                                                         == 'train'):
+            velocity_shift = int(self.velocity_shift *
+                                 (2 * random.random() - 1))
+            sequence['velocity'] = np.maximum(
+                0, np.minimum(127, sequence['velocity'] + velocity_shift))
         else:
             velocity_shift = 0
         if (self.transformations['time_dilation']) and (self.split == 'train'):
-            time_dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random()
+            time_dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random(
+            )
             sequence['duration'] = sequence['duration'] * time_dilation_factor
-            sequence['time_shift'] = sequence['time_shift'] * time_dilation_factor
+            sequence[
+                'time_shift'] = sequence['time_shift'] * time_dilation_factor
         else:
             time_dilation_factor = 1
         if (self.transformations['transposition']) and (self.split == 'train'):
-            transposition = int(random.uniform(-self.max_transposition, self.max_transposition))
+            transposition = int(
+                random.uniform(-self.max_transposition,
+                               self.max_transposition))
             sequence['pitch'] = sequence['pitch'] + transposition
-            sequence['pitch'] = np.where(sequence['pitch'] > self.pitch_range.stop - 1, sequence['pitch'] - 12,
-                             sequence['pitch'])  # lower one octave for sequence['pitch'] too high
-            sequence['pitch'] = np.where(sequence['pitch'] < self.pitch_range.start, sequence['pitch'] + 12, sequence['pitch'])  # raise one octave for pitch too low
+            sequence['pitch'] = np.where(
+                sequence['pitch'] > self.pitch_range.stop - 1,
+                sequence['pitch'] - 12, sequence['pitch']
+            )  # lower one octave for sequence['pitch'] too high
+            sequence['pitch'] = np.where(
+                sequence['pitch'] < self.pitch_range.start,
+                sequence['pitch'] + 12,
+                sequence['pitch'])  # raise one octave for pitch too low
         else:
             transposition = 0
         """ttt = time.time() - ttt
@@ -227,44 +244,50 @@ class PianoMidiDataset(data.Dataset):
         ttt = time.time()"""
 
         # Add pad, start and end symbols
-        sequence = self.add_start_end_symbols(sequence, start_time=start_time, sequence_size=self.sequence_size)
-
+        sequence = self.add_start_end_symbols(sequence,
+                                              start_time=start_time,
+                                              sequence_size=self.sequence_size)
         """ttt = time.time() - ttt
         print(f'Adding meta symbols: {ttt}')
         ttt = time.time()"""
 
         # Tokenize
         sequence = self.tokenize(sequence)
-
         """ttt = time.time() - ttt
         print(f'Tokenizing: {ttt}')
 
         print(f'###################################')"""
 
-        return {'pitch': torch.tensor(sequence['pitch']).long(),
-                'velocity': torch.tensor(sequence['velocity']).long(),
-                'duration': torch.tensor(sequence['duration']).long(),
-                'time_shift': torch.tensor(sequence['time_shift']).long(),
-                'index': index,
-                'data_augmentations': {
-                    'time_dilation': time_dilation_factor,
-                    'velocity_shift': velocity_shift,
-                    'transposition': transposition
-                }
-                }
+        return {
+            'pitch': torch.tensor(sequence['pitch']).long(),
+            'velocity': torch.tensor(sequence['velocity']).long(),
+            'duration': torch.tensor(sequence['duration']).long(),
+            'time_shift': torch.tensor(sequence['time_shift']).long(),
+            'index': index,
+            'data_augmentations': {
+                'time_dilation': time_dilation_factor,
+                'velocity_shift': velocity_shift,
+                'transposition': transposition
+            }
+        }
 
     def add_start_end_symbols(self, sequence, start_time, sequence_size):
         sequence = {k: list(v) for k, v in sequence.items()}
         if start_time == 0:
-            sequence = {k: [START_SYMBOL] + v[:-1] for k, v in sequence.items()}
+            sequence = {
+                k: [START_SYMBOL] + v[:-1]
+                for k, v in sequence.items()
+            }
             # pitch = [START_SYMBOL] + pitch[:-1]
             # velocity = [START_SYMBOL] + velocity[:-1]
             # duration = [START_SYMBOL] + duration[:-1]
             # time_shift = [START_SYMBOL] + time_shift[:-1]
         end_padding_length = sequence_size - len(sequence['pitch'])
         if end_padding_length > 0:
-            sequence = {k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-                        for k, v in sequence.items()}
+            sequence = {
+                k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+                for k, v in sequence.items()
+            }
             # pitch += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
             # velocity += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
             # duration += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
@@ -272,27 +295,43 @@ class PianoMidiDataset(data.Dataset):
         return sequence
 
     def tokenize(self, sequence):
-        sequence['pitch'] = [self.value2index['pitch'][e] for e in sequence['pitch']]
-        sequence['velocity'] = [self.value2index['velocity'][e] for e in sequence['velocity']]
+        sequence['pitch'] = [
+            self.value2index['pitch'][e] for e in sequence['pitch']
+        ]
+        sequence['velocity'] = [
+            self.value2index['velocity'][e] for e in sequence['velocity']
+        ]
         # legacy...
         if hasattr(self, 'time_table_duration'):
-            sequence['duration'] = [self.value2index['duration'][find_nearest_value(self.time_table_duration, e)]
-                                    if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
-                                    self.value2index['duration'][e]
-                                    for e in sequence['duration']]
-            sequence['time_shift'] = [self.value2index['time_shift'][find_nearest_value(self.time_table_time_shift, e)]
-                                      if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
-                                      self.value2index['time_shift'][e]
-                                      for e in sequence['time_shift']]
+            sequence['duration'] = [
+                self.value2index['duration'][find_nearest_value(
+                    self.time_table_duration, e)] if e not in [
+                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
+                    ] else self.value2index['duration'][e]
+                for e in sequence['duration']
+            ]
+            sequence['time_shift'] = [
+                self.value2index['time_shift'][find_nearest_value(
+                    self.time_table_time_shift, e)] if e not in [
+                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
+                    ] else self.value2index['time_shift'][e]
+                for e in sequence['time_shift']
+            ]
         else:
-            sequence['duration'] = [self.value2index['duration'][find_nearest_value(self.time_table, e)]
-                                    if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
-                                    self.value2index['duration'][e]
-                                    for e in sequence['duration']]
-            sequence['time_shift'] = [self.value2index['time_shift'][find_nearest_value(self.time_table, e)]
-                                      if e not in [PAD_SYMBOL, END_SYMBOL, START_SYMBOL] else
-                                      self.value2index['time_shift'][e]
-                                      for e in sequence['time_shift']]
+            sequence['duration'] = [
+                self.value2index['duration'][find_nearest_value(
+                    self.time_table, e)] if e not in [
+                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
+                    ] else self.value2index['duration'][e]
+                for e in sequence['duration']
+            ]
+            sequence['time_shift'] = [
+                self.value2index['time_shift'][find_nearest_value(
+                    self.time_table, e)] if e not in [
+                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
+                    ] else self.value2index['time_shift'][e]
+                for e in sequence['time_shift']
+            ]
         return sequence
 
     def iterator_gen(self):
@@ -305,13 +344,17 @@ class PianoMidiDataset(data.Dataset):
         val_dataset.split = 'validation'
         test_dataset = copy.copy(self)
         test_dataset.split = 'test'
-        return {'train': train_dataset,
-                'val': val_dataset,
-                'test': test_dataset
-                }
+        return {
+            'train': train_dataset,
+            'val': val_dataset,
+            'test': test_dataset
+        }
 
-    def data_loaders(self, batch_size, num_workers,
-                     shuffle_train=True, shuffle_val=False):
+    def data_loaders(self,
+                     batch_size,
+                     num_workers,
+                     shuffle_train=True,
+                     shuffle_val=False):
         """
         Returns three data loaders obtained by splitting
         self.tensor_dataset according to split
@@ -351,9 +394,7 @@ class PianoMidiDataset(data.Dataset):
             pin_memory=True,
             drop_last=True,
         )
-        return {'train': train_dl,
-                'val': val_dl,
-                'test': test_dl}
+        return {'train': train_dl, 'val': val_dl, 'test': test_dl}
 
     def compute_index_dicts(self):
         ######################################################################
@@ -395,7 +436,6 @@ class PianoMidiDataset(data.Dataset):
 
             self.index2value[feat_name] = index2value
             self.value2index[feat_name] = value2index
-        return
 
     def make_tensor_dataset(self):
         """
@@ -410,7 +450,8 @@ class PianoMidiDataset(data.Dataset):
         }
 
         # Build x folder if not existing
-        if not os.path.isfile(f'{self.cache_dir}/{self.data_folder_name}/xbuilt'):
+        if not os.path.isfile(
+                f'{self.cache_dir}/{self.data_folder_name}/xbuilt'):
             if os.path.isdir(f'{self.cache_dir}/{self.data_folder_name}'):
                 shutil.rmtree(f'{self.cache_dir}/{self.data_folder_name}')
             os.mkdir(f'{self.cache_dir}/{self.data_folder_name}')
@@ -426,9 +467,9 @@ class PianoMidiDataset(data.Dataset):
                 if os.path.exists(folder_name):
                     print(f'Skipped {folder_name}')
                     continue
-                
+
                 os.mkdir(folder_name)
-                
+
                 # np.savetxt(f'{folder_name}/pitch.txt', np.asarray(sequences['pitch']).astype(int), fmt='%d')
                 # np.savetxt(f'{folder_name}/velocity.txt', np.asarray(sequences['velocity']).astype(int), fmt='%d')
                 # np.savetxt(f'{folder_name}/duration.txt', np.asarray(sequences['duration']).astype(np.float32),
@@ -440,24 +481,39 @@ class PianoMidiDataset(data.Dataset):
                 sequence_length = len(sequences['pitch'])
                 with open(f'{folder_name}/length.txt', 'w') as ff:
                     ff.write(f'{sequence_length:d}')
-                fp_pitch = np.memmap(f'{folder_name}/pitch', dtype=int, mode='w+', shape=(sequence_length))
+                fp_pitch = np.memmap(f'{folder_name}/pitch',
+                                     dtype=int,
+                                     mode='w+',
+                                     shape=(sequence_length))
                 fp_pitch[:] = np.asarray(sequences['pitch']).astype(int)
                 del fp_pitch
-                fp_velocity = np.memmap(f'{folder_name}/velocity', dtype=int, mode='w+', shape=(sequence_length))
+                fp_velocity = np.memmap(f'{folder_name}/velocity',
+                                        dtype=int,
+                                        mode='w+',
+                                        shape=(sequence_length))
                 fp_velocity[:] = np.asarray(sequences['velocity']).astype(int)
                 del fp_velocity
-                fp_duration = np.memmap(f'{folder_name}/duration', dtype='float32', mode='w+', shape=(sequence_length))
-                fp_duration[:] = np.asarray(sequences['duration']).astype('float32')
+                fp_duration = np.memmap(f'{folder_name}/duration',
+                                        dtype='float32',
+                                        mode='w+',
+                                        shape=(sequence_length))
+                fp_duration[:] = np.asarray(
+                    sequences['duration']).astype('float32')
                 del fp_duration
-                fp_time_shift = np.memmap(f'{folder_name}/time_shift', dtype='float32', mode='w+',
+                fp_time_shift = np.memmap(f'{folder_name}/time_shift',
+                                          dtype='float32',
+                                          mode='w+',
                                           shape=(sequence_length))
-                fp_time_shift[:] = np.asarray(sequences['time_shift']).astype('float32')
+                fp_time_shift[:] = np.asarray(
+                    sequences['time_shift']).astype('float32')
                 del fp_time_shift
-            open(f'{self.cache_dir}/{self.data_folder_name}/xbuilt', 'w').close()
+            open(f'{self.cache_dir}/{self.data_folder_name}/xbuilt',
+                 'w').close()
 
         # Build index of files
         for split in ['train', 'validation', 'test']:
-            paths = glob.glob(f'{self.cache_dir}/{self.data_folder_name}/{split}/*')
+            paths = glob.glob(
+                f'{self.cache_dir}/{self.data_folder_name}/{split}/*')
             for path in paths:
                 # read file
                 with open(f'{path}/length.txt', 'r') as ff:
@@ -480,30 +536,31 @@ class PianoMidiDataset(data.Dataset):
     def process_score(self, midi_file):
         #  Preprocess midi
         midi = pretty_midi.PrettyMIDI(midi_file)
-        raw_sequence = list(itertools.chain(*[
-            inst.notes for inst in midi.instruments
-            if inst.program in self.programs and not inst.is_drum]))
-        control_changes = list(itertools.chain(*[
-            inst.control_changes for inst in midi.instruments
-            if inst.program in self.programs and not inst.is_drum]))
+        raw_sequence = list(
+            itertools.chain(*[
+                inst.notes for inst in midi.instruments
+                if inst.program in self.programs and not inst.is_drum
+            ]))
+        control_changes = list(
+            itertools.chain(*[
+                inst.control_changes for inst in midi.instruments
+                if inst.program in self.programs and not inst.is_drum
+            ]))
         # sort by starting time
         raw_sequence.sort(key=lambda x: x.start)
         control_changes.sort(key=lambda x: x.time)
 
         #  pedal, cc = 64
-        sustain_pedal_time, sustain_pedal_value = extract_cc(control_changes=control_changes,
-                                                             channel=64,
-                                                             binarize=True)
+        sustain_pedal_time, sustain_pedal_value = extract_cc(
+            control_changes=control_changes, channel=64, binarize=True)
 
         # sostenuto pedal, cc = 66
-        sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(control_changes=control_changes,
-                                                                 channel=66,
-                                                                 binarize=True)
+        sostenuto_pedal_time, sostenuto_pedal_value = extract_cc(
+            control_changes=control_changes, channel=66, binarize=True)
 
         # soft pedal, cc = 67
-        soft_pedal_time, soft_pedal_value = extract_cc(control_changes=control_changes,
-                                                       channel=67,
-                                                       binarize=True)
+        soft_pedal_time, soft_pedal_value = extract_cc(
+            control_changes=control_changes, channel=67, binarize=True)
 
         seq_len = len(raw_sequence)
 
@@ -517,27 +574,32 @@ class PianoMidiDataset(data.Dataset):
             event_values = {}
 
             # Compute duration taking sustain
-            sustained_index_start = np.searchsorted(sustain_pedal_time, event.start, side='left') - 1
+            sustained_index_start = np.searchsorted(
+                sustain_pedal_time, event.start, side='left') - 1
             if sustain_pedal_value[sustained_index_start] == 1:
                 if (sustained_index_start + 1) >= len(sustain_pedal_time):
                     event_end_sustained = 0
                 else:
-                    event_end_sustained = sustain_pedal_time[sustained_index_start + 1]
+                    event_end_sustained = sustain_pedal_time[
+                        sustained_index_start + 1]
                 event_end = max(event.end, event_end_sustained)
             else:
                 event_end = event.end
 
             #  also check if pedal is pushed before the end of the note !!
-            sustained_index_end = np.searchsorted(sustain_pedal_time, event.end, side='left') - 1
+            sustained_index_end = np.searchsorted(
+                sustain_pedal_time, event.end, side='left') - 1
             if sustain_pedal_value[sustained_index_end] == 1:
                 if (sustained_index_end + 1) >= len(sustain_pedal_time):
                     # notes: that's a problem, means a sustain pedal is not switched off....
                     event_end_sustained = 0
                 else:
-                    event_end_sustained = sustain_pedal_time[sustained_index_end + 1]
+                    event_end_sustained = sustain_pedal_time[
+                        sustained_index_end + 1]
                 event_end = max(event.end, event_end_sustained)
 
-            duration_value = find_nearest_value(self.time_table_duration[1:], event_end - event.start)
+            duration_value = find_nearest_value(self.time_table_duration[1:],
+                                                event_end - event.start)
 
             event_values['duration'] = duration_value
             if event.pitch in self.pitch_range:
@@ -547,7 +609,8 @@ class PianoMidiDataset(data.Dataset):
             event_values['velocity'] = event.velocity
             if event_ind != seq_len - 1:
                 next_event = raw_sequence[event_ind + 1]
-                event_values['time_shift'] = find_nearest_value(self.time_table_time_shift, next_event.start - event.start)
+                event_values['time_shift'] = find_nearest_value(
+                    self.time_table_time_shift, next_event.start - event.start)
             else:
                 event_values['time_shift'] = 0
 
@@ -563,14 +626,21 @@ class PianoMidiDataset(data.Dataset):
             'time_shift': time_shift_sequence
         }
 
-    def init_generation_filepath(self, batch_size, context_length, filepath, banned_instruments=[],
-                                 unknown_instruments=[], subdivision=None):
+    def init_generation_filepath(self,
+                                 batch_size,
+                                 context_length,
+                                 filepath,
+                                 banned_instruments=[],
+                                 unknown_instruments=[],
+                                 subdivision=None):
         raise NotImplementedError
 
     def interleave_silences_batch(self, sequences, index_order):
         ret = []
-        silence_frame = torch.tensor(
-            [self.value2index[feat_name][self.silence_value[feat_name]] for feat_name in index_order])
+        silence_frame = torch.tensor([
+            self.value2index[feat_name][self.silence_value[feat_name]]
+            for feat_name in index_order
+        ])
         for e in sequences:
             ret.extend(e)
             ret.append(silence_frame)
@@ -581,7 +651,10 @@ class PianoMidiDataset(data.Dataset):
 
     def fill_missing_features(self, sequence, selected_features_indices):
         # Fill in missing features with default values
-        default_frame = [self.value2index[feat_name][self.default_value[feat_name]] for feat_name in self.index_order]
+        default_frame = [
+            self.value2index[feat_name][self.default_value[feat_name]]
+            for feat_name in self.index_order
+        ]
         sequence_filled = torch.tensor([default_frame] * len(sequence))
         sequence_filled[:, selected_features_indices] = sequence
         return sequence_filled
@@ -592,7 +665,8 @@ class PianoMidiDataset(data.Dataset):
         # 'Acoustic Grand Piano', 'Bright Acoustic Piano',
         #                   'Electric Grand Piano', 'Honky-tonk Piano',
         #                   'Electric Piano 1', 'Electric Piano 2', 'Harpsichord',
-        piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+        piano_program = pretty_midi.instrument_name_to_program(
+            'Acoustic Grand Piano')
         piano = pretty_midi.Instrument(program=piano_program)
 
         # Fill in missing features with default values
@@ -626,7 +700,8 @@ class PianoMidiDataset(data.Dataset):
             if 'time_shift' in fill_features:
                 time_shift_value = self.default_value['time_shift']
             else:
-                time_shift_value = self.index2value['time_shift'][time_shift_ind]
+                time_shift_value = self.index2value['time_shift'][
+                    time_shift_ind]
 
             if pitch_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
                     duration_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL] or \
@@ -634,8 +709,10 @@ class PianoMidiDataset(data.Dataset):
                     time_shift_value in [PAD_SYMBOL, START_SYMBOL, END_SYMBOL]:
                 continue
 
-            note = pretty_midi.Note(
-                velocity=velocity_value, pitch=pitch_value, start=start_time, end=start_time + duration_value)
+            note = pretty_midi.Note(velocity=velocity_value,
+                                    pitch=pitch_value,
+                                    start=start_time,
+                                    end=start_time + duration_value)
 
             piano.notes.append(note)
 
@@ -643,6 +720,46 @@ class PianoMidiDataset(data.Dataset):
 
         score.instruments.append(piano)
         return score
+
+    def timeshift_indices_to_elapsed_time(self, timeshift_indices,
+                                          smallest_time_shift):
+        """
+        Reverse operation than tokenize using get_time_table_duration
+        """
+        # TODO write proper test
+        # WARNING any change here must be done in
+        # get_time_table_duration for consistency
+        y = torch.zeros_like(timeshift_indices).float()
+        x = timeshift_indices
+
+        # short time shifts
+        num_short_time_shifts = int(1 / smallest_time_shift)
+        y[x < num_short_time_shifts] = x[
+            x < num_short_time_shifts].float() * smallest_time_shift
+
+        # medium time shifts
+        num_medium_time_shifts = int((5. - 1.) / (5.0 * smallest_time_shift))
+        
+        medium_mask = torch.logical_and(num_short_time_shifts <= x,
+                                        x < num_short_time_shifts + num_medium_time_shifts)
+        y[medium_mask] = 1. + (x[medium_mask] - num_short_time_shifts
+                               ).float() * 5.0 * smallest_time_shift
+
+        num_long_time_shifts = int((20. - 5.) / (50. * smallest_time_shift))
+
+        long_mask = torch.logical_and(num_short_time_shifts + num_medium_time_shifts <= x,
+                                      x <
+                     num_short_time_shifts + num_medium_time_shifts +
+                     num_long_time_shifts)
+        y[long_mask] = 5. + (
+            x[long_mask] - num_short_time_shifts -
+            num_medium_time_shifts).float() * 50 * smallest_time_shift
+        # if not (x <= (num_short_time_shifts + num_medium_time_shifts +
+        #              num_long_time_shifts)).byte().all():
+        #     print(x.data)
+        # assert (x <= (num_short_time_shifts + num_medium_time_shifts +
+        #              num_long_time_shifts)).byte().all()
+        return y
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
         # data is a matrix (batch, ...)
@@ -660,10 +777,8 @@ class PianoMidiDataset(data.Dataset):
 
 
 if __name__ == '__main__':
-    corpus_it_gen = MaestroIteratorGenerator(
-        composers_filter=[],
-        num_elements=None
-    )
+    corpus_it_gen = MaestroIteratorGenerator(composers_filter=[],
+                                             num_elements=None)
     sequence_size = 120
     smallest_time_shift = 0.02
     max_transposition = 6
@@ -675,20 +790,15 @@ if __name__ == '__main__':
         'velocity_shift': True,
         'transposition': True,
     }
-    dataset = PianoMidiDataset(corpus_it_gen,
-                               sequence_size,
-                               smallest_time_shift,
-                               max_transposition,
-                               time_dilation_factor,
-                               velocity_shift,
+    dataset = PianoMidiDataset(corpus_it_gen, sequence_size,
+                               smallest_time_shift, max_transposition,
+                               time_dilation_factor, velocity_shift,
                                transformations)
 
-    dataloaders = dataset.data_loaders(
-        batch_size=32,
-        num_workers=0,
-        shuffle_train=True,
-        shuffle_val=True
-    )
+    dataloaders = dataset.data_loaders(batch_size=32,
+                                       num_workers=0,
+                                       shuffle_train=True,
+                                       shuffle_val=True)
 
     for x in dataloaders['train']:
         # Write back to midi

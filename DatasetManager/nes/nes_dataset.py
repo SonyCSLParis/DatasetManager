@@ -362,14 +362,14 @@ class SimpleNESDataset(Dataset):
         score[:, 2] = np.maximum(np.minimum(score[:, 2] + velocity_shift, [15]), [1])
 
         # pitch
-        melodic_shift = random.randint(-6, 6)
+        melodic_shift = random.randint(-6, 5)
         melodic_voices = score[:, 0][score[:, 0] < 3 * 128]
         # assumes the original midi notes lie between [6 and 122]
         score[:, 0][score[:, 0] < 3 * 128] = melodic_voices + melodic_shift        
 
         # 2. adjust the speed of the piece by a random percentage between +/- 5%
             
-        time_speed = 1 + (np.random.random() - 0.5) / 10
+        time_speed = 1 + (np.random.random() - 0.5) / 5
 
         score[:, 1] *= time_speed
         score[:, 3] *= time_speed
@@ -385,7 +385,6 @@ class SimpleNESDataset(Dataset):
         # channels: (pitch, duration, velocity, start_time!)
         ## data augmentation
         if self.train:
-
             score = self._data_augmentation(score)
 
         # Tokenize
@@ -442,8 +441,6 @@ class SimpleNESDataset(Dataset):
                 raise Exception
 
             for value in values:
-                index2value[index] = value
-                value2index[value] = index
                 index2value[index] = value
                 value2index[value] = index
                 index += 1

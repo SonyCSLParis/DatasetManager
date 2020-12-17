@@ -279,8 +279,10 @@ class NESDataset(Dataset):
 class SimpleNESDataset(Dataset):
     def __init__(self, phase='train', voices=None, sequences_size=None):
         self.sequences_size = sequences_size
+        # self.root = (Path(__file__) /
+        #              '../../../../data/simplenesmdb_midi').resolve()
         self.root = (Path(__file__) /
-                     '../../../../data/simplenesmdb_midi').resolve()
+                     '../../../../data/long_nsf_midi_dataset').resolve()
         self.voices = voices if voices is not None else [0, 1, 2, 3]
 
         self.train = phase == 'train'

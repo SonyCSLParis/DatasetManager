@@ -350,6 +350,12 @@ class SimpleNESDataset(Dataset):
 
         self.compute_index_dicts()
         
+    # TODO fix names
+    # alias
+    @property
+    def sequence_size(self):
+        return self.sequences_size
+    
     def _data_augmentation(self, score):
         """
         inplace

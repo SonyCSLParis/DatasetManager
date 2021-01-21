@@ -39,7 +39,7 @@ class PianoMidiDataset(data.Dataset):
     """
     def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
                  max_transposition, time_dilation_factor, velocity_shift,
-                 transformations, different_time_table_ts_duration):
+                 transformations, different_time_table_ts_duration, pad_before):
         """
         All transformations
         {
@@ -56,6 +56,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
         self.split = None
+        self.pad_before = pad_before
         self.list_ids = {'train': [], 'validation': [], 'test': []}
 
         self.corpus_it_gen = corpus_it_gen
@@ -118,6 +119,8 @@ class PianoMidiDataset(data.Dataset):
                f'{prefix}-' \
                f'{self.sequence_size}_' \
                f'{self.smallest_time_shift}'
+        if self.pad_before:
+            name += f'_padbefore'
         return name
 
     def __len__(self):
@@ -173,35 +176,39 @@ class PianoMidiDataset(data.Dataset):
                 f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt'
         ) as ff:
             sequence_length = int(ff.read())
+            
+        # start_time can be negative, used for padding
         start_time = id['start_time']
+        sequence_start_time = max(start_time, 0)
+        
         end_time = min(id['start_time'] + self.sequence_size, sequence_length)
         fpr_pitch = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
             dtype=int,
             mode='r',
             shape=(sequence_length))
-        sequence['pitch'] = fpr_pitch[start_time:end_time]
+        sequence['pitch'] = fpr_pitch[sequence_start_time:end_time]
         del fpr_pitch
         fpr_velocity = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity',
             dtype=int,
             mode='r',
             shape=(sequence_length))
-        sequence['velocity'] = fpr_velocity[start_time:end_time]
+        sequence['velocity'] = fpr_velocity[sequence_start_time:end_time]
         del fpr_velocity
         fpr_duration = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration',
             dtype='float32',
             mode='r',
             shape=(sequence_length))
-        sequence['duration'] = fpr_duration[start_time:end_time]
+        sequence['duration'] = fpr_duration[sequence_start_time:end_time]
         del fpr_duration
         fpr_time_shift = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift',
             dtype='float32',
             mode='r',
             shape=(sequence_length))
-        sequence['time_shift'] = fpr_time_shift[start_time:end_time]
+        sequence['time_shift'] = fpr_time_shift[sequence_start_time:end_time]
         del fpr_time_shift
         """ttt = time.time() - ttt
         print(f'Loading text files: {ttt}')
@@ -273,25 +280,25 @@ class PianoMidiDataset(data.Dataset):
 
     def add_start_end_symbols(self, sequence, start_time, sequence_size):
         sequence = {k: list(v) for k, v in sequence.items()}
-        if start_time == 0:
+        if start_time < 0:
+            before_padding_length = -start_time
             sequence = {
-                k: [START_SYMBOL] + v[:-1]
+                k: [PAD_SYMBOL] * (before_padding_length - 1) + [START_SYMBOL] + v
                 for k, v in sequence.items()
             }
-            # pitch = [START_SYMBOL] + pitch[:-1]
-            # velocity = [START_SYMBOL] + velocity[:-1]
-            # duration = [START_SYMBOL] + duration[:-1]
-            # time_shift = [START_SYMBOL] + time_shift[:-1]
+
         end_padding_length = sequence_size - len(sequence['pitch'])
         if end_padding_length > 0:
             sequence = {
                 k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
                 for k, v in sequence.items()
             }
-            # pitch += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            # velocity += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            # duration += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-            # time_shift += [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+        
+        # assert all sequences have the correct size
+        sequence = {
+            k: v[:sequence_size] for k, v in sequence.items()
+        }
+
         return sequence
 
     def tokenize(self, sequence):
@@ -302,6 +309,8 @@ class PianoMidiDataset(data.Dataset):
             self.value2index['velocity'][e] for e in sequence['velocity']
         ]
         # legacy...
+        # TODO use only one table?!
+        # This if state is always True
         if hasattr(self, 'time_table_duration'):
             sequence['duration'] = [
                 self.value2index['duration'][find_nearest_value(
@@ -399,7 +408,7 @@ class PianoMidiDataset(data.Dataset):
     def compute_index_dicts(self):
         ######################################################################
         #  Index 2 value
-        for feat_name in ['pitch', 'duration', 'velocity', 'time_shift']:
+        for feat_name in ['pitch', 'velocity', 'duration', 'time_shift']:
             index2value = {}
             value2index = {}
             index = 0
@@ -519,8 +528,14 @@ class PianoMidiDataset(data.Dataset):
                 with open(f'{path}/length.txt', 'r') as ff:
                     sequence_length = int(ff.read())
                 score_name = path.split('/')[-1]
+                                
                 # split in chunks
-                for start_time in range(0, sequence_length, self.hop_size):
+                # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length (actual size of the file)
+                if self.pad_before:
+                    start_at = -self.sequence_size + 1
+                else:
+                    start_at = -1
+                for start_time in range(start_at, sequence_length, self.hop_size):
                     chunk_counter[split] += 1
                     self.list_ids[split].append({
                         'score_name': score_name,

@@ -399,16 +399,64 @@ class SimpleNESDataset(Dataset):
         # replace midi pitches by an id so that every id between 0 and id_max are used
         score_dict = self.tokenize(score)
         if self.sequences_size is not None:
-            score_dict = self.pad_or_slice(data_dict=score_dict)
+            score_dict = self.add_start_end_pad_and_slice(data_dict=score_dict, 
+                                                          start_time=None)
         return score_dict
 
-    def pad_or_slice(self, data_dict):
+    # Old method
+    # def pad_or_slice(self, data_dict):
+    #     pitch = data_dict['pitch']
+    #     length = pitch.size(0)
+
+    #     if length < self.sequences_size:
+    #         pad_length = self.sequences_size - length
+
+    #         for feature in data_dict:
+    #             data_dict[feature] = torch.cat([
+    #                 data_dict[feature],
+    #                 torch.LongTensor([self.value2index[feature][END_SYMBOL]]),
+    #                 torch.LongTensor([self.value2index[feature][PAD_SYMBOL]
+    #                                   ]).repeat(pad_length - 1),
+    #             ],
+    #                                            dim=0)
+    #     elif length > self.sequences_size:
+    #         offset = random.randint(0, length - self.sequences_size - 1)
+    #         for feature in data_dict:
+    #             data_dict[feature] = data_dict[feature][offset:self.
+    #                                                     sequences_size +
+    #                                                     offset]
+    #     else:
+    #         pass
+    #     return data_dict
+    
+    def add_start_end_pad_and_slice(self, data_dict, start_time=None):
+        # TODO CHECK
+        if start_time is None:
+            # sample start time: between -sequences_size // 2 and sequences_size // 2
+            # this is arbitrary but useful with prefix_decoder
+            start_time = random.randint(
+                - self.sequences_size // 2, self.sequences_size // 2
+            )
+        
+        if start_time < 0:
+            # we append PAD symbols and START
+            num_symbols_to_add = -start_time
+            for feature in data_dict:
+                data_dict[feature] = torch.cat([                    
+                    torch.LongTensor([self.value2index[feature][PAD_SYMBOL]
+                                      ]).repeat(num_symbols_to_add - 1),
+                    torch.LongTensor([self.value2index[feature][START_SYMBOL]]),
+                    data_dict[feature]
+                ],
+                                               dim=0)
+        
+        # Same for the ending
         pitch = data_dict['pitch']
         length = pitch.size(0)
-
+        
+        # if we need to pad
         if length < self.sequences_size:
             pad_length = self.sequences_size - length
-
             for feature in data_dict:
                 data_dict[feature] = torch.cat([
                     data_dict[feature],
@@ -417,15 +465,25 @@ class SimpleNESDataset(Dataset):
                                       ]).repeat(pad_length - 1),
                 ],
                                                dim=0)
-        elif length > self.sequences_size:
-            offset = random.randint(0, length - self.sequences_size - 1)
-            for feature in data_dict:
-                data_dict[feature] = data_dict[feature][offset:self.
-                                                        sequences_size +
-                                                        offset]
         else:
-            pass
+            # we slice            
+            data_dict = {
+                k: v[:self.sequences_size]
+                         for k, v in data_dict.items()
+            }
         return data_dict
+    
+
+
+            
+        for feature in list_of_features:
+                list_of_features[feature] = torch.cat([
+                    list_of_features[feature],
+                    torch.LongTensor([self.value2index[feature][END_SYMBOL]]),
+                    torch.LongTensor([self.value2index[feature][PAD_SYMBOL]
+                                      ]).repeat(pad_length - 1),
+                ],
+                                               dim=0)
 
     def compute_index_dicts(self):
 

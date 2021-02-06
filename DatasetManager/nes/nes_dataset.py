@@ -386,6 +386,7 @@ class SimpleNESDataset(Dataset):
         
 
     def __getitem__(self, idx):
+        # This sampling is NOT uniform!
         path = self.paths[idx]
         # print(path)
         score = np.load(path, allow_pickle=False)
@@ -650,22 +651,27 @@ class SimpleNESDataset(Dataset):
         tensor_dict_detokenized = {}
         
         # remove END and XX symbols
-        first_non_pitch_index = np.inf
+        end_symbol_location = np.inf
         for i, p in enumerate(tensor_dict['pitch']):
-            if self.index2value['pitch'][p] in [END_SYMBOL, PAD_SYMBOL]:
-                first_non_pitch_index = i
+            if self.index2value['pitch'][p] in [END_SYMBOL]:
+                end_symbol_location = i
                 break                
             
+        start_symbol_location = -1
+        for i, p in enumerate(tensor_dict['pitch']):
+            if self.index2value['pitch'][p] in [START_SYMBOL]:
+                start_symbol_location = i                                
+        
         for k, v in tensor_dict.items():
             channel = []
             for i, n in enumerate(v):
                 print(f'{k} : {n} : {self.index2value[k][n]}')
-                if i < first_non_pitch_index:
+                if start_symbol_location < i < end_symbol_location:
+                    assert self.index2value[k][n] != PAD_SYMBOL
                     channel.append(self.index2value[k][n])
-                else:
-                    break
 
             tensor_dict_detokenized[k] = torch.Tensor(channel)
+        print(start_symbol_location, end_symbol_location)
         # cast
         tensor_dict_detokenized['pitch'] = tensor_dict_detokenized[
             'pitch'].long().numpy()

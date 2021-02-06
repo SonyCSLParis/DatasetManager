@@ -278,21 +278,38 @@ class PianoMidiDataset(data.Dataset):
             }
         }
 
-    def add_start_end_symbols(self, sequence, start_time, sequence_size):
+    def add_start_end_symbols(self, sequence,
+                              start_time,
+                              sequence_size,
+                              no_end=False,
+                              no_start=False
+                              ):
         sequence = {k: list(v) for k, v in sequence.items()}
         if start_time < 0:
             before_padding_length = -start_time
-            sequence = {
-                k: [PAD_SYMBOL] * (before_padding_length - 1) + [START_SYMBOL] + v
-                for k, v in sequence.items()
-            }
+            if no_start:
+                sequence = {
+                    k: [PAD_SYMBOL] * before_padding_length + v
+                    for k, v in sequence.items()
+                }
+            else:
+                sequence = {
+                    k: [PAD_SYMBOL] * (before_padding_length - 1) + [START_SYMBOL] + v
+                    for k, v in sequence.items()
+                }
 
         end_padding_length = sequence_size - len(sequence['pitch'])
         if end_padding_length > 0:
-            sequence = {
-                k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
-                for k, v in sequence.items()
-            }
+            if no_end:
+                sequence = {
+                    k: v + [PAD_SYMBOL] * end_padding_length
+                    for k, v in sequence.items()
+                }
+            else:
+                sequence = {
+                    k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+                    for k, v in sequence.items()
+                }
         
         # assert all sequences have the correct size
         sequence = {

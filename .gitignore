@@ -112,8 +112,9 @@ passwords.json
 stub.py
 .DS_Store
 
-# folders 
+# folders
 databases
 dump
 dataset_cache
 test.mid
+.vscode/launch.json

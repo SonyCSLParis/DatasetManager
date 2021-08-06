@@ -5,8 +5,10 @@ import pickle
 import random
 import re
 import shutil
+import librosa
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils import data
@@ -64,7 +66,7 @@ class WavetableDataset(data.Dataset):
     @property
     def data_folder_name(self):
         # Same as __str__ but without the sequence_len
-        name = f'Wavetable-{self.iterator_gen}'
+        name = str(self)
         return name
 
     @property
@@ -76,7 +78,7 @@ class WavetableDataset(data.Dataset):
 
     @property
     def dataset_file(self):
-        dataset_dir = f'{self.cache_dir}/{str(self)}'
+        dataset_dir = f'{self.cache_dir}/{str(self)}.txt'
         return dataset_dir
 
     def save(self):
@@ -98,156 +100,24 @@ class WavetableDataset(data.Dataset):
         Generates one sample of data
         """
         id = self.list_ids[self.split][index]
-
-        # Load data and extract subsequence
-        sequence = {}
-        with open(
-                f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt'
-        ) as ff:
-            sequence_length = int(ff.read())
-
-        # start_time can be negative, used for padding
-        start_time = id['start_time']
-        sequence_start_time = max(start_time, 0)
-
-        end_time = min(id['start_time'] + self.sequence_size, sequence_length)
-        fpr_pitch = np.memmap(
-            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
-            dtype=int,
+        wt_mmap = np.memmap(
+            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/wt',
+            dtype=np.float32,
             mode='r',
-            shape=(sequence_length))
-        sequence['pitch'] = fpr_pitch[sequence_start_time:end_time]
-        del fpr_pitch
-        fpr_velocity = np.memmap(
-            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/velocity',
-            dtype=int,
-            mode='r',
-            shape=(sequence_length))
-        sequence['velocity'] = fpr_velocity[sequence_start_time:end_time]
-        del fpr_velocity
-        fpr_duration = np.memmap(
-            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/duration',
-            dtype='float32',
-            mode='r',
-            shape=(sequence_length))
-        sequence['duration'] = fpr_duration[sequence_start_time:end_time]
-        del fpr_duration
-        fpr_time_shift = np.memmap(
-            f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/time_shift',
-            dtype='float32',
-            mode='r',
-            shape=(sequence_length))
-        sequence['time_shift'] = fpr_time_shift[sequence_start_time:end_time]
-        del fpr_time_shift
-        """ttt = time.time() - ttt
-        print(f'Loading text files: {ttt}')
-        ttt = time.time()"""
+            shape=(self.num_frames, self.samples_per_frame))
+        wt = wt_mmap
+        del wt_mmap
 
-        # Perform data augmentations (only for train split)
-        if (self.transformations['velocity_shift']) and (self.split
-                                                         == 'train'):
-            velocity_shift = int(self.velocity_shift *
-                                 (2 * random.random() - 1))
-            sequence['velocity'] = np.maximum(
-                0, np.minimum(127, sequence['velocity'] + velocity_shift))
-        else:
-            velocity_shift = 0
-        if (self.transformations['time_dilation']) and (self.split == 'train'):
-            time_dilation_factor = 1 - self.time_dilation_factor + 2 * self.time_dilation_factor * random.random(
-            )
-            sequence['duration'] = sequence['duration'] * time_dilation_factor
-            sequence[
-                'time_shift'] = sequence['time_shift'] * time_dilation_factor
-        else:
-            time_dilation_factor = 1
-        if (self.transformations['transposition']) and (self.split == 'train'):
-            transposition = int(
-                random.uniform(-self.max_transposition,
-                               self.max_transposition))
-            sequence['pitch'] = sequence['pitch'] + transposition
-            sequence['pitch'] = np.where(
-                sequence['pitch'] > self.pitch_range.stop - 1,
-                sequence['pitch'] - 12, sequence['pitch']
-            )  # lower one octave for sequence['pitch'] too high
-            sequence['pitch'] = np.where(
-                sequence['pitch'] < self.pitch_range.start,
-                sequence['pitch'] + 12,
-                sequence['pitch'])  # raise one octave for pitch too low
-        else:
-            transposition = 0
-        """ttt = time.time() - ttt
-        print(f'Data augmentation: {ttt}')
-        ttt = time.time()"""
+        # data augmentations (only for train split) ?? What would it be ?
+        # if self.transformations and (self.split == 'train'):
 
-        # Add pad, start and end symbols
-        sequence = self.add_start_end_symbols(sequence,
-                                              start_time=start_time,
-                                              sequence_size=self.sequence_size)
-        """ttt = time.time() - ttt
-        print(f'Adding meta symbols: {ttt}')
-        ttt = time.time()"""
+        # Add pad, start and end wavetables ??
 
         # Tokenize
-        sequence = self.tokenize(sequence)
-        """ttt = time.time() - ttt
-        print(f'Tokenizing: {ttt}')
-
-        print(f'###################################')"""
 
         return {
-            'pitch': torch.tensor(sequence['pitch']).long(),
-            'velocity': torch.tensor(sequence['velocity']).long(),
-            'duration': torch.tensor(sequence['duration']).long(),
-            'time_shift': torch.tensor(sequence['time_shift']).long(),
-            'index': index,
-            'data_augmentations': {
-                'time_dilation': time_dilation_factor,
-                'velocity_shift': velocity_shift,
-                'transposition': transposition
-            }
+            'wt': torch.tensor(wt).long(),
         }
-
-    def tokenize(self, sequence):
-        sequence['pitch'] = [
-            self.value2index['pitch'][e] for e in sequence['pitch']
-        ]
-        sequence['velocity'] = [
-            self.value2index['velocity'][e] for e in sequence['velocity']
-        ]
-        # legacy...
-        # TODO use only one table?!
-        # This if state is always True
-        if hasattr(self, 'time_table_duration'):
-            sequence['duration'] = [
-                self.value2index['duration'][find_nearest_value(
-                    self.time_table_duration, e)] if e not in [
-                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
-                    ] else self.value2index['duration'][e]
-                for e in sequence['duration']
-            ]
-            sequence['time_shift'] = [
-                self.value2index['time_shift'][find_nearest_value(
-                    self.time_table_time_shift, e)] if e not in [
-                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
-                    ] else self.value2index['time_shift'][e]
-                for e in sequence['time_shift']
-            ]
-        else:
-            sequence['duration'] = [
-                self.value2index['duration'][find_nearest_value(
-                    self.time_table, e)] if e not in [
-                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
-                    ] else self.value2index['duration'][e]
-                for e in sequence['duration']
-            ]
-            sequence['time_shift'] = [
-                self.value2index['time_shift'][find_nearest_value(
-                    self.time_table, e)] if e not in [
-                        PAD_SYMBOL, END_SYMBOL, START_SYMBOL
-                    ] else self.value2index['time_shift'][e]
-                for e in sequence['time_shift']
-            ]
-        return sequence
 
     def iterator_gen(self):
         return (elem for elem in self.iterator_gen())
@@ -336,44 +206,21 @@ class WavetableDataset(data.Dataset):
             for wt_file, split in tqdm(self.iterator_gen()):
                 # wav to wavetable
                 wt = self.process_wave(wt_file)
-                continue
+                if wt is None:
+                    continue
                 wt_name = f"{re.split('/', wt_file)[-2]}_{os.path.splitext(re.split('/', wt_file)[-1])[0]}"
                 folder_name = f'{self.cache_dir}/{self.data_folder_name}/{split}/{wt_name}'
                 if os.path.exists(folder_name):
                     print(f'Skipped {folder_name}')
                     continue
                 os.mkdir(folder_name)
-
-                # test mmap
-                sequence_length = len(sequences['pitch'])
-                with open(f'{folder_name}/length.txt', 'w') as ff:
-                    ff.write(f'{sequence_length:d}')
-                fp_pitch = np.memmap(f'{folder_name}/pitch',
-                                     dtype=int,
-                                     mode='w+',
-                                     shape=(sequence_length))
-                fp_pitch[:] = np.asarray(sequences['pitch']).astype(int)
-                del fp_pitch
-                fp_velocity = np.memmap(f'{folder_name}/velocity',
-                                        dtype=int,
-                                        mode='w+',
-                                        shape=(sequence_length))
-                fp_velocity[:] = np.asarray(sequences['velocity']).astype(int)
-                del fp_velocity
-                fp_duration = np.memmap(f'{folder_name}/duration',
-                                        dtype='float32',
-                                        mode='w+',
-                                        shape=(sequence_length))
-                fp_duration[:] = np.asarray(
-                    sequences['duration']).astype('float32')
-                del fp_duration
-                fp_time_shift = np.memmap(f'{folder_name}/time_shift',
-                                          dtype='float32',
-                                          mode='w+',
-                                          shape=(sequence_length))
-                fp_time_shift[:] = np.asarray(
-                    sequences['time_shift']).astype('float32')
-                del fp_time_shift
+                wt_mmap = np.memmap(f'{folder_name}/wt',
+                                    dtype=np.float32,
+                                    mode='w+',
+                                    shape=(self.num_frames,
+                                           self.samples_per_frame))
+                wt_mmap[:] = np.asarray(wt[:]).astype(np.float32)
+                del wt_mmap
             open(f'{self.cache_dir}/{self.data_folder_name}/xbuilt',
                  'w').close()
 
@@ -383,35 +230,47 @@ class WavetableDataset(data.Dataset):
                 f'{self.cache_dir}/{self.data_folder_name}/{split}/*')
             for path in paths:
                 # read file
-                with open(f'{path}/length.txt', 'r') as ff:
-                    sequence_length = int(ff.read())
+                # with open(f'{path}/length.txt', 'r') as ff:
+                #     sequence_length = int(ff.read())
                 score_name = path.split('/')[-1]
 
-                # split in chunks
-                # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length (actual size of the file)
-                if self.pad_before:
-                    start_at = -self.sequence_size + 1
-                else:
-                    start_at = -1
-                for start_time in range(start_at, sequence_length,
-                                        self.hop_size):
-                    chunk_counter[split] += 1
-                    self.list_ids[split].append({
-                        'score_name': score_name,
-                        'start_time': start_time,
-                    })
+                chunk_counter[split] += 1
+                self.list_ids[split].append({
+                    'score_name': score_name,
+                })
 
-        print(f'Chunks: {chunk_counter}\n')
+        print(f'Wavetables: {chunk_counter}\n')
 
         # Save class (actually only serve for self.list_ids, helps with reproducibility)
         self.save()
         return
 
     def process_wave(self, wt_file):
-        wt, sample_rate = torchaudio.load(wt_file)
-        self.visualize_wt(wt)
-        assert sample_rate == 44100
-        return wt
+        wt = torch.tensor(librosa.load(path=wt_file, sr=44100)[0])
+        if wt.size(0) % self.samples_per_frame != 0:
+            print(
+                'Skipping, wrong number of frames or wrong number of samples per frame'
+            )
+            return None
+        wt_split = wt.view(-1, self.samples_per_frame)
+        # downsample wavetable res if needed
+        if wt_split.shape[0] > self.num_frames:
+            indices_downsampled = np.arange(0,
+                                            wt_split.shape[0],
+                                            step=(wt_split.shape[0] //
+                                                  self.num_frames))
+            indices_downsampled = indices_downsampled[:32]
+            wt_split = wt_split[indices_downsampled]
+        elif wt_split.shape[0] < self.num_frames:
+            print(f'Skipping, could only find {wt_split.size(0)} frames')
+            return None
+        # self.visualize_wt(wt_split,
+        #                   name=os.path.splitext(os.path.basename(wt_file))[0])
+        assert wt_split.shape == (self.num_frames, self.samples_per_frame)
+        if torch.abs(wt_split).sum() == 0:
+            print(f'Skipping, empty file?')
+            return None
+        return wt_split
 
     def tensor_to_wavetable(self, sequences, fill_features):
         """
@@ -420,31 +279,50 @@ class WavetableDataset(data.Dataset):
         """
         raise NotImplementedError
 
-    def visualize_wt(self, wt):
-        # Truncate
-        wt_split = wt.view(self.samples_per_frame, -1)
-
-
+    def visualize_wt(self, wt, name):
+        fig = plt.figure(figsize=(8, 8), facecolor='black')
+        ax = plt.subplot(frameon=False)
+        X = np.linspace(-1, 1, wt.shape[-1])
+        lines = list(wt)
+        for i in range(len(wt)):
+            xscale = 1
+            line, = ax.plot(xscale * X, 2 * i + wt[i].numpy(), color="w")
+            lines.append(line)
+        # Set y limit (or first line is cropped because of thickness)
+        # ax.set_ylim(-1, 70)
+        # No ticks
+        ax.set_xticks([])
+        ax.set_yticks([])
+        # # 2 part titles to get different font weights
+        # ax.text(0.5, 1.0, "Wavetable", transform=ax.transAxes,
+        #         ha="right", va="bottom", color="w",
+        #         family="sans-serif", fontweight="light", fontsize=16)
+        # ax.text(0.5, 1.0, name, transform=ax.transAxes,
+        #         ha="left", va="bottom", color="w",
+        #         family="sans-serif", fontweight="bold", fontsize=16)
+        plt.savefig('dump/wavetable.pdf')
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):
-        # data is a matrix (batch, ...)
-        # Visualise a few examples
-        if len(piano_sequences.size()) == 1:
-            piano_sequences = torch.unsqueeze(piano_sequences, dim=0)
+        raise NotImplementedError
+        # # data is a matrix (batch, ...)
+        # # Visualise a few examples
+        # if len(piano_sequences.size()) == 1:
+        #     piano_sequences = torch.unsqueeze(piano_sequences, dim=0)
 
-        num_batches = len(piano_sequences)
+        # num_batches = len(piano_sequences)
 
-        for batch_ind in range(num_batches):
-            midipath = f"{writing_dir}/{filepath}_{batch_ind}.mid"
-            score = self.tensor_to_score(sequence=piano_sequences[batch_ind],
-                                         selected_features=None)
-            score.write(midipath)
+        # for batch_ind in range(num_batches):
+        #     midipath = f"{writing_dir}/{filepath}_{batch_ind}.mid"
+        #     score = self.tensor_to_score(sequence=piano_sequences[batch_ind],
+        #                                  selected_features=None)
+        #     score.write(midipath)
 
 
 if __name__ == '__main__':
-    iterator_gen = WavetableIteratorGenerator(num_elements=None)
+    num_elements = None
+    iterator_gen = WavetableIteratorGenerator(num_elements=num_elements)
     num_frames = 32
-    transformations = {}
+    transformations = False
     dataset = WavetableDataset(iterator_gen=iterator_gen,
                                num_frames=num_frames,
                                transformations=transformations)
@@ -455,5 +333,4 @@ if __name__ == '__main__':
                                        shuffle_val=True)
 
     for x in dataloaders['train']:
-        # Write back to midi
         print('yoyo')

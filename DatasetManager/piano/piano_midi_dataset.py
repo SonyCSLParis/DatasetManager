@@ -647,7 +647,7 @@ class PianoMidiDataset(data.Dataset):
                 event_values['time_shift'] = find_nearest_value(
                     self.time_table_time_shift, next_event.start - event.start)
             else:
-                event_values['time_shift'] = 0
+                event_values['time_shift'] = duration_value                
 
             #  Convert to str
             pitch_sequence.append(event_values['pitch'])

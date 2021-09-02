@@ -357,8 +357,4 @@ def get_all_datasets():
                     time_sigs=[(4, 4)]
                 )
             },
-        'mnist':
-            {
-                'dataset_class_name': MNISTDataset,
-            },
     }

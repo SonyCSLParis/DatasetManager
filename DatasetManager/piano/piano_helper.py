@@ -17,6 +17,8 @@ class PianoIteratorGenerator:
         self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/transcriptions/midi'
         # trains on piano relax
         # self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/transcriptions/relax_piano'
+        # trains on dirk
+        # self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/dirk'
         self.subsets = subsets
         self.num_elements = num_elements
 
@@ -31,6 +33,7 @@ class PianoIteratorGenerator:
         # TODO take into account subsets?
         ret = 'PianoIterator'
         # ret = 'PianoRelax'
+        # ret = 'Dirk3'
         if self.num_elements is not None:
             ret += f'_{self.num_elements}'
         return ret

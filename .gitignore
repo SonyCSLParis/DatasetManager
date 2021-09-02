@@ -1,3 +1,6 @@
+dump
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -112,7 +115,7 @@ passwords.json
 stub.py
 .DS_Store
 
-# folders 
+# folders
 databases
 dump
 dataset_cache

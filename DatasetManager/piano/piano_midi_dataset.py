@@ -19,10 +19,10 @@ from DatasetManager.piano.piano_helper import extract_cc, find_nearest_value, Ma
 Typical piano sequence:
 p0 p1 TS p0 p1 p2 TS p0 STOP X X X X
 
-If beginning: 
+If beginning:
 START p0 p1 TS p0 p1 p2 TS p0 STOP X X X
 
-If end: 
+If end:
 p0 p1 TS p0 p1 p2 TS p0 END STOP X X X
 
 """
@@ -39,7 +39,8 @@ class PianoMidiDataset(data.Dataset):
     """
     def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
                  max_transposition, time_dilation_factor, velocity_shift,
-                 transformations, different_time_table_ts_duration, pad_before):
+                 transformations, different_time_table_ts_duration,
+                 pad_before):
         """
         All transformations
         {
@@ -104,7 +105,7 @@ class PianoMidiDataset(data.Dataset):
             self.make_tensor_dataset()
 
         print('Loading index dictionnary')
-        # Can be different for every instance, so compute after loading
+        # Can be different for every instance, so compute after loading
         self.compute_index_dicts()
 
         #  data augmentations have to be initialised after loading
@@ -120,7 +121,7 @@ class PianoMidiDataset(data.Dataset):
                f'{self.sequence_size}_' \
                f'{self.smallest_time_shift}'
         if self.pad_before:
-            name += f'_padbefore'
+            name += '_padbefore'
         return name
 
     def __len__(self):
@@ -176,11 +177,11 @@ class PianoMidiDataset(data.Dataset):
                 f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/length.txt'
         ) as ff:
             sequence_length = int(ff.read())
-            
+
         # start_time can be negative, used for padding
         start_time = id['start_time']
         sequence_start_time = max(start_time, 0)
-        
+
         end_time = min(id['start_time'] + self.sequence_size, sequence_length)
         fpr_pitch = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
@@ -278,12 +279,12 @@ class PianoMidiDataset(data.Dataset):
             }
         }
 
-    def add_start_end_symbols(self, sequence,
+    def add_start_end_symbols(self,
+                              sequence,
                               start_time,
                               sequence_size,
                               no_end=False,
-                              no_start=False
-                              ):
+                              no_start=False):
         sequence = {k: list(v) for k, v in sequence.items()}
         if start_time < 0:
             before_padding_length = -start_time
@@ -294,7 +295,8 @@ class PianoMidiDataset(data.Dataset):
                 }
             else:
                 sequence = {
-                    k: [PAD_SYMBOL] * (before_padding_length - 1) + [START_SYMBOL] + v
+                    k: [PAD_SYMBOL] * (before_padding_length - 1) +
+                    [START_SYMBOL] + v
                     for k, v in sequence.items()
                 }
 
@@ -307,14 +309,13 @@ class PianoMidiDataset(data.Dataset):
                 }
             else:
                 sequence = {
-                    k: v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
+                    k:
+                    v + [END_SYMBOL] + [PAD_SYMBOL] * (end_padding_length - 1)
                     for k, v in sequence.items()
                 }
-        
+
         # assert all sequences have the correct size
-        sequence = {
-            k: v[:sequence_size] for k, v in sequence.items()
-        }
+        sequence = {k: v[:sequence_size] for k, v in sequence.items()}
 
         return sequence
 
@@ -545,14 +546,16 @@ class PianoMidiDataset(data.Dataset):
                 with open(f'{path}/length.txt', 'r') as ff:
                     sequence_length = int(ff.read())
                 score_name = path.split('/')[-1]
-                                
+
                 # split in chunks
-                # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length (actual size of the file)
+                # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length
+                # (actual size of the file)
                 if self.pad_before:
                     start_at = -self.sequence_size + 1
                 else:
                     start_at = -1
-                for start_time in range(start_at, sequence_length, self.hop_size):
+                for start_time in range(start_at, sequence_length,
+                                        self.hop_size):
                     chunk_counter[split] += 1
                     self.list_ids[split].append({
                         'score_name': score_name,
@@ -772,18 +775,19 @@ class PianoMidiDataset(data.Dataset):
 
         # medium time shifts
         num_medium_time_shifts = int((5. - 1.) / (5.0 * smallest_time_shift))
-        
-        medium_mask = torch.logical_and(num_short_time_shifts <= x,
-                                        x < num_short_time_shifts + num_medium_time_shifts)
+
+        medium_mask = torch.logical_and(
+            num_short_time_shifts <= x,
+            x < num_short_time_shifts + num_medium_time_shifts)
         y[medium_mask] = 1. + (x[medium_mask] - num_short_time_shifts
                                ).float() * 5.0 * smallest_time_shift
 
         num_long_time_shifts = int((20. - 5.) / (50. * smallest_time_shift))
 
-        long_mask = torch.logical_and(num_short_time_shifts + num_medium_time_shifts <= x,
-                                      x <
-                     num_short_time_shifts + num_medium_time_shifts +
-                     num_long_time_shifts)
+        long_mask = torch.logical_and(
+            num_short_time_shifts + num_medium_time_shifts <= x,
+            x < num_short_time_shifts + num_medium_time_shifts +
+            num_long_time_shifts)
         y[long_mask] = 5. + (
             x[long_mask] - num_short_time_shifts -
             num_medium_time_shifts).float() * 50 * smallest_time_shift

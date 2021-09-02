@@ -9,7 +9,6 @@ class PianoIteratorGenerator:
     Object that returns a iterator over midi files when called
     :return:
     """
-
     def __init__(self, subsets, num_elements=None):
         # TODO hard coded: create multiple IteratorGenerators
         # self.path = f'{os.path.expanduser("~")}/Data/databases/Piano'
@@ -23,12 +22,9 @@ class PianoIteratorGenerator:
         self.num_elements = num_elements
 
     def __call__(self, *args, **kwargs):
-        it = (
-            xml_file
-            for xml_file in self.generator()
-        )
+        it = (xml_file for xml_file in self.generator())
         return it
-    
+
     def __str__(self) -> str:
         # TODO take into account subsets?
         ret = 'PianoIterator'
@@ -37,26 +33,23 @@ class PianoIteratorGenerator:
         if self.num_elements is not None:
             ret += f'_{self.num_elements}'
         return ret
-        
 
-    def generator(self):            
+    def generator(self):
         midi_files = []
         for subset in self.subsets:
             # Should return pairs of files
-            midi_files += (glob.glob(
-                os.path.join(self.path, subset, '**', '*.mid'),
-                recursive=True))
-            midi_files += (glob.glob(
-                os.path.join(self.path, subset, '*.midi'),
-                recursive=True))
-            midi_files += (glob.glob(
-                os.path.join(self.path, subset, '*.MID'),
-                recursive=True))
-            
+            midi_files += (glob.glob(os.path.join(self.path, subset, '**',
+                                                  '*.mid'),
+                                     recursive=True))
+            midi_files += (glob.glob(os.path.join(self.path, subset, '*.midi'),
+                                     recursive=True))
+            midi_files += (glob.glob(os.path.join(self.path, subset, '*.MID'),
+                                     recursive=True))
+
         if self.num_elements is not None:
             midi_files = midi_files[:self.num_elements]
-            
-        split_csv_path = os.path.join(self.path, 'split.csv')
+
+        split_csv_path = os.path.join(self.path, f'split_{str(self)}.csv')
         if not os.path.exists(split_csv_path):
             self._create_split_csv(midi_files, split_csv_path)
         with open(split_csv_path, 'r') as csv_file:
@@ -70,22 +63,22 @@ class PianoIteratorGenerator:
         for midi_file, split in d.items():
             print(midi_file)
             yield midi_file, split
-            
+
     def _create_split_csv(self, midi_files, split_csv_path):
         print('Creating CSV split')
         with open(split_csv_path, 'w') as file:
             # header
             header = 'midi_filename\tsplit\n'
             file.write(header)
-            
+
             for k, midi_file_path in enumerate(midi_files):
                 # 90/10/0 split
                 if k % 10 == 0:
                     split = 'validation'
                 else:
-                    split = 'train'                    
+                    split = 'train'
                 entry = f'{midi_file_path}\t{split}\n'
-                file.write(entry)                
+                file.write(entry)
 
 
 class MaestroIteratorGenerator:
@@ -93,7 +86,6 @@ class MaestroIteratorGenerator:
     Object that returns a iterator over xml files when called
     :return:
     """
-
     def __init__(self, composers_filter=[], num_elements=None):
         self.path = f'{os.path.expanduser("~")}/Data/databases/Piano/maestro-v2.0.0'
         self.composers_filter = composers_filter
@@ -106,10 +98,7 @@ class MaestroIteratorGenerator:
         return ret
 
     def __call__(self, *args, **kwargs):
-        it = (
-            elem
-            for elem in self.generator()
-        )
+        it = (elem for elem in self.generator())
         return it
 
     def generator(self):
@@ -175,18 +164,16 @@ def find_nearest_value(array, value):
 def get_time_table_ts(smallest_time_shift):
     short_time_shifts = np.arange(0, 0.5, smallest_time_shift)
     medium_time_shifts = np.arange(0.5, 5.0, 5.0 * smallest_time_shift)
-    time_shift_bins = np.concatenate((short_time_shifts,
-                                      medium_time_shifts))
+    time_shift_bins = np.concatenate((short_time_shifts, medium_time_shifts))
     return time_shift_bins
 
 
 def get_time_table_duration(smallest_time_shift):
-    # WARNING any change here must be done in 
+    # WARNING any change here must be done in
     # PianoMidiDataset.timeshift_indices_to_elapsed_time for consistency
     short_time_shifts = np.arange(0, 1.0, smallest_time_shift)
     medium_time_shifts = np.arange(1.0, 5.0, 5.0 * smallest_time_shift)
     long_time_shifts = np.arange(5.0, 20., 50 * smallest_time_shift)
-    time_shift_bins = np.concatenate((short_time_shifts,
-                                      medium_time_shifts,
-                                      long_time_shifts))
+    time_shift_bins = np.concatenate(
+        (short_time_shifts, medium_time_shifts, long_time_shifts))
     return time_shift_bins

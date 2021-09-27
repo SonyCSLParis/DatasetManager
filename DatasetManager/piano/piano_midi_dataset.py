@@ -40,7 +40,7 @@ class PianoMidiDataset(data.Dataset):
     def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
                  max_transposition, time_dilation_factor, velocity_shift,
                  transformations, different_time_table_ts_duration,
-                 pad_before):
+                 pad_before, pad_after):
         """
         All transformations
         {
@@ -57,7 +57,22 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
         self.split = None
-        self.pad_before = pad_before
+        if type(pad_before) == int:
+            assert (pad_before > 0) and (pad_before < sequence_size), 'wrong pad_before size'
+            self.pad_before = pad_before
+        else:
+            if pad_before:
+                self.pad_before = sequence_size
+            else:
+                self.pad_before = 1
+
+        if type(pad_after) == int:
+            # can be negative to force sequences to be longer than a certain size
+            assert (pad_after < sequence_size), 'wrong pad_before size'
+            self.pad_after = pad_after
+        else:
+            self.pad_after = 0
+
         self.list_ids = {'train': [], 'validation': [], 'test': []}
 
         self.corpus_it_gen = corpus_it_gen
@@ -120,8 +135,12 @@ class PianoMidiDataset(data.Dataset):
                f'{prefix}-' \
                f'{self.sequence_size}_' \
                f'{self.smallest_time_shift}'
-        if self.pad_before:
+        if self.pad_before == self.sequence_size:
             name += '_padbefore'
+        elif self.pad_before > 1:
+            name += f'_padbefore{self.pad_before}'
+        if (self.pad_after != 0):
+            name += f'_padafter{self.pad_after}'
         return name
 
     def __len__(self):
@@ -181,8 +200,8 @@ class PianoMidiDataset(data.Dataset):
         # start_time can be negative, used for padding
         start_time = id['start_time']
         sequence_start_time = max(start_time, 0)
-
         end_time = min(id['start_time'] + self.sequence_size, sequence_length)
+
         fpr_pitch = np.memmap(
             f'{self.cache_dir}/{self.data_folder_name}/{self.split}/{id["score_name"]}/pitch',
             dtype=int,
@@ -550,11 +569,9 @@ class PianoMidiDataset(data.Dataset):
                 # split in chunks
                 # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length
                 # (actual size of the file)
-                if self.pad_before:
-                    start_at = -self.sequence_size + 1
-                else:
-                    start_at = -1
-                for start_time in range(start_at, sequence_length,
+                start_at = -self.pad_before + 1
+                end_at = sequence_length + self.pad_after
+                for start_time in range(start_at, end_at,
                                         self.hop_size):
                     chunk_counter[split] += 1
                     self.list_ids[split].append({
@@ -647,7 +664,7 @@ class PianoMidiDataset(data.Dataset):
                 event_values['time_shift'] = find_nearest_value(
                     self.time_table_time_shift, next_event.start - event.start)
             else:
-                event_values['time_shift'] = duration_value                
+                event_values['time_shift'] = duration_value
 
             #  Convert to str
             pitch_sequence.append(event_values['pitch'])
@@ -795,6 +812,7 @@ class PianoMidiDataset(data.Dataset):
         #     print(x.data)
         # assert (x <= (num_short_time_shifts + num_medium_time_shifts +
         #              num_long_time_shifts)).byte().all()
+        assert torch.all(y >= 0)
         return y
 
     def visualise_batch(self, piano_sequences, writing_dir, filepath):

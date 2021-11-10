@@ -39,8 +39,8 @@ class PianoMidiDataset(data.Dataset):
     """
     def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
                  max_transposition, time_dilation_factor, velocity_shift,
-                 transformations, different_time_table_ts_duration,
-                 pad_before, pad_after):
+                 transformations, different_time_table_ts_duration, pad_before,
+                 pad_after):
         """
         All transformations
         {
@@ -58,7 +58,8 @@ class PianoMidiDataset(data.Dataset):
         super().__init__()
         self.split = None
         if type(pad_before) == int:
-            assert (pad_before > 0) and (pad_before < sequence_size), 'wrong pad_before size'
+            assert (pad_before > 0) and (
+                pad_before < sequence_size), 'wrong pad_before size'
             self.pad_before = pad_before
         else:
             if pad_before:
@@ -569,10 +570,9 @@ class PianoMidiDataset(data.Dataset):
                 # split in chunks
                 # WARNING difference between self.sequence_size (size of the returned sequences) and sequence_length
                 # (actual size of the file)
-                start_at = -self.pad_before + 1
+                start_at = -self.pad_before
                 end_at = sequence_length + self.pad_after
-                for start_time in range(start_at, end_at,
-                                        self.hop_size):
+                for start_time in range(start_at, end_at, self.hop_size):
                     chunk_counter[split] += 1
                     self.list_ids[split].append({
                         'score_name': score_name,

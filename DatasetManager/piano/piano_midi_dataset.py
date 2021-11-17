@@ -39,8 +39,8 @@ class PianoMidiDataset(data.Dataset):
     """
     def __init__(self, corpus_it_gen, sequence_size, smallest_time_shift,
                  max_transposition, time_dilation_factor, velocity_shift,
-                 transformations, different_time_table_ts_duration, pad_before,
-                 pad_after):
+                 transformations, different_time_table_ts_duration,
+                 offset_beginning, offset_end):
         """
         All transformations
         {
@@ -57,6 +57,7 @@ class PianoMidiDataset(data.Dataset):
         """
         super().__init__()
         self.split = None
+        pad_before = -offset_beginning
         if type(pad_before) == int:
             assert (pad_before > 0) and (
                 pad_before < sequence_size), 'wrong pad_before size'
@@ -67,9 +68,10 @@ class PianoMidiDataset(data.Dataset):
             else:
                 self.pad_before = 1
 
+        pad_after = offset_end  # poor notation... pad_after is negativeto shift start of sequence to the left
         if type(pad_after) == int:
             # can be negative to force sequences to be longer than a certain size
-            assert (pad_after < sequence_size), 'wrong pad_before size'
+            assert (pad_after < sequence_size), 'wrong pad_after size'
             self.pad_after = pad_after
         else:
             self.pad_after = 0
